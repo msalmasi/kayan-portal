@@ -20,19 +20,21 @@ export default async function AuthenticatedLayout({
 
   if (!user) redirect("/login");
 
-  // Check if user is an admin (for showing the admin nav link)
+  // Check if user is an admin (for showing the admin nav links)
   const adminSupabase = createAdminSupabase();
   const { data: adminUser } = await adminSupabase
     .from("admin_users")
-    .select("id")
+    .select("id, role")
     .ilike("email", user.email!)
     .single();
 
   const isAdmin = !!adminUser;
+  // Managers can access admin panel but cannot manage team members
+  const adminRole = (adminUser?.role as string) || null;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar isAdmin={isAdmin} />
+      <Sidebar isAdmin={isAdmin} adminRole={adminRole} />
 
       {/* Main content — offset by sidebar width on desktop */}
       <main className="lg:ml-64 min-h-screen">

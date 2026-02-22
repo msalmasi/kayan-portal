@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { KycBadge } from "@/components/ui/Badge";
@@ -36,6 +37,12 @@ export default function AdminPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Add investor form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newName, setNewName] = useState("");
+  const [addingSaving, setAddingSaving] = useState(false);
+
   const fetchInvestors = useCallback(async () => {
     setLoading(true);
     const res = await fetch(
@@ -58,6 +65,31 @@ export default function AdminPage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  /** Create a new investor manually */
+  const handleAddInvestor = async () => {
+    if (!newEmail || !newName) return;
+    setAddingSaving(true);
+
+    const res = await fetch("/api/admin/investors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: newEmail, full_name: newName }),
+    });
+
+    setAddingSaving(false);
+
+    if (res.ok) {
+      toast.success(`Added investor ${newName}`);
+      setNewEmail("");
+      setNewName("");
+      setShowAddForm(false);
+      fetchInvestors();
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to add investor");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with action buttons */}
@@ -69,7 +101,14 @@ export default function AdminPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            {showAddForm ? "Cancel" : "Add Investor"}
+          </Button>
           <Link href="/admin/rounds">
             <Button variant="secondary" size="sm">
               Manage Rounds
@@ -82,6 +121,55 @@ export default function AdminPage() {
           </Link>
         </div>
       </div>
+
+      {/* Add Investor Form */}
+      {showAddForm && (
+        <Card>
+          <CardHeader
+            title="Add Investor"
+            subtitle="Manually create a new investor record"
+          />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Full Name *
+              </label>
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Jane Doe"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Email *
+              </label>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="jane@example.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button
+                onClick={handleAddInvestor}
+                loading={addingSaving}
+                disabled={!newEmail || !newName}
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            After creating the investor, you can add allocations from their
+            detail page.
+          </p>
+        </Card>
+      )}
 
       {/* Investor List */}
       <Card>

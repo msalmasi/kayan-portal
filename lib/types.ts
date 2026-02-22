@@ -43,7 +43,7 @@ export interface AllocationWithRound extends Allocation {
 export interface AdminUser {
   id: string;
   email: string;
-  role: "admin" | "super_admin";
+  role: "super_admin" | "admin" | "manager";
   created_at: string;
 }
 
