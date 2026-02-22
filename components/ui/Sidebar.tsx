@@ -91,7 +91,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   // Build nav items dynamically based on role
   const items = [...navItems];
   if (isAdmin) {
-    items.push({ href: "/admin", label: "Admin", icon: AdminIcon });
+    items.push({ href: "/admin/investors", label: "Investors", icon: AdminIcon });
     // Only admin and super_admin can see Team management (not managers)
     if (adminRole === "admin" || adminRole === "super_admin") {
       items.push({ href: "/admin/team", label: "Team", icon: TeamIcon });
@@ -112,6 +112,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
       {/* Nav Links */}
       <nav className="flex-1 p-4 space-y-1">
         {items.map((item) => {
+          // Exact match for top-level routes, startsWith for nested ones
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
 

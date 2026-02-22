@@ -103,7 +103,7 @@ export default function ImportPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
-          href="/admin"
+          href="/admin/investors"
           className="text-gray-400 hover:text-gray-600 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

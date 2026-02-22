@@ -135,7 +135,7 @@ export default function InvestorDetailPage() {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Investor not found.</p>
-        <Link href="/admin" className="text-kayan-500 hover:underline text-sm mt-2 inline-block">
+        <Link href="/admin/investors" className="text-kayan-500 hover:underline text-sm mt-2 inline-block">
           ← Back to admin
         </Link>
       </div>
@@ -147,7 +147,7 @@ export default function InvestorDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
-          href="/admin"
+          href="/admin/investors"
           className="text-gray-400 hover:text-gray-600 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
