@@ -142,24 +142,57 @@ export default function InvestorDetailPage() {
     );
   }
 
+  /** Delete investor and redirect to list */
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        `Permanently delete ${investor.full_name}? This will also remove all their allocations. This cannot be undone.`
+      )
+    )
+      return;
+
+    const res = await fetch(`/api/admin/investors/${investorId}`, {
+      method: "DELETE",
+    });
+
+    if (res.ok) {
+      toast.success(`Deleted ${investor.full_name}`);
+      router.push("/admin/investors");
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to delete investor");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/admin/investors"
-          className="text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {investor.full_name}
-          </h1>
-          <p className="text-sm text-gray-500">{investor.email}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/investors"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {investor.full_name}
+            </h1>
+            <p className="text-sm text-gray-500">{investor.email}</p>
+          </div>
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDelete}
+          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+        >
+          Delete Investor
+        </Button>
       </div>
 
       {/* Edit Investor Info */}

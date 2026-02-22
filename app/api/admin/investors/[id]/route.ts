@@ -100,3 +100,28 @@ export async function PATCH(
 
   return NextResponse.json(data);
 }
+
+/**
+ * DELETE /api/admin/investors/[id]
+ * Remove an investor and all their allocations (cascade via FK).
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const supabase = await getAdminClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { error } = await supabase
+    .from("investors")
+    .delete()
+    .eq("id", params.id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true });
+}
