@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
+import { DisclaimerModal } from "@/components/ui/DisclaimerModal";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans antialiased bg-gray-50 text-gray-900">
         {children}
+        <DisclaimerModal />
         {/* Global toast notifications — used by admin actions */}
         <Toaster position="bottom-right" richColors />
       </body>
