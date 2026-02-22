@@ -44,7 +44,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...   # keep this secret!
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### 4. Add Your Admin!
+### 4. Add Your Admin
 
 In the Supabase SQL Editor:
 
