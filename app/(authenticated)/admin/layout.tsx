@@ -26,7 +26,7 @@ export default async function AdminLayout({
   const { data: adminUser } = await adminSupabase
     .from("admin_users")
     .select("id, role")
-    .eq("email", user.email)
+    .ilike("email", user.email!)
     .single();
 
   // Not an admin — redirect to dashboard

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const { data: adminUser } = await adminSupabase
     .from("admin_users")
     .select("id")
-    .eq("email", user.email)
+    .ilike("email", user.email!)
     .single();
 
   if (!adminUser) {

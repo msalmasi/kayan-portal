@@ -25,7 +25,7 @@ export default async function AuthenticatedLayout({
   const { data: adminUser } = await adminSupabase
     .from("admin_users")
     .select("id")
-    .eq("email", user.email)
+    .ilike("email", user.email!)
     .single();
 
   const isAdmin = !!adminUser;

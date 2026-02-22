@@ -22,11 +22,11 @@ export default async function DashboardPage() {
 
   if (!user?.email) redirect("/login");
 
-  // Fetch the investor record — RLS ensures only their own
+  // Fetch the investor record — use ilike for case-insensitive match
   const { data: investor } = await supabase
     .from("investors")
     .select("*")
-    .eq("email", user.email)
+    .ilike("email", user.email)
     .single();
 
   // If no investor record exists for this email, show a support message

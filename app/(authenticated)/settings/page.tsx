@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   const { data: investor } = await supabase
     .from("investors")
     .select("*")
-    .eq("email", user.email)
+    .ilike("email", user.email)
     .single();
 
   const inv = investor as Investor | null;

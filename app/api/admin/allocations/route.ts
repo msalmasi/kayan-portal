@@ -29,7 +29,7 @@ async function getAdminClient() {
   const { data } = await adminSupabase
     .from("admin_users")
     .select("id")
-    .eq("email", user.email)
+    .ilike("email", user.email!)
     .single();
 
   return data ? adminSupabase : null;
