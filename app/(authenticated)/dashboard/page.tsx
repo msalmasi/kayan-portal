@@ -1,0 +1,109 @@
+import { redirect } from "next/navigation";
+import { createServerSupabase } from "@/lib/supabase-server";
+import { AllocationWithRound, Investor } from "@/lib/types";
+import { StatCards } from "@/components/dashboard/StatCards";
+import { AllocationTable } from "@/components/dashboard/AllocationTable";
+import { VestingChart } from "@/components/dashboard/VestingChart";
+import { KycSection, WalletSection } from "@/components/dashboard/Placeholders";
+
+/**
+ * /dashboard — Main investor view
+ *
+ * Server Component: fetches data directly from Supabase with RLS.
+ * The investor only sees their own records (enforced by RLS policies).
+ */
+export default async function DashboardPage() {
+  const supabase = await createServerSupabase();
+
+  // Get the current user's email
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) redirect("/login");
+
+  // Fetch the investor record — RLS ensures only their own
+  const { data: investor } = await supabase
+    .from("investors")
+    .select("*")
+    .eq("email", user.email)
+    .single();
+
+  // If no investor record exists for this email, show a support message
+  if (!investor) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <svg
+            className="w-8 h-8 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+            />
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold text-gray-900">
+          No investor record found
+        </h2>
+        <p className="text-sm text-gray-500 mt-2 max-w-md">
+          Your email ({user.email}) is not associated with any SAFT agreement.
+          If you believe this is an error, please contact{" "}
+          <a
+            href="mailto:support@kayanforest.com"
+            className="text-kayan-500 hover:underline"
+          >
+            support@kayanforest.com
+          </a>
+          .
+        </p>
+      </div>
+    );
+  }
+
+  // Fetch allocations with joined round details
+  const { data: allocations } = await supabase
+    .from("allocations")
+    .select("*, saft_rounds(*)")
+    .eq("investor_id", investor.id);
+
+  const typedAllocations = (allocations || []) as AllocationWithRound[];
+  const typedInvestor = investor as Investor;
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Welcome, {typedInvestor.full_name}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Your $KAYAN token allocation overview
+        </p>
+      </div>
+
+      {/* Summary Stats */}
+      <StatCards
+        allocations={typedAllocations}
+        kycStatus={typedInvestor.kyc_status}
+      />
+
+      {/* Allocation Details */}
+      <AllocationTable allocations={typedAllocations} />
+
+      {/* Vesting Schedule Chart */}
+      <VestingChart allocations={typedAllocations} />
+
+      {/* KYC & Wallet (disabled placeholders) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <KycSection status={typedInvestor.kyc_status} />
+        <WalletSection walletAddress={typedInvestor.wallet_address} />
+      </div>
+    </div>
+  );
+}
