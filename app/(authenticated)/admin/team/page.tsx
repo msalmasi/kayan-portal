@@ -11,10 +11,10 @@ import { useAdminRole } from "@/lib/hooks";
 import { AdminUser } from "@/lib/types";
 
 /** Maps role strings to badge variants and display labels */
-const roleBadge: Record<string, { variant: "green" | "yellow" | "gray"; label: string }> = {
-  super_admin: { variant: "green", label: "Super Admin" },
+const roleBadge: Record<string, { variant: "green" | "yellow" | "gray" | "red"; label: string }> = {
+  super_admin: { variant: "red", label: "Super Admin" },
   admin:       { variant: "yellow", label: "Admin" },
-  manager:     { variant: "gray", label: "Manager" },
+  manager:     { variant: "green", label: "Manager" },
   staff:       { variant: "gray", label: "Staff" },
 };
 
@@ -154,7 +154,7 @@ export default function TeamPage() {
         <CardHeader title="Roles" subtitle="What each role can do" />
         <div className="space-y-3 text-sm">
           <div className="flex items-start gap-3">
-            <Badge variant="green">Super Admin</Badge>
+            <Badge variant="red">Super Admin</Badge>
             <span className="text-gray-600">Full access including managing all team members</span>
           </div>
           <div className="flex items-start gap-3">
@@ -164,7 +164,7 @@ export default function TeamPage() {
             </span>
           </div>
           <div className="flex items-start gap-3">
-            <Badge variant="gray">Manager</Badge>
+            <Badge variant="green">Manager</Badge>
             <span className="text-gray-600">
               Can manage investors, rounds, allocations, and CSV imports. Can view team members but cannot manage them.
             </span>
