@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { useAdminRole } from "@/lib/hooks";
 import { AdminUser } from "@/lib/types";
 
 /** Maps role strings to badge variants and display labels */
-const roleBadge: Record<string, { variant: "green" | "yellow" | "gray" | "gray"; label: string }> = {
+const roleBadge: Record<string, { variant: "green" | "yellow" | "gray"; label: string }> = {
   super_admin: { variant: "green", label: "Super Admin" },
   admin:       { variant: "yellow", label: "Admin" },
   manager:     { variant: "gray", label: "Manager" },
@@ -17,8 +19,13 @@ const roleBadge: Record<string, { variant: "green" | "yellow" | "gray" | "gray";
 };
 
 export default function TeamPage() {
+  const router = useRouter();
+  const { role: myRole, loading: roleLoading } = useAdminRole();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Only admin and super_admin can write (add/edit/remove)
+  const canManage = myRole === "admin" || myRole === "super_admin";
 
   // Add form state
   const [showForm, setShowForm] = useState(false);
@@ -31,9 +38,9 @@ export default function TeamPage() {
     const res = await fetch("/api/admin/users");
 
     if (res.status === 403) {
-      // Manager trying to access — they shouldn't be here
-      toast.error("You don't have permission to manage team members");
-      setLoading(false);
+      // Staff or unauthorized — redirect away
+      toast.error("You don't have permission to view this page");
+      router.push("/admin/investors");
       return;
     }
 
@@ -41,11 +48,18 @@ export default function TeamPage() {
       setUsers(await res.json());
     }
     setLoading(false);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (!roleLoading) {
+      // Staff: redirect immediately (also enforced by API)
+      if (myRole === "staff") {
+        router.push("/admin/investors");
+        return;
+      }
+      fetchUsers();
+    }
+  }, [roleLoading, myRole, fetchUsers, router]);
 
   const resetForm = () => {
     setNewEmail("");
@@ -53,7 +67,7 @@ export default function TeamPage() {
     setShowForm(false);
   };
 
-  /** Add a new admin/manager */
+  /** Add a new team member */
   const handleAdd = async () => {
     if (!newEmail) return;
     setSaving(true);
@@ -110,6 +124,9 @@ export default function TeamPage() {
     }
   };
 
+  // Show nothing while checking role
+  if (roleLoading) return null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -125,7 +142,9 @@ export default function TeamPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage admin and manager access to the portal
+            {canManage
+              ? "Manage admin and manager access to the portal"
+              : "View team members (you have read-only access)"}
           </p>
         </div>
       </div>
@@ -141,19 +160,19 @@ export default function TeamPage() {
           <div className="flex items-start gap-3">
             <Badge variant="yellow">Admin</Badge>
             <span className="text-gray-600">
-              Full access. Can add/remove Managers and Admins, but not Super Admins.
+              Full access. Can add/remove Managers and Staff, but not other Admins or Super Admins.
             </span>
           </div>
           <div className="flex items-start gap-3">
             <Badge variant="gray">Manager</Badge>
             <span className="text-gray-600">
-              Can manage investors, rounds, allocations, and CSV imports. Cannot manage team members.
+              Can manage investors, rounds, allocations, and CSV imports. Can view team members but cannot manage them.
             </span>
           </div>
           <div className="flex items-start gap-3">
             <Badge variant="gray">Staff</Badge>
             <span className="text-gray-600">
-              View-only access to all admin pages. Cannot create, edit, or delete anything.
+              View-only access to investor and round data. Cannot view or manage team members.
             </span>
           </div>
         </div>
@@ -166,13 +185,15 @@ export default function TeamPage() {
             title="Team Members"
             subtitle={`${users.length} member${users.length !== 1 ? "s" : ""}`}
           />
-          <Button onClick={() => setShowForm(!showForm)} size="sm">
-            {showForm ? "Cancel" : "Add Member"}
-          </Button>
+          {canManage && (
+            <Button onClick={() => setShowForm(!showForm)} size="sm">
+              {showForm ? "Cancel" : "Add Member"}
+            </Button>
+          )}
         </div>
 
-        {/* Add Form */}
-        {showForm && (
+        {/* Add Form — only for admin/super_admin */}
+        {canManage && showForm && (
           <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
@@ -198,8 +219,12 @@ export default function TeamPage() {
                 >
                   <option value="staff">Staff</option>
                   <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
-                  <option value="super_admin">Super Admin</option>
+                  {myRole === "super_admin" && (
+                    <>
+                      <option value="admin">Admin</option>
+                      <option value="super_admin">Super Admin</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div className="flex items-end">
@@ -223,25 +248,27 @@ export default function TeamPage() {
                 <th className="text-left py-3 px-2 font-medium text-gray-500">Email</th>
                 <th className="text-left py-3 px-2 font-medium text-gray-500">Role</th>
                 <th className="text-left py-3 px-2 font-medium text-gray-500">Added</th>
-                <th className="text-right py-3 px-2 font-medium text-gray-500"></th>
+                {canManage && (
+                  <th className="text-right py-3 px-2 font-medium text-gray-500"></th>
+                )}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center text-gray-400">
+                  <td colSpan={canManage ? 4 : 3} className="py-12 text-center text-gray-400">
                     Loading...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center text-gray-400">
+                  <td colSpan={canManage ? 4 : 3} className="py-12 text-center text-gray-400">
                     No team members found
                   </td>
                 </tr>
               ) : (
                 users.map((u) => {
-                  const badge = roleBadge[u.role] || roleBadge.manager;
+                  const badge = roleBadge[u.role] || roleBadge.staff;
                   return (
                     <tr
                       key={u.id}
@@ -251,28 +278,38 @@ export default function TeamPage() {
                         {u.email}
                       </td>
                       <td className="py-3 px-2">
-                        <select
-                          value={u.role}
-                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                          className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
-                        >
-                          <option value="staff">Staff</option>
-                  <option value="manager">Manager</option>
-                          <option value="admin">Admin</option>
-                          <option value="super_admin">Super Admin</option>
-                        </select>
+                        {canManage ? (
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                            className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                          >
+                            <option value="staff">Staff</option>
+                            <option value="manager">Manager</option>
+                            {myRole === "super_admin" && (
+                              <>
+                                <option value="admin">Admin</option>
+                                <option value="super_admin">Super Admin</option>
+                              </>
+                            )}
+                          </select>
+                        ) : (
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-gray-500">
                         {new Date(u.created_at).toLocaleDateString()}
                       </td>
-                      <td className="py-3 px-2 text-right">
-                        <button
-                          onClick={() => handleRemove(u)}
-                          className="text-red-500 hover:text-red-700 text-xs font-medium"
-                        >
-                          Remove
-                        </button>
-                      </td>
+                      {canManage && (
+                        <td className="py-3 px-2 text-right">
+                          <button
+                            onClick={() => handleRemove(u)}
+                            className="text-red-500 hover:text-red-700 text-xs font-medium"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })

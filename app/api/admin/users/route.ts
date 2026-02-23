@@ -1,56 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { getAdminAuth } from "@/lib/admin-auth";
 
 /**
- * Verify the caller is an admin or super_admin (not manager).
- * Returns { client, role } or null if unauthorized.
+ * Permission matrix for /api/admin/users:
+ *
+ *   super_admin → GET, POST, PATCH, DELETE (all roles)
+ *   admin       → GET, POST, PATCH, DELETE (cannot touch super_admins)
+ *   manager     → GET only (view team list)
+ *   staff       → 403 on everything (no access)
  */
-async function getAdminOnlyClient() {
-  const cookieStore = cookies();
-
-  const userSupabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await userSupabase.auth.getUser();
-  if (!user?.email) return null;
-
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  // Only admin and super_admin can manage other admins — managers cannot
-  const { data } = await adminSupabase
-    .from("admin_users")
-    .select("id, role")
-    .ilike("email", user.email!)
-    .single();
-
-  if (!data || data.role === "manager") return null;
-
-  return { client: adminSupabase, role: data.role as string };
-}
 
 /**
  * GET /api/admin/users — List all admin users
+ * Accessible by: super_admin, admin, manager
+ * Blocked for: staff
  */
 export async function GET() {
-  const result = await getAdminOnlyClient();
-  if (!result) {
+  const auth = await getAdminAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Staff cannot view the team page at all
+  if (auth.role === "staff") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { data, error } = await result.client
+  const { data, error } = await auth.client
     .from("admin_users")
     .select("*")
     .order("created_at", { ascending: true });
@@ -63,13 +39,22 @@ export async function GET() {
 }
 
 /**
- * POST /api/admin/users — Add a new admin/manager
- * Body: { email, role }
+ * POST /api/admin/users — Add a new team member
+ * Accessible by: super_admin, admin
+ * Blocked for: manager, staff
  */
 export async function POST(request: NextRequest) {
-  const result = await getAdminOnlyClient();
-  if (!result) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await getAdminAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Only admin and super_admin can add team members
+  if (auth.role !== "admin" && auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only admins can manage team members" },
+      { status: 403 }
+    );
   }
 
   const body = await request.json();
@@ -80,30 +65,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
-  // Validate role
   if (!["super_admin", "admin", "manager", "staff"].includes(role)) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
   // Only super_admin can create other super_admins
-  if (role === "super_admin" && result.role !== "super_admin") {
+  if (role === "super_admin" && auth.role !== "super_admin") {
     return NextResponse.json(
       { error: "Only super admins can create other super admins" },
       { status: 403 }
     );
   }
 
-  const { data, error } = await result.client
+  // Admins cannot create other admins — only super_admin can
+  if (role === "admin" && auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only super admins can create other admins" },
+      { status: 403 }
+    );
+  }
+
+  const { data, error } = await auth.client
     .from("admin_users")
     .insert({ email, role })
     .select()
     .single();
 
   if (error) {
-    // Likely a duplicate email
     if (error.code === "23505") {
       return NextResponse.json(
-        { error: "This email is already an admin" },
+        { error: "This email is already a team member" },
         { status: 409 }
       );
     }
@@ -114,13 +105,21 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH /api/admin/users — Update an admin user's role
- * Body: { id, role }
+ * PATCH /api/admin/users — Update a team member's role
+ * Accessible by: super_admin, admin
+ * Blocked for: manager, staff
  */
 export async function PATCH(request: NextRequest) {
-  const result = await getAdminOnlyClient();
-  if (!result) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await getAdminAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (auth.role !== "admin" && auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only admins can manage team members" },
+      { status: 403 }
+    );
   }
 
   const body = await request.json();
@@ -134,15 +133,39 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
-  // Only super_admin can promote to super_admin
-  if (role === "super_admin" && result.role !== "super_admin") {
+  // Look up the target user to enforce escalation rules
+  const { data: target } = await auth.client
+    .from("admin_users")
+    .select("role")
+    .eq("id", id)
+    .single();
+
+  if (!target) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  // Only super_admin can modify super_admins or promote to super_admin/admin
+  if (
+    (target.role === "super_admin" || target.role === "admin") &&
+    auth.role !== "super_admin"
+  ) {
     return NextResponse.json(
-      { error: "Only super admins can set super admin role" },
+      { error: "Only super admins can modify admin or super admin users" },
       { status: 403 }
     );
   }
 
-  const { data, error } = await result.client
+  if (
+    (role === "super_admin" || role === "admin") &&
+    auth.role !== "super_admin"
+  ) {
+    return NextResponse.json(
+      { error: "Only super admins can promote to admin or super admin" },
+      { status: 403 }
+    );
+  }
+
+  const { data, error } = await auth.client
     .from("admin_users")
     .update({ role })
     .eq("id", id)
@@ -158,12 +181,20 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * DELETE /api/admin/users?id=<admin_user_id>
- * Remove an admin user
+ * Accessible by: super_admin, admin
+ * Blocked for: manager, staff
  */
 export async function DELETE(request: NextRequest) {
-  const result = await getAdminOnlyClient();
-  if (!result) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await getAdminAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (auth.role !== "admin" && auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only admins can manage team members" },
+      { status: 403 }
+    );
   }
 
   const { searchParams } = new URL(request.url);
@@ -173,8 +204,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  // Prevent deleting yourself
-  const { data: target } = await result.client
+  const { data: target } = await auth.client
     .from("admin_users")
     .select("role")
     .eq("id", id)
@@ -184,15 +214,18 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Only super_admin can remove other super_admins
-  if (target.role === "super_admin" && result.role !== "super_admin") {
+  // Only super_admin can remove admins or other super_admins
+  if (
+    (target.role === "super_admin" || target.role === "admin") &&
+    auth.role !== "super_admin"
+  ) {
     return NextResponse.json(
-      { error: "Only super admins can remove other super admins" },
+      { error: "Only super admins can remove admin or super admin users" },
       { status: 403 }
     );
   }
 
-  const { error } = await result.client
+  const { error } = await auth.client
     .from("admin_users")
     .delete()
     .eq("id", id);
