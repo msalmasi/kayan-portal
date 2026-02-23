@@ -278,22 +278,35 @@ export default function TeamPage() {
                         {u.email}
                       </td>
                       <td className="py-3 px-2">
-                        {canManage ? (
-                          <select
-                            value={u.role}
-                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                            className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
-                          >
-                            <option value="staff">Staff</option>
-                            <option value="manager">Manager</option>
-                            {myRole === "super_admin" && (
-                              <>
-                                <option value="admin">Admin</option>
-                                <option value="super_admin">Super Admin</option>
-                              </>
-                            )}
-                          </select>
-                        ) : (
+                        {canManage ? (() => {
+                          // Determine if this user's role is editable by the current viewer
+                          const targetIsHigher =
+                            (u.role === "super_admin" || u.role === "admin") &&
+                            myRole !== "super_admin";
+
+                          if (targetIsHigher) {
+                            // Can't edit — show static badge
+                            return <Badge variant={badge.variant}>{badge.label}</Badge>;
+                          }
+
+                          // Editable — show dropdown with allowed options
+                          return (
+                            <select
+                              value={u.role}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                              className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                            >
+                              <option value="staff">Staff</option>
+                              <option value="manager">Manager</option>
+                              {myRole === "super_admin" && (
+                                <>
+                                  <option value="admin">Admin</option>
+                                  <option value="super_admin">Super Admin</option>
+                                </>
+                              )}
+                            </select>
+                          );
+                        })() : (
                           <Badge variant={badge.variant}>{badge.label}</Badge>
                         )}
                       </td>
@@ -302,12 +315,15 @@ export default function TeamPage() {
                       </td>
                       {canManage && (
                         <td className="py-3 px-2 text-right">
-                          <button
-                            onClick={() => handleRemove(u)}
-                            className="text-red-500 hover:text-red-700 text-xs font-medium"
-                          >
-                            Remove
-                          </button>
+                          {/* Hide remove for users above current admin's permission */}
+                          {!((u.role === "super_admin" || u.role === "admin") && myRole !== "super_admin") && (
+                            <button
+                              onClick={() => handleRemove(u)}
+                              className="text-red-500 hover:text-red-700 text-xs font-medium"
+                            >
+                              Remove
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
