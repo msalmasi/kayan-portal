@@ -7,12 +7,14 @@ import { toast } from "sonner";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { KycBadge } from "@/components/ui/Badge";
+import { useAdminRole } from "@/lib/hooks";
 import { formatTokenAmount } from "@/lib/vesting";
 import { InvestorWithAllocations, SaftRound } from "@/lib/types";
 
 export default function InvestorDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { canWrite } = useAdminRole();
   const investorId = params.id as string;
 
   const [investor, setInvestor] = useState<InvestorWithAllocations | null>(null);
@@ -185,14 +187,16 @@ export default function InvestorDetailPage() {
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
-          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-        >
-          Delete Investor
-        </Button>
+        {canWrite && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+          >
+            Delete Investor
+          </Button>
+        )}
       </div>
 
       {/* Edit Investor Info */}
@@ -240,11 +244,13 @@ export default function InvestorDetailPage() {
           </div>
         </div>
 
-        <div className="mt-4">
-          <Button onClick={handleSave} loading={saving}>
-            Save Changes
-          </Button>
-        </div>
+        {canWrite && (
+          <div className="mt-4">
+            <Button onClick={handleSave} loading={saving}>
+              Save Changes
+            </Button>
+          </div>
+        )}
       </Card>
 
       {/* Allocations */}
@@ -284,12 +290,14 @@ export default function InvestorDetailPage() {
                     {alloc.saft_rounds.vesting_months}mo
                   </td>
                   <td className="py-3 px-2 text-right">
-                    <button
-                      onClick={() => handleRemoveAllocation(alloc.id)}
-                      className="text-red-500 hover:text-red-700 text-xs font-medium"
-                    >
-                      Remove
-                    </button>
+                    {canWrite && (
+                      <button
+                        onClick={() => handleRemoveAllocation(alloc.id)}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -304,42 +312,44 @@ export default function InvestorDetailPage() {
           </table>
         </div>
 
-        {/* Add new allocation */}
-        <div className="border-t border-gray-100 pt-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">
-            Add Allocation
-          </h3>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <select
-              value={newRoundId}
-              onChange={(e) => setNewRoundId(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
-            >
-              <option value="">Select round...</option>
-              {rounds.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+        {/* Add new allocation — hidden for staff */}
+        {canWrite && (
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">
+              Add Allocation
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                value={newRoundId}
+                onChange={(e) => setNewRoundId(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
+              >
+                <option value="">Select round...</option>
+                {rounds.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
 
-            <input
-              type="number"
-              placeholder="Token amount"
-              value={newTokenAmount}
-              onChange={(e) => setNewTokenAmount(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
-            />
+              <input
+                type="number"
+                placeholder="Token amount"
+                value={newTokenAmount}
+                onChange={(e) => setNewTokenAmount(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+              />
 
-            <Button
-              onClick={handleAddAllocation}
-              disabled={!newRoundId || !newTokenAmount}
-              size="md"
-            >
-              Add
-            </Button>
+              <Button
+                onClick={handleAddAllocation}
+                disabled={!newRoundId || !newTokenAmount}
+                size="md"
+              >
+                Add
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
     </div>
   );

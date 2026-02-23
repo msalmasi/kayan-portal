@@ -1,54 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-
-/** Verify admin access — same pattern as other admin routes */
-async function getAdminClient() {
-  const cookieStore = cookies();
-
-  const userSupabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await userSupabase.auth.getUser();
-  if (!user?.email) return null;
-
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  const { data } = await adminSupabase
-    .from("admin_users")
-    .select("id")
-    .ilike("email", user.email!)
-    .single();
-
-  return data ? adminSupabase : null;
-}
+import { getAdminAuth } from "@/lib/admin-auth";
 
 /**
  * POST /api/admin/allocations
- * Create a new allocation (link investor to a round).
- * Body: { investor_id, round_id, token_amount, notes? }
+ * Create a new allocation. Staff cannot access.
  */
 export async function POST(request: NextRequest) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const body = await request.json();
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.client
     .from("allocations")
     .insert({
       investor_id: body.investor_id,
@@ -68,12 +36,15 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE /api/admin/allocations?id=<allocation_id>
- * Remove an allocation.
+ * Remove an allocation. Staff cannot access.
  */
 export async function DELETE(request: NextRequest) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -83,7 +54,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing allocation id" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("allocations").delete().eq("id", id);
+  const { error } = await auth.client.from("allocations").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

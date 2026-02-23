@@ -9,10 +9,11 @@ import { Badge } from "@/components/ui/Badge";
 import { AdminUser } from "@/lib/types";
 
 /** Maps role strings to badge variants and display labels */
-const roleBadge: Record<string, { variant: "green" | "yellow" | "gray"; label: string }> = {
+const roleBadge: Record<string, { variant: "green" | "yellow" | "gray" | "gray"; label: string }> = {
   super_admin: { variant: "green", label: "Super Admin" },
   admin:       { variant: "yellow", label: "Admin" },
   manager:     { variant: "gray", label: "Manager" },
+  staff:       { variant: "gray", label: "Staff" },
 };
 
 export default function TeamPage() {
@@ -149,6 +150,12 @@ export default function TeamPage() {
               Can manage investors, rounds, allocations, and CSV imports. Cannot manage team members.
             </span>
           </div>
+          <div className="flex items-start gap-3">
+            <Badge variant="gray">Staff</Badge>
+            <span className="text-gray-600">
+              View-only access to all admin pages. Cannot create, edit, or delete anything.
+            </span>
+          </div>
         </div>
       </Card>
 
@@ -189,6 +196,7 @@ export default function TeamPage() {
                   onChange={(e) => setNewRole(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
                 >
+                  <option value="staff">Staff</option>
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                   <option value="super_admin">Super Admin</option>
@@ -248,7 +256,8 @@ export default function TeamPage() {
                           onChange={(e) => handleRoleChange(u.id, e.target.value)}
                           className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500"
                         >
-                          <option value="manager">Manager</option>
+                          <option value="staff">Staff</option>
+                  <option value="manager">Manager</option>
                           <option value="admin">Admin</option>
                           <option value="super_admin">Super Admin</option>
                         </select>

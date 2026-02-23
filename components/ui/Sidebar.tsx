@@ -92,7 +92,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   const items = [...navItems];
   if (isAdmin) {
     items.push({ href: "/admin/investors", label: "Investors", icon: AdminIcon });
-    // Only admin and super_admin can see Team management (not managers)
+    // Only admin and super_admin can see Team management (not managers or staff)
     if (adminRole === "admin" || adminRole === "super_admin") {
       items.push({ href: "/admin/team", label: "Team", icon: TeamIcon });
     }

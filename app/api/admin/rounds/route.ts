@@ -1,49 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-
-async function getAdminClient() {
-  const cookieStore = cookies();
-
-  const userSupabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await userSupabase.auth.getUser();
-  if (!user?.email) return null;
-
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  const { data } = await adminSupabase
-    .from("admin_users")
-    .select("id")
-    .ilike("email", user.email!)
-    .single();
-
-  return data ? adminSupabase : null;
-}
+import { getAdminAuth } from "@/lib/admin-auth";
 
 /**
  * GET /api/admin/rounds — List all SAFT rounds
  */
 export async function GET() {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.client
     .from("saft_rounds")
     .select("*")
     .order("created_at", { ascending: true });
@@ -56,18 +23,20 @@ export async function GET() {
 }
 
 /**
- * POST /api/admin/rounds — Create a new round
- * Body: { name, token_price?, tge_unlock_pct, cliff_months, vesting_months }
+ * POST /api/admin/rounds — Create a new round. Staff cannot access.
  */
 export async function POST(request: NextRequest) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const body = await request.json();
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.client
     .from("saft_rounds")
     .insert({
       name: body.name,
@@ -87,13 +56,15 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH /api/admin/rounds — Update an existing round
- * Body: { id, ...fields }
+ * PATCH /api/admin/rounds — Update an existing round. Staff cannot access.
  */
 export async function PATCH(request: NextRequest) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const body = await request.json();
@@ -103,7 +74,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Missing round id" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.client
     .from("saft_rounds")
     .update(updates)
     .eq("id", id)
@@ -118,13 +89,15 @@ export async function PATCH(request: NextRequest) {
 }
 
 /**
- * DELETE /api/admin/rounds — Remove a round (cascades to allocations)
- * Query: ?id=<round_id>
+ * DELETE /api/admin/rounds — Remove a round. Staff cannot access.
  */
 export async function DELETE(request: NextRequest) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -134,7 +107,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing round id" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("saft_rounds").delete().eq("id", id);
+  const { error } = await auth.client.from("saft_rounds").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

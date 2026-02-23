@@ -6,9 +6,11 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useAdminRole } from "@/lib/hooks";
 import { CsvImportRow } from "@/lib/types";
 
 export default function ImportPage() {
+  const { canWrite, loading: roleLoading } = useAdminRole();
   const [rows, setRows] = useState<CsvImportRow[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
@@ -97,6 +99,30 @@ export default function ImportPage() {
       );
     }
   };
+
+  // Staff cannot import — view-only access
+  if (!roleLoading && !canWrite) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/investors"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">CSV Import</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              You have view-only access and cannot import data.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

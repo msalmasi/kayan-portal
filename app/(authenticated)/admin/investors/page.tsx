@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase";
+import { useAdminRole } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { KycBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +32,7 @@ const PAGE_SIZE = 20;
  * with the service role key for the actual data fetching.
  */
 export default function AdminPage() {
+  const { canWrite } = useAdminRole();
   const [investors, setInvestors] = useState<InvestorRow[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -102,23 +104,34 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowAddForm(!showAddForm)}
-          >
-            {showAddForm ? "Cancel" : "Add Investor"}
-          </Button>
-          <Link href="/admin/rounds">
-            <Button variant="secondary" size="sm">
-              Manage Rounds
-            </Button>
-          </Link>
-          <Link href="/admin/import">
-            <Button variant="primary" size="sm">
-              Import CSV
-            </Button>
-          </Link>
+          {canWrite && (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowAddForm(!showAddForm)}
+              >
+                {showAddForm ? "Cancel" : "Add Investor"}
+              </Button>
+              <Link href="/admin/rounds">
+                <Button variant="secondary" size="sm">
+                  Manage Rounds
+                </Button>
+              </Link>
+              <Link href="/admin/import">
+                <Button variant="primary" size="sm">
+                  Import CSV
+                </Button>
+              </Link>
+            </>
+          )}
+          {!canWrite && (
+            <Link href="/admin/rounds">
+              <Button variant="secondary" size="sm">
+                View Rounds
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 

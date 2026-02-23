@@ -1,38 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-
-async function getAdminClient() {
-  const cookieStore = cookies();
-
-  const userSupabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await userSupabase.auth.getUser();
-  if (!user?.email) return null;
-
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  const { data } = await adminSupabase
-    .from("admin_users")
-    .select("id")
-    .ilike("email", user.email!)
-    .single();
-
-  return data ? adminSupabase : null;
-}
+import { getAdminAuth } from "@/lib/admin-auth";
 
 interface ImportRow {
   email: string;
@@ -43,20 +10,15 @@ interface ImportRow {
 
 /**
  * POST /api/admin/import
- * Processes CSV data for bulk import.
- *
- * Upsert logic:
- *   - If investor email exists → reuse existing investor (don't duplicate)
- *   - If round_name doesn't match → return error for that row
- *   - Creates new investor records as needed
- *   - Always creates new allocation records
- *
- * Body: { rows: ImportRow[] }
+ * Processes CSV data for bulk import. Staff cannot access.
  */
 export async function POST(request: NextRequest) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const { rows } = (await request.json()) as { rows: ImportRow[] };
@@ -66,13 +28,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch all existing rounds for name matching
-  const { data: rounds } = await supabase.from("saft_rounds").select("*");
+  const { data: rounds } = await auth.client.from("saft_rounds").select("*");
   const roundMap = new Map(
     (rounds || []).map((r: any) => [r.name.toLowerCase().trim(), r])
   );
 
   // Fetch all existing investors for email matching
-  const { data: existingInvestors } = await supabase
+  const { data: existingInvestors } = await auth.client
     .from("investors")
     .select("id, email");
   const investorMap = new Map(
@@ -116,7 +78,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       investorId = existing.id;
     } else {
-      const { data: newInvestor, error } = await supabase
+      const { data: newInvestor, error } = await auth.client
         .from("investors")
         .insert({ email, full_name: row.full_name.trim() })
         .select("id")
@@ -137,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the allocation
-    const { error: allocError } = await supabase.from("allocations").insert({
+    const { error: allocError } = await auth.client.from("allocations").insert({
       investor_id: investorId,
       round_id: round.id,
       token_amount: Number(row.token_amount),

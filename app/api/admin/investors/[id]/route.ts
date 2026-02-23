@@ -1,43 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-
-/**
- * Helper: verify the caller is an authenticated admin.
- * Returns the admin Supabase client or null if unauthorized.
- */
-async function getAdminClient() {
-  const cookieStore = cookies();
-
-  const userSupabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await userSupabase.auth.getUser();
-
-  if (!user?.email) return null;
-
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  const { data: adminUser } = await adminSupabase
-    .from("admin_users")
-    .select("id")
-    .ilike("email", user.email!)
-    .single();
-
-  return adminUser ? adminSupabase : null;
-}
+import { getAdminAuth } from "@/lib/admin-auth";
 
 /**
  * GET /api/admin/investors/[id]
@@ -47,12 +9,12 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: investor, error } = await supabase
+  const { data: investor, error } = await auth.client
     .from("investors")
     .select("*, allocations(*, saft_rounds(*))")
     .eq("id", params.id)
@@ -67,27 +29,28 @@ export async function GET(
 
 /**
  * PATCH /api/admin/investors/[id]
- * Update investor fields (name, email, kyc_status).
+ * Update investor fields. Staff cannot access.
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
   }
 
   const body = await request.json();
-
-  // Only allow updating specific fields
   const allowed = ["full_name", "email", "kyc_status"];
   const updates: Record<string, any> = {};
   for (const key of allowed) {
     if (body[key] !== undefined) updates[key] = body[key];
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.client
     .from("investors")
     .update(updates)
     .eq("id", params.id)
@@ -103,18 +66,21 @@ export async function PATCH(
 
 /**
  * DELETE /api/admin/investors/[id]
- * Remove an investor and all their allocations (cascade via FK).
+ * Remove an investor and all their allocations. Staff cannot access.
  */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await getAdminClient();
-  if (!supabase) {
+  const auth = await getAdminAuth();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
+  }
 
-  const { error } = await supabase
+  const { error } = await auth.client
     .from("investors")
     .delete()
     .eq("id", params.id);

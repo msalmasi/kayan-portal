@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate role
-  if (!["super_admin", "admin", "manager"].includes(role)) {
+  if (!["super_admin", "admin", "manager", "staff"].includes(role)) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
@@ -130,7 +130,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Missing id or role" }, { status: 400 });
   }
 
-  if (!["super_admin", "admin", "manager"].includes(role)) {
+  if (!["super_admin", "admin", "manager", "staff"].includes(role)) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 

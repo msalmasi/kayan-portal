@@ -5,9 +5,11 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useAdminRole } from "@/lib/hooks";
 import { SaftRound } from "@/lib/types";
 
 export default function RoundsPage() {
+  const { canWrite } = useAdminRole();
   const [rounds, setRounds] = useState<SaftRound[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -115,9 +117,11 @@ export default function RoundsPage() {
             title="Rounds"
             subtitle={`${rounds.length} round${rounds.length !== 1 ? "s" : ""} configured`}
           />
-          <Button onClick={() => setShowForm(!showForm)} size="sm">
-            {showForm ? "Cancel" : "New Round"}
-          </Button>
+          {canWrite && (
+            <Button onClick={() => setShowForm(!showForm)} size="sm">
+              {showForm ? "Cancel" : "New Round"}
+            </Button>
+          )}
         </div>
 
         {/* Create Form */}
@@ -251,12 +255,14 @@ export default function RoundsPage() {
                       {round.vesting_months}mo
                     </td>
                     <td className="py-3 px-2 text-right">
-                      <button
-                        onClick={() => handleDelete(round)}
-                        className="text-red-500 hover:text-red-700 text-xs font-medium"
-                      >
-                        Delete
-                      </button>
+                      {canWrite && (
+                        <button
+                          onClick={() => handleDelete(round)}
+                          className="text-red-500 hover:text-red-700 text-xs font-medium"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
