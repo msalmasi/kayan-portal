@@ -1,21 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
 
 /**
- * /login — Email magic link authentication
- *
- * Flow:
- *   1. User enters their email
- *   2. Supabase sends a magic link (or confirm signup for new users)
- *   3. User clicks the link → /auth/callback → /dashboard
- *
- * Handles error query params from the callback route for expired/invalid links.
+ * Inner login component — uses useSearchParams() which requires Suspense.
  */
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -188,5 +181,16 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Page export — wraps LoginForm in Suspense for useSearchParams() compatibility.
+ */
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
