@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
 
@@ -9,17 +10,25 @@ import { Button } from "@/components/ui/Button";
  *
  * Flow:
  *   1. User enters their email
- *   2. Supabase sends a magic link to that email
- *   3. User clicks the link → redirected to /auth/callback → /dashboard
+ *   2. Supabase sends a magic link (or confirm signup for new users)
+ *   3. User clicks the link → /auth/callback → /dashboard
  *
- * If the email doesn't match an investor record, they'll see the dashboard
- * but with no data (RLS handles this). We show a support message in that case.
+ * Handles error query params from the callback route for expired/invalid links.
  */
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pick up error messages passed from the auth callback via query param
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,11 +37,9 @@ export default function LoginPage() {
 
     const supabase = createClient();
 
-    // Send magic link — Supabase handles the email
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
-        // After clicking the magic link, redirect here
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -40,7 +47,23 @@ export default function LoginPage() {
     setLoading(false);
 
     if (authError) {
-      setError("Something went wrong. Please try again.");
+      // Parse Supabase error messages into user-friendly text
+      const msg = authError.message?.toLowerCase() || "";
+
+      if (msg.includes("rate limit") || msg.includes("too many")) {
+        setError(
+          "Too many sign-in attempts. Please wait a few minutes before trying again."
+        );
+      } else if (msg.includes("not authorized") || msg.includes("not allowed")) {
+        setError(
+          "This email is not authorized to access the portal. Please contact support."
+        );
+      } else if (msg.includes("invalid") && msg.includes("email")) {
+        setError("Please enter a valid email address.");
+      } else {
+        // Fallback — include the actual error for debugging
+        setError(`Unable to send sign-in link. ${authError.message}`);
+      }
       return;
     }
 
@@ -87,10 +110,15 @@ export default function LoginPage() {
                 <span className="font-medium text-gray-700">{email}</span>.
                 Click the link to access your dashboard.
               </p>
+              <p className="text-xs text-gray-400 mt-3">
+                Can&apos;t find it? Check your spam folder. Only the most recent
+                link will work — older links are automatically invalidated.
+              </p>
               <button
                 onClick={() => {
                   setSent(false);
                   setEmail("");
+                  setError(null);
                 }}
                 className="text-sm text-kayan-500 hover:text-kayan-600 mt-4 font-medium"
               >
@@ -108,6 +136,13 @@ export default function LoginPage() {
                   Sign in with your email to view your $KAYAN allocation
                 </p>
               </div>
+
+              {/* Error banner — shown for callback errors and OTP errors */}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
@@ -127,12 +162,6 @@ export default function LoginPage() {
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent placeholder:text-gray-400"
                   />
                 </div>
-
-                {error && (
-                  <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-                    {error}
-                  </p>
-                )}
 
                 <Button
                   type="submit"
