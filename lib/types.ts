@@ -10,6 +10,10 @@ export interface Investor {
   full_name: string;
   kyc_status: "unverified" | "pending" | "verified";
   wallet_address: string | null;
+  pq_status: PqStatus;
+  pq_reviewed_by: string | null;
+  pq_reviewed_at: string | null;
+  pq_notes: string | null;
   created_at: string;
 }
 
@@ -24,6 +28,15 @@ export interface SaftRound {
   created_at: string;
 }
 
+/** Payment status for an allocation */
+export type PaymentStatus = "unpaid" | "invoiced" | "partial" | "paid";
+
+/** Accepted payment methods (matches PQ Section D) */
+export type PaymentMethod = "wire" | "usdt" | "usdc" | "credit_card";
+
+/** PQ review lifecycle */
+export type PqStatus = "not_sent" | "sent" | "submitted" | "approved" | "rejected";
+
 /** Allocation linking an investor to a round */
 export interface Allocation {
   id: string;
@@ -31,6 +44,12 @@ export interface Allocation {
   round_id: string;
   token_amount: number;
   notes: string | null;
+  payment_status: PaymentStatus;
+  payment_method: PaymentMethod | null;
+  amount_usd: number | null;
+  amount_received_usd: number | null;
+  payment_date: string | null;
+  tx_reference: string | null;
   created_at: string;
 }
 
@@ -66,3 +85,36 @@ export interface VestingDataPoint {
   label: string;
   unlocked: number;
 }
+
+/** Email event audit record */
+export interface EmailEvent {
+  id: string;
+  investor_id: string;
+  email_type: "welcome" | "capital_call" | "reminder";
+  sent_by: string | null;
+  sent_at: string;
+  metadata: Record<string, any> | null;
+}
+
+/** Labels for display */
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  unpaid: "Unpaid",
+  invoiced: "Invoiced",
+  partial: "Partial",
+  paid: "Paid",
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  wire: "USD Wire",
+  usdt: "USDT",
+  usdc: "USDC",
+  credit_card: "Credit Card",
+};
+
+export const PQ_STATUS_LABELS: Record<PqStatus, string> = {
+  not_sent: "Not Sent",
+  sent: "Sent",
+  submitted: "Submitted",
+  approved: "Approved",
+  rejected: "Rejected",
+};

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
+import { sendEmail, composeWelcomeEmail } from "@/lib/email";
 
 /**
  * GET /api/admin/investors
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   let query = auth.client
     .from("investors")
-    .select("id, email, full_name, kyc_status, allocations(token_amount)", {
+    .select("id, email, full_name, kyc_status, pq_status, allocations(token_amount, payment_status)", {
       count: "exact",
     });
 
@@ -42,11 +43,21 @@ export async function GET(request: NextRequest) {
     email: inv.email,
     full_name: inv.full_name,
     kyc_status: inv.kyc_status,
+    pq_status: inv.pq_status || "not_sent",
     total_tokens: (inv.allocations || []).reduce(
       (sum: number, a: any) => sum + Number(a.token_amount),
       0
     ),
     round_count: (inv.allocations || []).length,
+    // Aggregate payment: "paid" if all paid, "partial" if any partial/mixed, "unpaid" otherwise
+    payment_summary: (() => {
+      const allocs = inv.allocations || [];
+      if (allocs.length === 0) return "none";
+      if (allocs.every((a: any) => a.payment_status === "paid")) return "paid";
+      if (allocs.some((a: any) => a.payment_status === "paid" || a.payment_status === "partial")) return "partial";
+      if (allocs.some((a: any) => a.payment_status === "invoiced")) return "invoiced";
+      return "unpaid";
+    })(),
   }));
 
   return NextResponse.json({ investors, total: count || 0 });
@@ -90,5 +101,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json(data);
+  // ── Auto-send welcome email ──
+  const { subject, html } = composeWelcomeEmail(fullName);
+  const emailSent = await sendEmail(email, subject, html);
+
+  // Log the email event
+  await auth.client.from("email_events").insert({
+    investor_id: data.id,
+    email_type: "welcome",
+    sent_by: "system",
+    metadata: { trigger: "investor_created", sent_successfully: emailSent },
+  });
+
+  return NextResponse.json({ ...data, welcome_email_sent: emailSent });
 }

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase";
 import { useAdminRole } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
-import { KycBadge } from "@/components/ui/Badge";
+import { KycBadge, PqBadge, PaymentBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatTokenAmount } from "@/lib/vesting";
 
@@ -15,8 +15,10 @@ interface InvestorRow {
   email: string;
   full_name: string;
   kyc_status: string;
+  pq_status: string;
   total_tokens: number;
   round_count: number;
+  payment_summary: string;
 }
 
 const PAGE_SIZE = 20;
@@ -81,7 +83,11 @@ export default function AdminPage() {
     setAddingSaving(false);
 
     if (res.ok) {
-      toast.success(`Added investor ${newName}`);
+      const result = await res.json();
+      const emailNote = result.welcome_email_sent
+        ? " — welcome email sent"
+        : " — welcome email logged (configure RESEND_API_KEY to enable)";
+      toast.success(`Added investor ${newName}${emailNote}`);
       setNewEmail("");
       setNewName("");
       setShowAddForm(false);
@@ -214,14 +220,17 @@ export default function AdminPage() {
                 <th className="text-left py-3 px-2 font-medium text-gray-500">
                   Email
                 </th>
-                <th className="text-left py-3 px-2 font-medium text-gray-500">
+                <th className="text-center py-3 px-2 font-medium text-gray-500">
                   KYC
+                </th>
+                <th className="text-center py-3 px-2 font-medium text-gray-500">
+                  PQ
+                </th>
+                <th className="text-center py-3 px-2 font-medium text-gray-500">
+                  Payment
                 </th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">
                   Tokens
-                </th>
-                <th className="text-right py-3 px-2 font-medium text-gray-500">
-                  Rounds
                 </th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">
                   
@@ -231,13 +240,13 @@ export default function AdminPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
+                  <td colSpan={7} className="py-12 text-center text-gray-400">
                     Loading...
                   </td>
                 </tr>
               ) : investors.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
+                  <td colSpan={7} className="py-12 text-center text-gray-400">
                     {search ? "No investors match your search" : "No investors yet"}
                   </td>
                 </tr>
@@ -251,21 +260,28 @@ export default function AdminPage() {
                       {inv.full_name}
                     </td>
                     <td className="py-3 px-2 text-gray-600">{inv.email}</td>
-                    <td className="py-3 px-2">
+                    <td className="py-3 px-2 text-center">
                       <KycBadge status={inv.kyc_status} />
+                    </td>
+                    <td className="py-3 px-2 text-center">
+                      <PqBadge status={inv.pq_status} />
+                    </td>
+                    <td className="py-3 px-2 text-center">
+                      {inv.payment_summary !== "none" ? (
+                        <PaymentBadge status={inv.payment_summary} />
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-right text-gray-700">
                       {formatTokenAmount(inv.total_tokens)}
-                    </td>
-                    <td className="py-3 px-2 text-right text-gray-700">
-                      {inv.round_count}
                     </td>
                     <td className="py-3 px-2 text-right">
                       <Link
                         href={`/admin/investors/${inv.id}`}
                         className="text-kayan-500 hover:text-kayan-600 text-sm font-medium"
                       >
-                        Edit
+                        View
                       </Link>
                     </td>
                   </tr>

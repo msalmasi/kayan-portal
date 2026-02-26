@@ -33,3 +33,28 @@ export function KycBadge({ status }: { status: string }) {
   const { variant, label } = map[status] || map.unverified;
   return <Badge variant={variant}>{label}</Badge>;
 }
+
+/** Maps payment status to badge variant */
+export function PaymentBadge({ status }: { status: string }) {
+  const map: Record<string, { variant: BadgeProps["variant"]; label: string }> = {
+    paid: { variant: "green", label: "Paid" },
+    partial: { variant: "yellow", label: "Partial" },
+    invoiced: { variant: "yellow", label: "Invoiced" },
+    unpaid: { variant: "gray", label: "Unpaid" },
+  };
+  const { variant, label } = map[status] || map.unpaid;
+  return <Badge variant={variant}>{label}</Badge>;
+}
+
+/** Maps PQ review status to badge variant */
+export function PqBadge({ status }: { status: string }) {
+  const map: Record<string, { variant: BadgeProps["variant"]; label: string }> = {
+    approved: { variant: "green", label: "Approved" },
+    submitted: { variant: "yellow", label: "Submitted" },
+    sent: { variant: "yellow", label: "Sent" },
+    rejected: { variant: "red", label: "Rejected" },
+    not_sent: { variant: "gray", label: "Not Sent" },
+  };
+  const { variant, label } = map[status] || map.not_sent;
+  return <Badge variant={variant}>{label}</Badge>;
+}
