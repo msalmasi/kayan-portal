@@ -110,6 +110,84 @@ export function composeCapitalCallEmail(
   return { subject, html };
 }
 
+/** Compose subscription docs package email — sent when KYC is approved */
+export function composeDocsPackageEmail(investorName: string) {
+  const subject = "Kayan Token — Subscription Documents Ready";
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Subscription Documents</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      Dear ${investorName}, congratulations — your identity verification is complete.
+      You can now review and complete your subscription documents.
+    </p>
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;font-weight:600;">Documents to Complete</p>
+    <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#6b7280;line-height:1.8;">
+      <li><strong>SAFT Agreement</strong> — your token purchase contract</li>
+      <li><strong>Purchaser Questionnaire (PQ)</strong> — complete directly in the portal</li>
+      <li><strong>Private Placement Memorandum (PPM)</strong> — offering details</li>
+      <li><strong>Company Information Sheet (CIS)</strong> — Kayan project overview</li>
+    </ol>
+    <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.6;">
+      Please log in to the portal to complete your <strong>Purchaser Questionnaire</strong>.
+      Your SAFT, PPM, and CIS will be provided by your account representative.
+    </p>
+    <a href="${PORTAL_URL}/pq" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      Complete Purchaser Questionnaire
+    </a>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      All documents are confidential. Do not forward this email to third parties.
+    </p>
+  `);
+  return { subject, html };
+}
+
+/** Compose PQ submission notification — sent to admin when investor submits PQ */
+export function composePqSubmittedEmail(investorName: string, investorEmail: string) {
+  const subject = `PQ Submitted — ${investorName}`;
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">PQ Submission Received</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      <strong>${investorName}</strong> (${investorEmail}) has submitted their
+      Purchaser Questionnaire and is awaiting review.
+    </p>
+    <a href="${PORTAL_URL}/admin/investors" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      Review in Admin Panel
+    </a>
+  `);
+  return { subject, html };
+}
+
+/** Compose PQ review result email — sent to investor after admin review */
+export function composePqResultEmail(
+  investorName: string,
+  approved: boolean,
+  notes?: string
+) {
+  const subject = approved
+    ? "Kayan Token — Subscription Approved"
+    : "Kayan Token — Purchaser Questionnaire Update";
+  const body = approved
+    ? `<h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Subscription Approved</h2>
+       <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+         Dear ${investorName}, your Purchaser Questionnaire has been reviewed and approved.
+         You will receive a capital call notice shortly with payment instructions.
+       </p>`
+    : `<h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Action Required</h2>
+       <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+         Dear ${investorName}, we need additional information regarding your
+         Purchaser Questionnaire. Please log in to the portal to review and update.
+       </p>
+       ${notes ? `<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:0 0 16px;font-size:13px;color:#92400e;">${notes}</div>` : ""}`;
+
+  const html = wrapHtml(`
+    ${body}
+    <a href="${PORTAL_URL}/pq" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      Open Portal
+    </a>
+  `);
+  return { subject, html };
+}
+
 /** Send email via Resend. Returns true if sent, false if no API key. */
 export async function sendEmail(
   to: string,

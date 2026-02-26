@@ -10,10 +10,16 @@ export interface Investor {
   full_name: string;
   kyc_status: "unverified" | "pending" | "verified";
   wallet_address: string | null;
+  sumsub_applicant_id: string | null;
+  kyc_verified_at: string | null;
   pq_status: PqStatus;
+  pq_data: PqFormData | null;
+  pq_submitted_at: string | null;
+  pq_review: PqReviewData | null;
   pq_reviewed_by: string | null;
   pq_reviewed_at: string | null;
   pq_notes: string | null;
+  docs_sent_at: string | null;
   created_at: string;
 }
 
@@ -90,13 +96,120 @@ export interface VestingDataPoint {
 export interface EmailEvent {
   id: string;
   investor_id: string;
-  email_type: "welcome" | "capital_call" | "reminder";
+  email_type: string;
   sent_by: string | null;
   sent_at: string;
   metadata: Record<string, any> | null;
 }
 
-/** Labels for display */
+// ─── PQ FORM DATA (investor submission) ─────────────────────
+
+/** Section A: Investor identification */
+export interface PqSectionA {
+  investor_type: "individual" | "entity";
+  legal_name: string;
+  jurisdiction_of_residence: string;
+  // Entity-specific
+  entity_type?: string;
+  entity_jurisdiction?: string;
+  beneficial_owner_name?: string;
+  beneficial_owner_nationality?: string;
+}
+
+/** Section B: Non-U.S. Person certification (6 attestations) */
+export interface PqSectionB {
+  not_us_citizen: boolean;
+  not_us_resident: boolean;
+  not_us_partnership: boolean;
+  not_us_estate: boolean;
+  not_us_trust: boolean;
+  not_purchasing_for_us_person: boolean;
+}
+
+/** Section C: Investor qualification by jurisdiction */
+export interface PqSectionC {
+  qualification_type:
+    | "hk_professional_investor"
+    | "sg_accredited_investor"
+    | "bvi_qualified"
+    | "uae_difc_qualified"
+    | "other_qualified";
+  other_jurisdiction_details?: string;
+}
+
+/** Section D: Source of funds + AML */
+export interface PqSectionD {
+  investment_amount_usd: number;
+  payment_method: PaymentMethod;
+  source_of_funds: string;
+  sanctions_confirmation: boolean;
+}
+
+/** Section E: Transfer restrictions acknowledgment */
+export interface PqSectionE {
+  understands_restricted_security: boolean;
+  understands_holding_period: boolean;
+  understands_transfer_conditions: boolean;
+  understands_no_hedging: boolean;
+  accepts_indemnification: boolean;
+}
+
+/** Section F: General representations */
+export interface PqSectionF {
+  has_read_ppm: boolean;
+  has_read_saft: boolean;
+  has_read_cis: boolean;
+  has_investment_experience: boolean;
+  no_reliance_on_company: boolean;
+}
+
+/** Complete PQ form data (what the investor submits) */
+export interface PqFormData {
+  section_a: PqSectionA;
+  section_b: PqSectionB;
+  section_c: PqSectionC;
+  section_d: PqSectionD;
+  section_e: PqSectionE;
+  section_f: PqSectionF;
+  signature_name: string;
+  signature_date: string;
+}
+
+// ─── PQ REVIEW (admin checklist) ────────────────────────────
+
+/** Per-section review result */
+export interface PqSectionReview {
+  approved: boolean;
+  notes: string;
+}
+
+/** Complete admin review checklist */
+export interface PqReviewData {
+  section_a: PqSectionReview;
+  section_b: PqSectionReview;
+  section_c: PqSectionReview;
+  section_d: PqSectionReview;
+  section_e: PqSectionReview;
+  section_f: PqSectionReview;
+  overall_notes: string;
+}
+
+/** Default empty review */
+export function emptyPqReview(): PqReviewData {
+  const section = (): PqSectionReview => ({ approved: false, notes: "" });
+  return {
+    section_a: section(),
+    section_b: section(),
+    section_c: section(),
+    section_d: section(),
+    section_e: section(),
+    section_f: section(),
+    overall_notes: "",
+  };
+}
+
+// ─── DISPLAY LABELS ─────────────────────────────────────────
+
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   unpaid: "Unpaid",
   invoiced: "Invoiced",
@@ -117,4 +230,21 @@ export const PQ_STATUS_LABELS: Record<PqStatus, string> = {
   submitted: "Submitted",
   approved: "Approved",
   rejected: "Rejected",
+};
+
+export const PQ_SECTION_LABELS: Record<string, string> = {
+  section_a: "A — Investor Identification",
+  section_b: "B — Non-U.S. Person Certification",
+  section_c: "C — Investor Qualification",
+  section_d: "D — Source of Funds & AML",
+  section_e: "E — Transfer Restrictions",
+  section_f: "F — General Representations",
+};
+
+export const QUALIFICATION_LABELS: Record<string, string> = {
+  hk_professional_investor: "Hong Kong Professional Investor",
+  sg_accredited_investor: "Singapore Accredited Investor",
+  bvi_qualified: "BVI Qualified Purchaser",
+  uae_difc_qualified: "UAE / DIFC Qualified Investor",
+  other_qualified: "Other Qualified Investor",
 };

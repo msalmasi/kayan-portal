@@ -3,6 +3,7 @@ import { getAdminAuth } from "@/lib/admin-auth";
 import {
   sendEmail,
   composeCapitalCallEmail,
+  composeDocsPackageEmail,
 } from "@/lib/email";
 
 /**
@@ -63,6 +64,7 @@ export async function PATCH(
   const allowed = [
     "full_name", "email", "kyc_status",
     "pq_status", "pq_reviewed_by", "pq_reviewed_at", "pq_notes",
+    "pq_review", "docs_sent_at",
   ];
   const updates: Record<string, any> = {};
   for (const key of allowed) {
@@ -87,6 +89,39 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // ── Auto-send subscription docs when KYC changes to verified ──
+  let docsSent = false;
+  if (updates.kyc_status === "verified") {
+    // Check if docs haven't been sent yet
+    const { data: freshInv } = await auth.client
+      .from("investors")
+      .select("docs_sent_at, pq_status, email, full_name")
+      .eq("id", params.id)
+      .single();
+
+    if (freshInv && !freshInv.docs_sent_at) {
+      const { subject, html } = composeDocsPackageEmail(freshInv.full_name);
+      const sent = await sendEmail(freshInv.email, subject, html);
+
+      await auth.client
+        .from("investors")
+        .update({
+          docs_sent_at: new Date().toISOString(),
+          pq_status: freshInv.pq_status === "not_sent" ? "sent" : freshInv.pq_status,
+        })
+        .eq("id", params.id);
+
+      await auth.client.from("email_events").insert({
+        investor_id: params.id,
+        email_type: "docs_package",
+        sent_by: updates.pq_reviewed_by || "system",
+        metadata: { trigger: "kyc_verified_manual", sent_successfully: sent },
+      });
+
+      docsSent = true;
+    }
   }
 
   // ── Auto-send capital call on PQ approval ──
@@ -153,7 +188,7 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({ ...data, capital_call_sent: capitalCallSent });
+  return NextResponse.json({ ...data, capital_call_sent: capitalCallSent, docs_sent: docsSent });
 }
 
 /**
