@@ -172,7 +172,7 @@ export default function TeamPage() {
           <div className="flex items-start gap-3">
             <Badge variant="gray">Staff</Badge>
             <span className="text-gray-600">
-              View-only access to investor and round data. Cannot view or manage team members.
+              Can view investor and round data, and add new investors. Cannot edit existing records, manage allocations, or manage team members.
             </span>
           </div>
         </div>

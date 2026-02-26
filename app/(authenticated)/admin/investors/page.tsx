@@ -104,15 +104,16 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          {/* All admin roles (including staff) can add investors */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            {showAddForm ? "Cancel" : "Add Investor"}
+          </Button>
           {canWrite && (
             <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowAddForm(!showAddForm)}
-              >
-                {showAddForm ? "Cancel" : "Add Investor"}
-              </Button>
               <Link href="/admin/rounds">
                 <Button variant="secondary" size="sm">
                   Manage Rounds

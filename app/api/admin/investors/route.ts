@@ -54,16 +54,14 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/admin/investors
- * Manually create a new investor. Staff cannot access.
+ * Manually create a new investor. All admin roles including staff can access.
  */
 export async function POST(request: NextRequest) {
   const auth = await getAdminAuth();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!auth.canWrite) {
-    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
-  }
+  // No canWrite check — staff can create new investors
 
   const body = await request.json();
   const email = body.email?.toLowerCase().trim();
