@@ -63,5 +63,29 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  // Notify admins when payment status changes to paid or partial
+  if (updates.payment_status === "paid" || updates.payment_status === "partial") {
+    try {
+      const { data: inv } = await auth.client
+        .from("investors")
+        .select("id, full_name, email")
+        .eq("id", data.investor_id)
+        .single();
+
+      if (inv) {
+        const { notifyPaymentReceived } = await import("@/lib/admin-notify");
+        await notifyPaymentReceived(
+          auth.client,
+          inv,
+          Number(updates.amount_received_usd || data.amount_received_usd || 0),
+          data.saft_rounds?.name || "Unknown",
+          updates.payment_status
+        );
+      }
+    } catch (err: any) {
+      console.error("[PAYMENTS] Notification failed:", err.message);
+    }
+  }
+
   return NextResponse.json(data);
 }

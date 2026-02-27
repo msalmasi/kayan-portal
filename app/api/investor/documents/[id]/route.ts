@@ -369,6 +369,19 @@ export async function POST(
     console.error("[SIGNING] Capital call check failed:", err.message);
   }
 
+  // ── Notify admins ──
+  try {
+    const { notifySaftSigned } = await import("@/lib/admin-notify");
+    await notifySaftSigned(
+      admin,
+      investor,
+      doc.saft_rounds?.name || "Unknown Round",
+      capitalCallSent
+    );
+  } catch (err: any) {
+    console.error("[SIGNING] Notification failed:", err.message);
+  }
+
   return NextResponse.json({
     success: true,
     status: "signed",

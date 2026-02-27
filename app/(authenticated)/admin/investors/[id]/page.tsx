@@ -8,6 +8,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { KycBadge, PaymentBadge, PqBadge } from "@/components/ui/Badge";
 import { PqReviewChecklist } from "@/components/admin/PqReviewChecklist";
+import { InvestorWorkflowStepper } from "@/components/admin/InvestorWorkflowStepper";
 import { useAdminRole } from "@/lib/hooks";
 import { formatTokenAmount } from "@/lib/vesting";
 import {
@@ -270,6 +271,12 @@ export default function InvestorDetailPage() {
           </Button>
         )}
       </div>
+
+      {/* ── Workflow Progress ── */}
+      <Card>
+        <CardHeader title="Workflow Progress" subtitle="Investor onboarding pipeline" />
+        <InvestorWorkflowStepper investor={investor} />
+      </Card>
 
       {/* ── Investor Details ── */}
       <Card>

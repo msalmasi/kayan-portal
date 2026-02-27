@@ -140,5 +140,9 @@ export async function POST(request: NextRequest) {
     metadata: { trigger: "investor_submitted" },
   });
 
+  // Notify admins — this is action_required (needs review)
+  const { notifyPqSubmitted } = await import("@/lib/admin-notify");
+  await notifyPqSubmitted(ctx.adminClient, ctx.investor);
+
   return NextResponse.json({ success: true, pq_status: "submitted" });
 }

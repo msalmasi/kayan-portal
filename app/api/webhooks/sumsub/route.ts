@@ -194,6 +194,11 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(`[SUMSUB] KYC approved for ${externalUserId}, ${docsGenerated} doc set(s) generated`);
+
+      // Notify admins
+      const { notifyKycVerified } = await import("@/lib/admin-notify");
+      await notifyKycVerified(supabase, investor, docsGenerated);
+
       return NextResponse.json({ ok: true, status: "verified", docs_sent: !investor.docs_sent_at, docs_generated: docsGenerated });
 
     } else if (answer === "RED") {
@@ -207,6 +212,10 @@ export async function POST(request: NextRequest) {
         .eq("id", investor.id);
 
       console.log(`[SUMSUB] KYC rejected for ${externalUserId}: ${rejectLabels.join(", ")} — ${comment}`);
+
+      // Notify admins
+      const { notifyKycRejected } = await import("@/lib/admin-notify");
+      await notifyKycRejected(supabase, investor, rejectLabels);
 
       return NextResponse.json({ ok: true, status: "rejected" });
     }
