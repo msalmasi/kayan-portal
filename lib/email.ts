@@ -188,6 +188,32 @@ export function composePqResultEmail(
   return { subject, html };
 }
 
+/** Compose "documents ready" email — sent when SAFT is generated and ready to sign */
+export function composeDocumentsReadyEmail(investorName: string, roundName: string) {
+  const subject = `Kayan Token — ${roundName} Documents Ready for Signing`;
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Documents Ready</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      Dear ${investorName}, your subscription documents for the <strong>${roundName}</strong>
+      round are ready. Please log in to review and sign your SAFT Agreement.
+    </p>
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;font-weight:600;">Your document set includes:</p>
+    <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#6b7280;line-height:1.8;">
+      <li><strong>SAFT Agreement</strong> — review and sign electronically</li>
+      <li><strong>Private Placement Memorandum (PPM)</strong> — for your reference</li>
+      <li><strong>Company Information Sheet (CIS)</strong> — for your reference</li>
+    </ol>
+    <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      Review & Sign Documents
+    </a>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      All documents are confidential. Do not forward this email to third parties.
+    </p>
+  `);
+  return { subject, html };
+}
+
 /** Send email via Resend. Returns true if sent, false if no API key. */
 export async function sendEmail(
   to: string,

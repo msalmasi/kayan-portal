@@ -6,6 +6,7 @@ interface AdminAuth {
   client: SupabaseClient;
   role: string;
   canWrite: boolean;
+  email: string;
 }
 
 /**
@@ -48,5 +49,6 @@ export async function getAdminAuth(): Promise<AdminAuth | null> {
     client: adminSupabase,
     role: data.role as string,
     canWrite: data.role !== "staff",
+    email: user.email!,
   };
 }

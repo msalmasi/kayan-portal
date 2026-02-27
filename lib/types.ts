@@ -248,3 +248,77 @@ export const QUALIFICATION_LABELS: Record<string, string> = {
   uae_difc_qualified: "UAE / DIFC Qualified Investor",
   other_qualified: "Other Qualified Investor",
 };
+
+// ─── DOCUMENT TYPES ─────────────────────────────────────────
+
+export type DocType = "saft" | "ppm" | "cis";
+export type DocStatus = "pending" | "viewed" | "signed";
+
+/** Template stored in doc_templates */
+export interface DocTemplate {
+  id: string;
+  doc_type: DocType;
+  round_id: string | null;
+  file_name: string;
+  storage_path: string;
+  placeholders: string[] | null;
+  is_active: boolean;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/** Generated document for an investor */
+export interface InvestorDocument {
+  id: string;
+  investor_id: string;
+  doc_type: DocType;
+  round_id: string | null;
+  template_id: string | null;
+  storage_path: string | null;
+  html_content: string | null;
+  doc_hash: string | null;
+  status: DocStatus;
+  signed_at: string | null;
+  signature_name: string | null;
+  signature_ip: string | null;
+  signature_ua: string | null;
+  signed_pdf_path: string | null;
+  variables: Record<string, any> | null;
+  created_at: string;
+}
+
+/** Signing audit event */
+export interface SigningEvent {
+  id: string;
+  document_id: string;
+  investor_id: string;
+  event_type: "generated" | "viewed" | "signed" | "downloaded" | "voided";
+  ip_address: string | null;
+  user_agent: string | null;
+  metadata: Record<string, any> | null;
+  created_at: string;
+}
+
+export const DOC_TYPE_LABELS: Record<DocType, string> = {
+  saft: "SAFT Agreement",
+  ppm: "Private Placement Memorandum",
+  cis: "Company Information Sheet",
+};
+
+export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
+  pending: "Pending",
+  viewed: "Viewed",
+  signed: "Signed",
+};
+
+/** Standard SAFT placeholders auto-filled from investor + round data */
+export const SAFT_PLACEHOLDERS = [
+  "investor_name",
+  "investor_email",
+  "investor_jurisdiction",
+  "investment_amount_usd",
+  "token_amount",
+  "token_price",
+  "round_name",
+  "date",
+] as const;

@@ -36,7 +36,18 @@ export async function GET(
     .eq("investor_id", params.id)
     .order("sent_at", { ascending: false });
 
-  return NextResponse.json({ ...investor, email_events: emails || [] });
+  // Fetch investor documents
+  const { data: documents } = await auth.client
+    .from("investor_documents")
+    .select("*, saft_rounds(name)")
+    .eq("investor_id", params.id)
+    .order("created_at", { ascending: false });
+
+  return NextResponse.json({
+    ...investor,
+    email_events: emails || [],
+    investor_documents: documents || [],
+  });
 }
 
 /**

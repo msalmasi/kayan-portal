@@ -76,6 +76,7 @@ function DocumentIcon() {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
+  { href: "/documents", label: "Documents", icon: DocumentIcon },
   { href: "/pq", label: "Questionnaire", icon: DocumentIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -101,6 +102,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   const items = [...navItems];
   if (isAdmin) {
     items.push({ href: "/admin/investors", label: "Investors", icon: AdminIcon });
+    items.push({ href: "/admin/documents", label: "Doc Templates", icon: DocumentIcon });
     // Manager, admin, and super_admin can see Team page. Staff cannot.
     if (adminRole && adminRole !== "staff") {
       items.push({ href: "/admin/team", label: "Team", icon: TeamIcon });

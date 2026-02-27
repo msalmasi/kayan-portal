@@ -24,11 +24,23 @@ import {
   PQ_STATUS_LABELS,
 } from "@/lib/types";
 
-// ── Extended investor type with email events + PQ data ──
+// ── Extended investor type with email events + PQ data + documents ──
 interface InvestorFull extends InvestorWithAllocations {
   email_events: EmailEvent[];
   pq_data: PqFormData | null;
   pq_review: PqReviewData | null;
+  investor_documents: InvestorDocItem[];
+}
+
+interface InvestorDocItem {
+  id: string;
+  doc_type: string;
+  round_id: string | null;
+  status: string;
+  signed_at: string | null;
+  signature_name: string | null;
+  created_at: string;
+  saft_rounds: { name: string } | null;
 }
 
 export default function InvestorDetailPage() {
@@ -178,6 +190,26 @@ export default function InvestorDetailPage() {
     });
     if (res.ok) { toast.success("Payment updated"); setEditingPayment(null); fetchData(); }
     else { const err = await res.json(); toast.error(err.error || "Failed"); }
+  };
+
+  // ── Document generation handler ──
+  const [generatingDocs, setGeneratingDocs] = useState(false);
+  const handleGenerateDocs = async (roundId: string) => {
+    setGeneratingDocs(true);
+    const res = await fetch("/api/admin/documents/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ investor_id: investorId, round_id: roundId }),
+    });
+    setGeneratingDocs(false);
+    if (res.ok) {
+      const result = await res.json();
+      toast.success(`Documents generated — ${result.documents?.length || 0} docs, email ${result.email_sent ? "sent" : "logged"}`);
+      fetchData();
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to generate documents");
+    }
   };
 
   // ── Email handlers ──
@@ -396,6 +428,78 @@ export default function InvestorDetailPage() {
               </select>
               <input type="number" placeholder="Token amount" value={newTokenAmount} onChange={e => setNewTokenAmount(e.target.value)} className={`flex-1 ${inputCls}`} />
               <Button onClick={handleAddAllocation} disabled={!newRoundId || !newTokenAmount} size="md">Add</Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* ── Documents ── */}
+      <Card>
+        <CardHeader title="Subscription Documents" subtitle="Generated SAFT, PPM, and CIS per round" />
+        {investor.investor_documents && investor.investor_documents.length > 0 ? (
+          <div className="space-y-3 mb-4">
+            {investor.investor_documents.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg text-sm">
+                <div className="flex items-center gap-3">
+                  <span className={`inline-block w-2 h-2 rounded-full ${
+                    doc.status === "signed" ? "bg-emerald-400"
+                    : doc.status === "viewed" ? "bg-blue-400"
+                    : "bg-gray-300"
+                  }`} />
+                  <div>
+                    <span className="font-medium text-gray-700 capitalize">
+                      {doc.doc_type.toUpperCase()}
+                    </span>
+                    {doc.saft_rounds?.name && (
+                      <span className="text-gray-400 ml-1">— {doc.saft_rounds.name}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    doc.status === "signed" ? "bg-emerald-100 text-emerald-700"
+                    : doc.status === "viewed" ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-100 text-gray-600"
+                  }`}>
+                    {doc.status === "signed"
+                      ? `Signed ${doc.signature_name ? "by " + doc.signature_name : ""}`
+                      : doc.status === "viewed" ? "Viewed" : "Pending"}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(doc.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 mb-4">No documents generated yet.</p>
+        )}
+
+        {/* Generate docs per round */}
+        {canWrite && investor.allocations.length > 0 && (
+          <div className="border-t border-gray-100 pt-4">
+            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Generate Documents</h4>
+            <div className="flex flex-wrap gap-2">
+              {/* Get unique rounds from allocations */}
+              {Array.from(new Set(investor.allocations.map(a => a.round_id))).map(roundId => {
+                const roundName = investor.allocations.find(a => a.round_id === roundId)?.saft_rounds?.name || "Unknown";
+                const hasDoc = investor.investor_documents?.some(
+                  d => d.doc_type === "saft" && d.round_id === roundId
+                );
+                return (
+                  <Button
+                    key={roundId}
+                    variant={hasDoc ? "ghost" : "secondary"}
+                    size="sm"
+                    onClick={() => handleGenerateDocs(roundId)}
+                    disabled={generatingDocs || hasDoc}
+                    loading={generatingDocs}
+                  >
+                    {hasDoc ? `✓ ${roundName}` : `Generate for ${roundName}`}
+                  </Button>
+                );
+              })}
             </div>
           </div>
         )}
