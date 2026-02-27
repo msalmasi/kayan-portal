@@ -134,6 +134,10 @@ export default function InvestorDetailPage() {
       const result = await res.json();
       if (result.capital_call_sent) {
         toast.success("PQ approved — capital call email sent automatically");
+      } else if (updates.pq_status === "approved" && result.capital_call_status?.pending?.length > 0) {
+        // PQ approved but capital call waiting on other gates
+        const reasons = result.capital_call_status.pending.join(", ");
+        toast.success(`PQ approved — capital call pending: ${reasons}`);
       } else if (updates.pq_status === "rejected") {
         toast.success("PQ rejected — investor will be notified to resubmit");
       } else {
@@ -542,6 +546,66 @@ export default function InvestorDetailPage() {
         )}
       </Card>
 
+      {/* ── Capital Call Status ── */}
+      {(() => {
+        // Derive capital call gate status from loaded data
+        const pqApproved = investor.pq_status === "approved";
+        const hasAllocations = investor.allocations.length > 0;
+        const saftSigned = investor.investor_documents?.some(
+          (d) => d.doc_type === "saft" && d.status === "signed"
+        );
+        const capitalCallSent = investor.email_events?.some(
+          (e: EmailEvent) => e.email_type === "capital_call"
+        );
+        const allReady = pqApproved && hasAllocations && saftSigned;
+
+        return (
+          <Card>
+            <CardHeader title="Capital Call" subtitle="Auto-sends when all conditions are met" />
+            {capitalCallSent ? (
+              <div className="flex items-center gap-2 bg-emerald-50 rounded-lg p-3 text-sm text-emerald-700">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="font-medium">Capital call sent</span>
+                <span className="text-emerald-500 text-xs ml-auto">
+                  {investor.email_events?.find((e: EmailEvent) => e.email_type === "capital_call")?.sent_at
+                    ? new Date(investor.email_events.find((e: EmailEvent) => e.email_type === "capital_call")!.sent_at).toLocaleString()
+                    : ""}
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className={`inline-block w-2 h-2 rounded-full ${hasAllocations ? "bg-emerald-400" : "bg-gray-300"}`} />
+                  <span className={hasAllocations ? "text-gray-700" : "text-gray-400"}>
+                    Allocation assigned {hasAllocations ? "✓" : "— waiting"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className={`inline-block w-2 h-2 rounded-full ${pqApproved ? "bg-emerald-400" : "bg-gray-300"}`} />
+                  <span className={pqApproved ? "text-gray-700" : "text-gray-400"}>
+                    PQ approved {pqApproved ? "✓" : "— waiting"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className={`inline-block w-2 h-2 rounded-full ${saftSigned ? "bg-emerald-400" : "bg-gray-300"}`} />
+                  <span className={saftSigned ? "text-gray-700" : "text-gray-400"}>
+                    SAFT signed {saftSigned ? "✓" : "— waiting"}
+                  </span>
+                </div>
+                {allReady && !capitalCallSent && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <p className="text-xs text-amber-600 mb-2">All conditions met but no capital call found. You can trigger one manually:</p>
+                    <Button variant="secondary" size="sm" onClick={() => handleSendEmail("capital_call")}>
+                      Send Capital Call
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        );
+      })()}
+
       {/* ── Emails ── */}
       <Card>
         <CardHeader title="Emails" subtitle="Sent emails and manual triggers" />
@@ -549,9 +613,6 @@ export default function InvestorDetailPage() {
           <Button variant="secondary" size="sm" onClick={() => handleSendEmail("welcome")}>Resend Welcome</Button>
           {canWrite && !investor.docs_sent_at && (
             <Button variant="secondary" size="sm" onClick={handleSendDocs}>Mark Docs Sent</Button>
-          )}
-          {canWrite && (
-            <Button variant="secondary" size="sm" onClick={() => handleSendEmail("capital_call")}>Send Capital Call</Button>
           )}
         </div>
         {investor.docs_sent_at && (

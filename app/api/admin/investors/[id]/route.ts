@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
 import {
   sendEmail,
-  composeCapitalCallEmail,
   composeDocsPackageEmail,
 } from "@/lib/email";
 
@@ -207,71 +206,25 @@ export async function PATCH(
     }
   }
 
-  // ── Auto-send capital call on PQ approval ──
-  // Only fires if pq_status was just set to "approved"
-  let capitalCallSent = false;
+  // ── Check capital call readiness on PQ approval ──
+  // Uses shared helper that checks all 3 gates: PQ approved + allocation + SAFT signed
+  let capitalCallResult: any = null;
   if (updates.pq_status === "approved") {
-    // Fetch investor with allocations for the capital call
-    const { data: fullInvestor } = await auth.client
-      .from("investors")
-      .select("*, allocations(*, saft_rounds(*))")
-      .eq("id", params.id)
-      .single();
-
-    if (fullInvestor) {
-      const unpaid = (fullInvestor.allocations || []).filter(
-        (a: any) => a.payment_status === "unpaid" || a.payment_status === "invoiced"
-      );
-
-      if (unpaid.length > 0) {
-        // Calculate total and compose email
-        let totalDue = 0;
-        const roundNames: string[] = [];
-
-        for (const alloc of unpaid) {
-          const price = alloc.saft_rounds?.token_price || 0;
-          const amount = Number(alloc.token_amount) * Number(price);
-          totalDue += amount;
-          if (alloc.saft_rounds?.name && !roundNames.includes(alloc.saft_rounds.name)) {
-            roundNames.push(alloc.saft_rounds.name);
-          }
-
-          // Mark as invoiced
-          if (alloc.payment_status === "unpaid") {
-            await auth.client
-              .from("allocations")
-              .update({ payment_status: "invoiced", amount_usd: amount })
-              .eq("id", alloc.id);
-          }
-        }
-
-        const roundLabel = roundNames.join(" + ");
-        const { subject, html } = composeCapitalCallEmail(
-          fullInvestor.full_name,
-          totalDue,
-          roundLabel
-        );
-
-        const sent = await sendEmail(fullInvestor.email, subject, html);
-        capitalCallSent = true;
-
-        // Log the email event
-        await auth.client.from("email_events").insert({
-          investor_id: params.id,
-          email_type: "capital_call",
-          sent_by: updates.pq_reviewed_by || "system",
-          metadata: {
-            total_due: totalDue,
-            rounds: roundNames,
-            trigger: "pq_approved",
-            sent_successfully: sent,
-          },
-        });
-      }
-    }
+    const { checkAndSendCapitalCall } = await import("@/lib/capital-call");
+    capitalCallResult = await checkAndSendCapitalCall(
+      auth.client,
+      params.id,
+      "pq_approved",
+      updates.pq_reviewed_by || auth.email
+    );
   }
 
-  return NextResponse.json({ ...data, capital_call_sent: capitalCallSent, docs_sent: docsSent });
+  return NextResponse.json({
+    ...data,
+    capital_call_sent: capitalCallResult?.sent || false,
+    capital_call_status: capitalCallResult || null,
+    docs_sent: docsSent,
+  });
 }
 
 /**

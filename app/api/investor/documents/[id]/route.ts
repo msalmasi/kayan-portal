@@ -353,10 +353,27 @@ export async function POST(
     },
   });
 
+  // ── Check if capital call should fire ──
+  // SAFT signed may be the last gate (if PQ was already approved)
+  let capitalCallSent = false;
+  try {
+    const { checkAndSendCapitalCall } = await import("@/lib/capital-call");
+    const result = await checkAndSendCapitalCall(
+      admin,
+      investor.id,
+      "saft_signed",
+      investor.email
+    );
+    capitalCallSent = result.sent;
+  } catch (err: any) {
+    console.error("[SIGNING] Capital call check failed:", err.message);
+  }
+
   return NextResponse.json({
     success: true,
     status: "signed",
     signed_at: signedAt,
     certificate_generated: !!signedPdfPath,
+    capital_call_sent: capitalCallSent,
   });
 }
