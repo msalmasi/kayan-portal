@@ -43,10 +43,36 @@ export async function GET(
     .eq("investor_id", params.id)
     .order("created_at", { ascending: false });
 
+  // Generate signed download URLs for each document
+  const docsWithUrls = await Promise.all(
+    (documents || []).map(async (doc: any) => {
+      let download_url: string | null = null;
+      let signed_pdf_url: string | null = null;
+
+      // Filled SAFT docx or static PPM/CIS PDF
+      if (doc.storage_path) {
+        const { data } = await auth.client.storage
+          .from("documents")
+          .createSignedUrl(doc.storage_path, 3600);
+        download_url = data?.signedUrl || null;
+      }
+
+      // Certificate of Execution PDF (signed SAFTs only)
+      if (doc.signed_pdf_path) {
+        const { data } = await auth.client.storage
+          .from("documents")
+          .createSignedUrl(doc.signed_pdf_path, 3600);
+        signed_pdf_url = data?.signedUrl || null;
+      }
+
+      return { ...doc, download_url, signed_pdf_url };
+    })
+  );
+
   return NextResponse.json({
     ...investor,
     email_events: emails || [],
-    investor_documents: documents || [],
+    investor_documents: docsWithUrls,
   });
 }
 

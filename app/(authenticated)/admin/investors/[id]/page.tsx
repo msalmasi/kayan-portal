@@ -39,8 +39,11 @@ interface InvestorDocItem {
   status: string;
   signed_at: string | null;
   signature_name: string | null;
+  signature_ip: string | null;
   created_at: string;
   saft_rounds: { name: string } | null;
+  download_url: string | null;
+  signed_pdf_url: string | null;
 }
 
 export default function InvestorDetailPage() {
@@ -439,7 +442,7 @@ export default function InvestorDetailPage() {
         {investor.investor_documents && investor.investor_documents.length > 0 ? (
           <div className="space-y-3 mb-4">
             {investor.investor_documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg text-sm">
+              <div key={doc.id} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg text-sm">
                 <div className="flex items-center gap-3">
                   <span className={`inline-block w-2 h-2 rounded-full ${
                     doc.status === "signed" ? "bg-emerald-400"
@@ -447,11 +450,17 @@ export default function InvestorDetailPage() {
                     : "bg-gray-300"
                   }`} />
                   <div>
-                    <span className="font-medium text-gray-700 capitalize">
+                    <span className="font-medium text-gray-700">
                       {doc.doc_type.toUpperCase()}
                     </span>
                     {doc.saft_rounds?.name && (
                       <span className="text-gray-400 ml-1">— {doc.saft_rounds.name}</span>
+                    )}
+                    {doc.status === "signed" && doc.signature_name && (
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        Signed by {doc.signature_name} · {new Date(doc.signed_at!).toLocaleString()}
+                        {doc.signature_ip && <span className="text-gray-400"> · IP {doc.signature_ip}</span>}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -461,13 +470,29 @@ export default function InvestorDetailPage() {
                     : doc.status === "viewed" ? "bg-blue-100 text-blue-700"
                     : "bg-gray-100 text-gray-600"
                   }`}>
-                    {doc.status === "signed"
-                      ? `Signed ${doc.signature_name ? "by " + doc.signature_name : ""}`
-                      : doc.status === "viewed" ? "Viewed" : "Pending"}
+                    {doc.status === "signed" ? "Signed" : doc.status === "viewed" ? "Viewed" : "Pending"}
                   </span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(doc.created_at).toLocaleDateString()}
-                  </span>
+                  {/* Download links */}
+                  {doc.download_url && (
+                    <a
+                      href={doc.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-kayan-600 hover:text-kayan-800 font-medium underline"
+                    >
+                      {doc.doc_type === "saft" ? "Download SAFT" : "Download PDF"}
+                    </a>
+                  )}
+                  {doc.signed_pdf_url && (
+                    <a
+                      href={doc.signed_pdf_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-600 hover:text-emerald-800 font-medium underline"
+                    >
+                      Certificate
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
