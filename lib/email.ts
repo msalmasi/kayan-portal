@@ -247,3 +247,76 @@ export async function sendEmail(
 
   return true;
 }
+
+// ─── Admin Alert Email ──────────────────────────────────────
+
+/** Event type → human-readable labels for email subject lines */
+const EVENT_LABELS: Record<string, string> = {
+  kyc_verified: "KYC Verified",
+  kyc_rejected: "KYC Rejected",
+  pq_submitted: "PQ Submitted",
+  saft_signed: "SAFT Signed",
+  payment_received: "Payment Received",
+  allocation_proposed: "Allocation Proposed",
+  allocation_approved: "Allocation Approved",
+  allocation_rejected: "Allocation Rejected",
+};
+
+/** Priority → colored badge for the email */
+const PRIORITY_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  action_required: { bg: "#fef3c7", color: "#92400e", label: "Action Required" },
+  info: { bg: "#eff6ff", color: "#1e40af", label: "Info" },
+};
+
+/**
+ * Compose a branded admin alert email for any notification event.
+ * Used by the notify() system to email subscribed admins.
+ */
+export function composeAdminAlertEmail(params: {
+  eventType: string;
+  priority: string;
+  investorName: string;
+  investorEmail: string;
+  title: string;
+  detail?: string;
+}) {
+  const label = EVENT_LABELS[params.eventType] || params.eventType;
+  const badge = PRIORITY_BADGE[params.priority] || PRIORITY_BADGE.info;
+
+  const subject = `[Kayan Portal] ${label}: ${params.investorName}`;
+  const html = wrapHtml(`
+    <div style="margin-bottom:16px;">
+      <span style="display:inline-block;background:${badge.bg};color:${badge.color};padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;">
+        ${badge.label}
+      </span>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">${params.title}</h2>
+    ${params.detail ? `<p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">${params.detail}</p>` : ""}
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:0 0 16px;">
+      <table style="width:100%;font-size:13px;color:#374151;" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:4px 0;font-weight:600;width:90px;">Investor</td>
+          <td style="padding:4px 0;">${params.investorName}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:600;">Email</td>
+          <td style="padding:4px 0;">${params.investorEmail}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:600;">Event</td>
+          <td style="padding:4px 0;">${label}</td>
+        </tr>
+      </table>
+    </div>
+    <a href="${PORTAL_URL}/admin/notifications" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      View in Portal
+    </a>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      You're receiving this because you subscribed to ${label} alerts.
+      <a href="${PORTAL_URL}/admin/settings" style="color:#9ca3af;">Manage preferences</a>
+    </p>
+  `);
+
+  return { subject, html };
+}

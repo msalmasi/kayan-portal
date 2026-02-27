@@ -132,6 +132,8 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
     if (adminRole && adminRole !== "staff") {
       items.push({ href: "/admin/team", label: "Team", icon: TeamIcon });
     }
+    // All admins can manage their own alert preferences
+    items.push({ href: "/admin/settings", label: "Admin Settings", icon: SettingsIcon });
   }
 
   const NavContent = () => (

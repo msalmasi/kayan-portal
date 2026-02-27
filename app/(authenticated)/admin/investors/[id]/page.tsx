@@ -51,7 +51,7 @@ interface InvestorDocItem {
 export default function InvestorDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { canWrite } = useAdminRole();
+  const { canWrite, isManager } = useAdminRole();
   const investorId = params.id as string;
 
   const [investor, setInvestor] = useState<InvestorFull | null>(null);
@@ -175,7 +175,11 @@ export default function InvestorDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ investor_id: investorId, round_id: newRoundId, token_amount: Number(newTokenAmount) }),
     });
-    if (res.ok) { toast.success("Allocation added"); setNewRoundId(""); setNewTokenAmount(""); fetchData(); }
+    if (res.ok) {
+      const data = await res.json();
+      toast.success(data._message || "Allocation added");
+      setNewRoundId(""); setNewTokenAmount(""); fetchData();
+    }
     else { const err = await res.json(); toast.error(err.error || "Failed"); }
   };
 
@@ -183,6 +187,28 @@ export default function InvestorDetailPage() {
     if (!confirm("Remove this allocation?")) return;
     const res = await fetch(`/api/admin/allocations?id=${id}`, { method: "DELETE" });
     if (res.ok) { toast.success("Removed"); fetchData(); } else toast.error("Failed");
+  };
+
+  const handleApproveAllocation = async (id: string) => {
+    const res = await fetch("/api/admin/allocations/approve", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allocation_id: id, action: "approve" }),
+    });
+    if (res.ok) { toast.success("Allocation approved"); fetchData(); }
+    else { const err = await res.json(); toast.error(err.error || "Failed"); }
+  };
+
+  const handleRejectAllocation = async (id: string) => {
+    const reason = prompt("Reason for rejection (optional):");
+    if (reason === null) return; // cancelled
+    const res = await fetch("/api/admin/allocations/approve", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allocation_id: id, action: "reject", reason }),
+    });
+    if (res.ok) { toast.success("Allocation rejected"); fetchData(); }
+    else { const err = await res.json(); toast.error(err.error || "Failed"); }
   };
 
   const handleSavePayment = async (id: string) => {
@@ -366,6 +392,7 @@ export default function InvestorDetailPage() {
                 <th className="text-left py-3 px-2 font-medium text-gray-500">Round</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">Tokens</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">USD</th>
+                <th className="text-center py-3 px-2 font-medium text-gray-500">Status</th>
                 <th className="text-center py-3 px-2 font-medium text-gray-500">Payment</th>
                 <th className="text-center py-3 px-2 font-medium text-gray-500">Method</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">Received</th>
@@ -376,30 +403,46 @@ export default function InvestorDetailPage() {
               {investor.allocations.map((alloc) => {
                 const isEditing = editingPayment === alloc.id;
                 const due = Number(alloc.amount_usd) || Number(alloc.token_amount) * Number(alloc.saft_rounds.token_price || 0);
+                const approval = (alloc as any).approval_status || "approved";
+                const isPending = approval === "pending";
+                const isRejected = approval === "rejected";
                 return (
-                  <tr key={alloc.id} className="border-b border-gray-50 last:border-0">
+                  <tr key={alloc.id} className={`border-b border-gray-50 last:border-0 ${isPending ? "bg-amber-50/50" : isRejected ? "bg-red-50/30 opacity-60" : ""}`}>
                     <td className="py-3 px-2 font-medium">{alloc.saft_rounds.name}</td>
                     <td className="py-3 px-2 text-right">{formatTokenAmount(Number(alloc.token_amount))}</td>
                     <td className="py-3 px-2 text-right">{due > 0 ? `$${due.toLocaleString()}` : "—"}</td>
+                    <td className="py-3 px-2 text-center">
+                      {isPending && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pending</span>}
+                      {isRejected && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>}
+                      {approval === "approved" && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Approved</span>}
+                    </td>
                     <td className="py-3 px-2 text-center"><PaymentBadge status={alloc.payment_status} /></td>
                     <td className="py-3 px-2 text-center text-xs text-gray-500">{alloc.payment_method ? PAYMENT_METHOD_LABELS[alloc.payment_method] : "—"}</td>
                     <td className="py-3 px-2 text-right">{alloc.amount_received_usd ? `$${Number(alloc.amount_received_usd).toLocaleString()}` : "—"}</td>
                     <td className="py-3 px-2 text-right space-x-2">
-                      {canWrite && !isEditing && (
+                      {/* Pending: show approve/reject for managers */}
+                      {isPending && isManager && (
+                        <>
+                          <button onClick={() => handleApproveAllocation(alloc.id)} className="text-emerald-600 hover:text-emerald-800 text-xs font-medium">Approve</button>
+                          <button onClick={() => handleRejectAllocation(alloc.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Reject</button>
+                        </>
+                      )}
+                      {/* Approved: show edit/remove for managers only */}
+                      {!isPending && !isRejected && isManager && !isEditing && (
                         <button onClick={() => { setEditingPayment(alloc.id); setPaymentForm({ payment_status: alloc.payment_status, payment_method: alloc.payment_method || "", amount_received_usd: alloc.amount_received_usd ? String(alloc.amount_received_usd) : "", tx_reference: alloc.tx_reference || "" }); }} className="text-kayan-500 hover:text-kayan-700 text-xs font-medium">Edit</button>
                       )}
-                      {canWrite && <button onClick={() => handleRemoveAllocation(alloc.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Remove</button>}
+                      {isManager && !isPending && <button onClick={() => handleRemoveAllocation(alloc.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Remove</button>}
                     </td>
                   </tr>
                 );
               })}
-              {investor.allocations.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-gray-400">No allocations</td></tr>}
+              {investor.allocations.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-gray-400">No allocations</td></tr>}
             </tbody>
           </table>
         </div>
 
         {/* Payment edit form */}
-        {editingPayment && canWrite && (
+        {editingPayment && isManager && (
           <div className="border-t border-gray-100 pt-4 mb-4">
             <h3 className="text-sm font-medium text-gray-700 mb-3">Update Payment</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -432,20 +475,25 @@ export default function InvestorDetailPage() {
           </div>
         )}
 
-        {/* Add allocation */}
-        {canWrite && (
-          <div className="border-t border-gray-100 pt-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Add Allocation</h3>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select value={newRoundId} onChange={e => setNewRoundId(e.target.value)} className={`flex-1 ${selectCls}`}>
-                <option value="">Select round...</option>
-                {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-              <input type="number" placeholder="Token amount" value={newTokenAmount} onChange={e => setNewTokenAmount(e.target.value)} className={`flex-1 ${inputCls}`} />
-              <Button onClick={handleAddAllocation} disabled={!newRoundId || !newTokenAmount} size="md">Add</Button>
-            </div>
+        {/* Add allocation — all roles can add; staff proposals need manager approval */}
+        <div className="border-t border-gray-100 pt-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-1">Add Allocation</h3>
+          {!isManager && (
+            <p className="text-xs text-amber-600 mb-3">
+              Your allocation will be submitted as a proposal and requires manager approval.
+            </p>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <select value={newRoundId} onChange={e => setNewRoundId(e.target.value)} className={`flex-1 ${selectCls}`}>
+              <option value="">Select round...</option>
+              {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+            <input type="number" placeholder="Token amount" value={newTokenAmount} onChange={e => setNewTokenAmount(e.target.value)} className={`flex-1 ${inputCls}`} />
+            <Button onClick={handleAddAllocation} disabled={!newRoundId || !newTokenAmount} size="md">
+              {isManager ? "Add" : "Propose"}
+            </Button>
           </div>
-        )}
+        </div>
       </Card>
 
       {/* ── Documents ── */}

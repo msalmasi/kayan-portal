@@ -20,7 +20,7 @@ export interface CreateNotificationParams {
 }
 
 /**
- * Create an admin notification.
+ * Create an admin notification + email subscribed admins.
  *
  * Fire-and-forget — failures are logged but don't break the calling flow.
  * Deduplicates by checking for an identical unread notification
@@ -54,8 +54,46 @@ export async function notify(
       detail: params.detail || null,
       metadata: params.metadata || {},
     });
+
+    // ── Email subscribed admins (fire-and-forget) ──
+    await emailSubscribedAdmins(supabase, params);
   } catch (err: any) {
     console.error("[NOTIFY] Failed to create notification:", err.message);
+  }
+}
+
+/**
+ * Send email alerts to admins who have subscribed to this event type.
+ * Looks up admin_alert_subscriptions and dispatches emails in parallel.
+ */
+async function emailSubscribedAdmins(
+  supabase: SupabaseClient,
+  params: CreateNotificationParams
+): Promise<void> {
+  try {
+    const { data: subs } = await supabase
+      .from("admin_alert_subscriptions")
+      .select("email, event_types")
+      .eq("enabled", true)
+      .contains("event_types", [params.eventType]);
+
+    if (!subs || subs.length === 0) return;
+
+    const { sendEmail } = await import("@/lib/email");
+    const { composeAdminAlertEmail } = await import("@/lib/email");
+
+    const { subject, html } = composeAdminAlertEmail(params);
+
+    await Promise.allSettled(
+      subs.map((sub: any) => sendEmail(sub.email, subject, html))
+    );
+
+    console.log(
+      `[NOTIFY] Emailed ${subs.length} admin(s) for ${params.eventType}`
+    );
+  } catch (err: any) {
+    // Non-fatal — portal notification was already created
+    console.error("[NOTIFY] Email dispatch failed:", err.message);
   }
 }
 
@@ -153,5 +191,66 @@ export function notifyPaymentReceived(
     title: `${investor.full_name} payment ${status === "paid" ? "confirmed" : "partially received"} — $${amount.toLocaleString()}`,
     detail: `Round: ${roundName}`,
     metadata: { amount, round_name: roundName, status },
+  });
+}
+
+/** Staff proposed an allocation — needs manager approval */
+export function notifyAllocationProposed(
+  supabase: SupabaseClient,
+  investor: { id: string; full_name: string; email: string },
+  roundName: string,
+  tokenAmount: number,
+  proposedBy: string
+) {
+  return notify(supabase, {
+    eventType: "allocation_proposed",
+    priority: "action_required",
+    investorId: investor.id,
+    investorName: investor.full_name,
+    investorEmail: investor.email,
+    title: `Allocation proposed for ${investor.full_name}`,
+    detail: `${tokenAmount.toLocaleString()} tokens in ${roundName} — proposed by ${proposedBy}. Awaiting manager approval.`,
+    metadata: { round_name: roundName, token_amount: tokenAmount, proposed_by: proposedBy },
+  });
+}
+
+/** Allocation approved by manager */
+export function notifyAllocationApproved(
+  supabase: SupabaseClient,
+  investor: { id: string; full_name: string; email: string },
+  roundName: string,
+  tokenAmount: number,
+  approvedBy: string
+) {
+  return notify(supabase, {
+    eventType: "allocation_approved",
+    priority: "info",
+    investorId: investor.id,
+    investorName: investor.full_name,
+    investorEmail: investor.email,
+    title: `Allocation approved for ${investor.full_name}`,
+    detail: `${tokenAmount.toLocaleString()} tokens in ${roundName} — approved by ${approvedBy}.`,
+    metadata: { round_name: roundName, token_amount: tokenAmount, approved_by: approvedBy },
+  });
+}
+
+/** Allocation rejected by manager */
+export function notifyAllocationRejected(
+  supabase: SupabaseClient,
+  investor: { id: string; full_name: string; email: string },
+  roundName: string,
+  tokenAmount: number,
+  rejectedBy: string,
+  reason: string
+) {
+  return notify(supabase, {
+    eventType: "allocation_rejected",
+    priority: "info",
+    investorId: investor.id,
+    investorName: investor.full_name,
+    investorEmail: investor.email,
+    title: `Allocation rejected for ${investor.full_name}`,
+    detail: `${tokenAmount.toLocaleString()} tokens in ${roundName} — rejected by ${rejectedBy}. Reason: ${reason || "No reason given."}`,
+    metadata: { round_name: roundName, token_amount: tokenAmount, rejected_by: rejectedBy, reason },
   });
 }

@@ -1,29 +1,144 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
 
+// ─── Role hierarchy helper ──────────────────────────────────
+// staff < manager < admin < super_admin
+const ROLE_RANK: Record<string, number> = {
+  staff: 0,
+  manager: 1,
+  admin: 2,
+  super_admin: 3,
+};
+
+function isManagerOrAbove(role: string): boolean {
+  return (ROLE_RANK[role] ?? 0) >= ROLE_RANK.manager;
+}
+
 /**
  * POST /api/admin/allocations
- * Create a new allocation. Staff cannot access.
+ * Create a new allocation.
+ *
+ * - Manager+ → allocation is created with approval_status = "approved"
+ * - Staff    → allocation is created with approval_status = "pending"
+ *              and a notification is sent to managers for review
  */
 export async function POST(request: NextRequest) {
   const auth = await getAdminAuth();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!auth.canWrite) {
-    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
-  }
 
   const body = await request.json();
 
+  // Validate required fields
+  if (!body.investor_id || !body.round_id || !body.token_amount) {
+    return NextResponse.json(
+      { error: "investor_id, round_id, and token_amount are required" },
+      { status: 400 }
+    );
+  }
+
+  // Staff proposes (pending); manager+ approves immediately
+  const isManager = isManagerOrAbove(auth.role);
+  const approvalStatus = isManager ? "approved" : "pending";
+
+  const insertData: Record<string, any> = {
+    investor_id: body.investor_id,
+    round_id: body.round_id,
+    token_amount: body.token_amount,
+    notes: body.notes || null,
+    approval_status: approvalStatus,
+    proposed_by: auth.email,
+  };
+
+  // Manager+ allocations are self-approved
+  if (isManager) {
+    insertData.approved_by = auth.email;
+    insertData.approved_at = new Date().toISOString();
+  }
+
   const { data, error } = await auth.client
     .from("allocations")
-    .insert({
-      investor_id: body.investor_id,
-      round_id: body.round_id,
-      token_amount: body.token_amount,
-      notes: body.notes || null,
-    })
+    .insert(insertData)
+    .select("*, saft_rounds(*)")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // If staff proposed it, notify managers
+  if (!isManager) {
+    try {
+      const { data: investor } = await auth.client
+        .from("investors")
+        .select("id, full_name, email")
+        .eq("id", body.investor_id)
+        .single();
+
+      if (investor) {
+        const { notifyAllocationProposed } = await import("@/lib/admin-notify");
+        await notifyAllocationProposed(
+          auth.client,
+          investor,
+          data.saft_rounds?.name || "Unknown",
+          body.token_amount,
+          auth.email
+        );
+      }
+    } catch (err: any) {
+      console.error("[ALLOC] Notification failed:", err.message);
+    }
+  }
+
+  return NextResponse.json({
+    ...data,
+    _approval_status: approvalStatus,
+    _message: isManager
+      ? "Allocation created and approved."
+      : "Allocation proposed — awaiting manager approval.",
+  });
+}
+
+/**
+ * PATCH /api/admin/allocations
+ * Edit an existing allocation. Manager+ only.
+ * Staff cannot edit allocations (even their own pending ones).
+ *
+ * Body: { id: string, token_amount?: number, notes?: string, round_id?: string }
+ */
+export async function PATCH(request: NextRequest) {
+  const auth = await getAdminAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isManagerOrAbove(auth.role)) {
+    return NextResponse.json(
+      { error: "Only managers and above can edit allocations" },
+      { status: 403 }
+    );
+  }
+
+  const body = await request.json();
+  if (!body.id) {
+    return NextResponse.json({ error: "Allocation id is required" }, { status: 400 });
+  }
+
+  const allowed = ["token_amount", "notes", "round_id"];
+  const updates: Record<string, any> = {};
+  for (const key of allowed) {
+    if (body[key] !== undefined) updates[key] = body[key];
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+  }
+
+  const { data, error } = await auth.client
+    .from("allocations")
+    .update(updates)
+    .eq("id", body.id)
     .select("*, saft_rounds(*)")
     .single();
 
@@ -36,15 +151,20 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE /api/admin/allocations?id=<allocation_id>
- * Remove an allocation. Staff cannot access.
+ * Remove an allocation. Manager+ only.
+ * Staff cannot delete allocations.
  */
 export async function DELETE(request: NextRequest) {
   const auth = await getAdminAuth();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!auth.canWrite) {
-    return NextResponse.json({ error: "Staff have view-only access" }, { status: 403 });
+
+  if (!isManagerOrAbove(auth.role)) {
+    return NextResponse.json(
+      { error: "Only managers and above can remove allocations" },
+      { status: 403 }
+    );
   }
 
   const { searchParams } = new URL(request.url);

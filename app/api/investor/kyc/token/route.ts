@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   // We use the investor's email as externalUserId so the webhook
   // can match the result back to our investor record.
   const externalUserId = investor.email.toLowerCase();
-  const levelName = process.env.SUMSUB_LEVEL_NAME || "basic-kyc-level";
+  const levelName = process.env.SUMSUB_LEVEL_NAME || "kayan-reg-s";
 
   const url = `/resources/accessTokens?userId=${encodeURIComponent(
     externalUserId

@@ -67,26 +67,29 @@ export default async function DashboardPage() {
     );
   }
 
-  // Fetch paid allocations (fully confirmed)
+  // Fetch paid allocations (fully confirmed, approved only)
   const { data: paidAllocations } = await supabase
     .from("allocations")
     .select("*, saft_rounds(*)")
     .eq("investor_id", investor.id)
-    .eq("payment_status", "paid");
+    .eq("payment_status", "paid")
+    .eq("approval_status", "approved");
 
-  // Fetch partial allocations (some payment received)
+  // Fetch partial allocations (some payment received, approved only)
   const { data: partialAllocations } = await supabase
     .from("allocations")
     .select("*, saft_rounds(*)")
     .eq("investor_id", investor.id)
-    .eq("payment_status", "partial");
+    .eq("payment_status", "partial")
+    .eq("approval_status", "approved");
 
-  // Fetch invoiced + partial for amount due banner
+  // Fetch invoiced + partial for amount due banner (approved only)
   const { data: outstandingAllocations } = await supabase
     .from("allocations")
     .select("amount_usd, amount_received_usd, token_amount, saft_rounds(name, token_price)")
     .eq("investor_id", investor.id)
-    .in("payment_status", ["invoiced", "partial"]);
+    .in("payment_status", ["invoiced", "partial"])
+    .eq("approval_status", "approved");
 
   // For partial allocations, scale token_amount to the paid proportion.
   // e.g. 100,000 tokens at $50k, $20k received → show 40,000 tokens

@@ -172,7 +172,8 @@ export async function PATCH(
       const { data: allocations } = await auth.client
         .from("allocations")
         .select("round_id")
-        .eq("investor_id", params.id);
+        .eq("investor_id", params.id)
+        .eq("approval_status", "approved");
 
       if (fullInv && allocations && allocations.length > 0) {
         const uniqueRounds = Array.from(new Set(allocations.map((a: any) => a.round_id)));

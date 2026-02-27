@@ -27,12 +27,15 @@ interface Notification {
 // ─── Event type display config ──────────────────────────────
 
 const EVENT_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
-  kyc_verified:     { icon: "✓", color: "text-emerald-600 bg-emerald-50", label: "KYC Verified" },
-  kyc_rejected:     { icon: "✗", color: "text-red-600 bg-red-50", label: "KYC Rejected" },
-  pq_submitted:     { icon: "📋", color: "text-amber-600 bg-amber-50", label: "PQ Submitted" },
-  saft_signed:      { icon: "✍", color: "text-blue-600 bg-blue-50", label: "SAFT Signed" },
-  payment_received: { icon: "$", color: "text-emerald-600 bg-emerald-50", label: "Payment" },
-  docs_generated:   { icon: "📄", color: "text-gray-600 bg-gray-50", label: "Docs Generated" },
+  kyc_verified:         { icon: "✓", color: "text-emerald-600 bg-emerald-50", label: "KYC Verified" },
+  kyc_rejected:         { icon: "✗", color: "text-red-600 bg-red-50", label: "KYC Rejected" },
+  pq_submitted:         { icon: "📋", color: "text-amber-600 bg-amber-50", label: "PQ Submitted" },
+  saft_signed:          { icon: "✍", color: "text-blue-600 bg-blue-50", label: "SAFT Signed" },
+  payment_received:     { icon: "$", color: "text-emerald-600 bg-emerald-50", label: "Payment" },
+  docs_generated:       { icon: "📄", color: "text-gray-600 bg-gray-50", label: "Docs Generated" },
+  allocation_proposed:  { icon: "➕", color: "text-amber-600 bg-amber-50", label: "Allocation Proposed" },
+  allocation_approved:  { icon: "✓", color: "text-emerald-600 bg-emerald-50", label: "Allocation Approved" },
+  allocation_rejected:  { icon: "✗", color: "text-red-600 bg-red-50", label: "Allocation Rejected" },
 };
 
 // ─── Relative time helper ───────────────────────────────────

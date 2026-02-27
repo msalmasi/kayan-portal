@@ -56,6 +56,12 @@ export interface Allocation {
   amount_received_usd: number | null;
   payment_date: string | null;
   tx_reference: string | null;
+  // Approval workflow (staff proposals require manager approval)
+  approval_status: "pending" | "approved" | "rejected";
+  proposed_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
   created_at: string;
 }
 

@@ -65,11 +65,12 @@ export async function checkAndSendCapitalCall(
     pending.push("Purchaser Questionnaire not yet approved");
   }
 
-  // ── Gate 2: Allocations exist ──
+  // ── Gate 2: Approved allocations exist ──
   const { data: allocations } = await supabase
     .from("allocations")
     .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(name, token_price)")
-    .eq("investor_id", investorId);
+    .eq("investor_id", investorId)
+    .eq("approval_status", "approved");
 
   if (!allocations || allocations.length === 0) {
     pending.push("No allocations assigned");

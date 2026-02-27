@@ -24,5 +24,8 @@ export function useAdminRole() {
   // Staff is view-only — everyone else can write
   const canWrite = !!role && role !== "staff";
 
-  return { role, canWrite, loading };
+  // Manager+ can approve allocations, edit, and delete
+  const isManager = !!role && ["manager", "admin", "super_admin"].includes(role);
+
+  return { role, canWrite, isManager, loading };
 }

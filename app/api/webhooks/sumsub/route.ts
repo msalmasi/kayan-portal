@@ -144,11 +144,12 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // ── Auto-generate document sets for each round with an allocation ──
+      // ── Auto-generate document sets for each round with an approved allocation ──
       const { data: allocations } = await supabase
         .from("allocations")
         .select("round_id")
-        .eq("investor_id", investor.id);
+        .eq("investor_id", investor.id)
+        .eq("approval_status", "approved");
 
       let docsGenerated = 0;
       if (allocations && allocations.length > 0) {
