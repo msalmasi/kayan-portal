@@ -4,7 +4,8 @@ import { AllocationWithRound, Investor } from "@/lib/types";
 import { StatCards } from "@/components/dashboard/StatCards";
 import { AllocationTable } from "@/components/dashboard/AllocationTable";
 import { VestingChart } from "@/components/dashboard/VestingChart";
-import { KycSection, WalletSection } from "@/components/dashboard/Placeholders";
+import { WalletSection } from "@/components/dashboard/Placeholders";
+import { SumsubKycWidget } from "@/components/dashboard/SumsubKycWidget";
 
 /**
  * /dashboard — Main investor view
@@ -164,11 +165,14 @@ export default async function DashboardPage() {
       {/* Vesting Schedule Chart */}
       <VestingChart allocations={typedAllocations} />
 
-      {/* KYC & Wallet (disabled placeholders) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <KycSection status={typedInvestor.kyc_status} />
-        <WalletSection walletAddress={typedInvestor.wallet_address} />
-      </div>
+      {/* KYC Verification */}
+      <SumsubKycWidget
+        kycStatus={typedInvestor.kyc_status}
+        investorName={typedInvestor.full_name}
+      />
+
+      {/* Wallet (disabled until TGE) */}
+      <WalletSection walletAddress={typedInvestor.wallet_address} />
     </div>
   );
 }
