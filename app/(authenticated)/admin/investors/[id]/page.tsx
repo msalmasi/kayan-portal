@@ -571,6 +571,11 @@ export default function InvestorDetailPage() {
                     ? new Date(investor.email_events.find((e: EmailEvent) => e.email_type === "capital_call")!.sent_at).toLocaleString()
                     : ""}
                 </span>
+                {canWrite && (
+                  <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-2 text-xs">
+                    Resend
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
