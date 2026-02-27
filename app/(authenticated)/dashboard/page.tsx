@@ -75,8 +75,21 @@ export default async function DashboardPage() {
     .eq("investor_id", investor.id)
     .eq("payment_status", "paid");
 
+  // Fetch invoiced allocations to show amount due
+  const { data: invoicedAllocations } = await supabase
+    .from("allocations")
+    .select("amount_usd, token_amount, saft_rounds(name, token_price)")
+    .eq("investor_id", investor.id)
+    .eq("payment_status", "invoiced");
+
   const typedAllocations = (allocations || []) as AllocationWithRound[];
   const typedInvestor = investor as Investor;
+
+  // Calculate total amount due from invoiced allocations
+  const amountDue = (invoicedAllocations || []).reduce((sum: number, a: any) => {
+    const amt = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
+    return sum + amt;
+  }, 0);
 
   return (
     <div className="space-y-6">
@@ -91,6 +104,21 @@ export default async function DashboardPage() {
             : "Complete your subscription to see your token allocations"}
         </p>
       </div>
+
+      {/* Amount Due Banner */}
+      {amountDue > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Payment Due</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Please remit payment to complete your subscription. Your token allocation will appear once payment is confirmed.
+            </p>
+          </div>
+          <p className="text-2xl font-bold text-amber-900 whitespace-nowrap ml-4">
+            ${amountDue.toLocaleString()}
+          </p>
+        </div>
+      )}
 
       {/* Summary Stats */}
       <StatCards
