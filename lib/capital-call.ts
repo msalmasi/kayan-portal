@@ -115,14 +115,14 @@ export async function checkAndSendCapitalCall(
   // ── Handle grant allocations: send confirmation, no capital call ──
   if (grantAllocations.length > 0) {
     // Group grants by round to send one email per round
-    const grantsByRound = new Map<string, any[]>();
+    const grantsByRound: Record<string, any[]> = {};
     for (const g of grantAllocations) {
       const rid = g.round_id;
-      if (!grantsByRound.has(rid)) grantsByRound.set(rid, []);
-      grantsByRound.get(rid)!.push(g);
+      if (!grantsByRound[rid]) grantsByRound[rid] = [];
+      grantsByRound[rid].push(g);
     }
 
-    for (const [roundId, grants] of grantsByRound) {
+    for (const [roundId, grants] of Object.entries(grantsByRound)) {
       const totalTokens = grants.reduce(
         (sum: number, a: any) => sum + Number(a.token_amount),
         0
