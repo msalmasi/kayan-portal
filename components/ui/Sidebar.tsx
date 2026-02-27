@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { useNotifications } from "@/lib/notification-context";
 
 // ─── SVG Icons (inline to avoid extra deps) ─────────────────
 
@@ -99,22 +100,7 @@ interface SidebarProps {
 export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  // Fetch unread notification count for admins
-  useEffect(() => {
-    if (!isAdmin) return;
-    const fetchCount = () => {
-      fetch("/api/admin/notifications?count_only=true")
-        .then((r) => r.json())
-        .then((d) => setUnreadCount(d.unread_count || 0))
-        .catch(() => {});
-    };
-    fetchCount();
-    // Poll every 60 seconds
-    const interval = setInterval(fetchCount, 60000);
-    return () => clearInterval(interval);
-  }, [isAdmin]);
+  const { unreadCount } = useNotifications();
 
   const handleLogout = async () => {
     const supabase = createClient();

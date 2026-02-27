@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase-server";
-import { Sidebar } from "@/components/ui/Sidebar";
+import { AuthenticatedShell } from "@/components/AuthenticatedShell";
 
 /**
  * Layout for all authenticated pages (dashboard, settings, admin).
- * Checks auth and renders the sidebar + content structure.
+ * Checks auth server-side, then hands off to client shell
+ * which provides notification context to sidebar + children.
  */
 export default async function AuthenticatedLayout({
   children,
@@ -13,14 +14,13 @@ export default async function AuthenticatedLayout({
 }) {
   const supabase = await createServerSupabase();
 
-  // Verify the user is authenticated
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
 
-  // Check if user is an admin (for showing the admin nav links)
+  // Check if user is an admin
   const adminSupabase = createAdminSupabase();
   const { data: adminUser } = await adminSupabase
     .from("admin_users")
@@ -29,19 +29,13 @@ export default async function AuthenticatedLayout({
     .single();
 
   const isAdmin = !!adminUser;
-  // Managers can access admin panel but cannot manage team members
   const adminRole = (adminUser?.role as string) || null;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar isAdmin={isAdmin} adminRole={adminRole} />
-
-      {/* Main content — offset by sidebar width on desktop */}
-      <main className="lg:ml-64 min-h-screen">
-        <div className="p-6 lg:p-8 pt-16 lg:pt-8 max-w-6xl">
-          {children}
-        </div>
-      </main>
+      <AuthenticatedShell isAdmin={isAdmin} adminRole={adminRole}>
+        {children}
+      </AuthenticatedShell>
     </div>
   );
 }
