@@ -43,15 +43,24 @@ export async function generateDocsForInvestor(
 
   if (roundErr || !round) throw new Error("Round not found");
 
-  // ── Require allocation ──
-  const { data: alloc } = await supabase
+  // ── Require allocation(s) — combine if multiple in same round ──
+  const { data: allocs } = await supabase
     .from("allocations")
     .select("token_amount, amount_usd")
     .eq("investor_id", investor.id)
     .eq("round_id", roundId)
-    .single();
+    .eq("approval_status", "approved");
 
-  if (!alloc) throw new Error("No allocation for this investor + round");
+  if (!allocs || allocs.length === 0) {
+    throw new Error("No approved allocation for this investor + round");
+  }
+
+  // Sum across all allocations in this round
+  // (e.g. two strategic allocations of 50k tokens each → 100k total)
+  const alloc = {
+    token_amount: allocs.reduce((sum, a: any) => sum + Number(a.token_amount), 0),
+    amount_usd: allocs.reduce((sum, a: any) => sum + Number(a.amount_usd || 0), 0),
+  };
 
   // ── Fetch templates ──
   const { data: saftTemplate } = await supabase
