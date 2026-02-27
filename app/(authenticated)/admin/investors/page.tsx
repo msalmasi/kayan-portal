@@ -21,10 +21,22 @@ interface InvestorRow {
   round_count: number;
   pending_allocations: number;
   payment_summary: string;
+  doc_status: "none" | "pending" | "signed";
+  action_needed: boolean;
+  action_reasons: string[];
   created_at: string;
 }
 
-type SortCol = "full_name" | "email" | "kyc_status" | "pq_status" | "created_at";
+type SortCol =
+  | "full_name"
+  | "email"
+  | "kyc_status"
+  | "pq_status"
+  | "payment_summary"
+  | "total_tokens"
+  | "doc_status"
+  | "action_needed"
+  | "created_at";
 type SortDir = "asc" | "desc";
 
 // ─── Filter options ─────────────────────────────────────────
@@ -54,12 +66,44 @@ const PAYMENT_OPTIONS = [
   { value: "grant", label: "Grant" },
 ];
 
+const DOCS_OPTIONS = [
+  { value: "", label: "All Docs" },
+  { value: "none", label: "No Docs" },
+  { value: "pending", label: "Unsigned" },
+  { value: "signed", label: "Signed" },
+];
+
+const ACTION_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "true", label: "Action Needed" },
+];
+
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 // ─── Shared styles ──────────────────────────────────────────
 
 const selectCls =
   "px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500 text-gray-700";
+
+// ─── Doc status badge ───────────────────────────────────────
+
+function DocBadge({ status }: { status: string }) {
+  if (status === "signed") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+        Signed
+      </span>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+        Unsigned
+      </span>
+    );
+  }
+  return <span className="text-xs text-gray-300">—</span>;
+}
 
 // ─── Sort header component ──────────────────────────────────
 
@@ -80,7 +124,11 @@ function SortHeader({
 }) {
   const active = current === column;
   const alignCls =
-    align === "right" ? "text-right justify-end" : align === "center" ? "text-center justify-center" : "text-left";
+    align === "right"
+      ? "text-right justify-end"
+      : align === "center"
+      ? "text-center justify-center"
+      : "text-left";
 
   return (
     <th className={`py-3 px-2 font-medium text-gray-500 ${alignCls}`}>
@@ -116,6 +164,8 @@ export default function AdminInvestorsPage() {
   const [kycFilter, setKycFilter] = useState("");
   const [pqFilter, setPqFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
+  const [docsFilter, setDocsFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
 
   // Sort
   const [sortBy, setSortBy] = useState<SortCol>("created_at");
@@ -165,13 +215,15 @@ export default function AdminInvestorsPage() {
     if (kycFilter) params.set("kyc", kycFilter);
     if (pqFilter) params.set("pq", pqFilter);
     if (paymentFilter) params.set("payment", paymentFilter);
+    if (docsFilter) params.set("docs", docsFilter);
+    if (actionFilter) params.set("action", actionFilter);
 
     const res = await fetch(`/api/admin/investors?${params}`);
     const data = await res.json();
     setInvestors(data.investors || []);
     setTotal(data.total || 0);
     setLoading(false);
-  }, [debouncedSearch, page, pageSize, sortBy, sortDir, kycFilter, pqFilter, paymentFilter]);
+  }, [debouncedSearch, page, pageSize, sortBy, sortDir, kycFilter, pqFilter, paymentFilter, docsFilter, actionFilter]);
 
   useEffect(() => {
     fetchInvestors();
@@ -180,7 +232,7 @@ export default function AdminInvestorsPage() {
   // Reset to page 0 when filters/search/sort change
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch, kycFilter, pqFilter, paymentFilter, sortBy, sortDir, pageSize]);
+  }, [debouncedSearch, kycFilter, pqFilter, paymentFilter, docsFilter, actionFilter, sortBy, sortDir, pageSize]);
 
   // ── Sort handler ──
   const handleSort = (col: SortCol) => {
@@ -188,17 +240,19 @@ export default function AdminInvestorsPage() {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortBy(col);
-      setSortDir("asc");
+      setSortDir(col === "total_tokens" || col === "created_at" ? "desc" : "asc");
     }
   };
 
   // ── Clear all filters ──
-  const hasActiveFilters = kycFilter || pqFilter || paymentFilter || debouncedSearch;
+  const hasActiveFilters = kycFilter || pqFilter || paymentFilter || docsFilter || actionFilter || debouncedSearch;
   const clearFilters = () => {
     setSearch("");
     setKycFilter("");
     setPqFilter("");
     setPaymentFilter("");
+    setDocsFilter("");
+    setActionFilter("");
   };
 
   // ── CSV Export ──
@@ -214,6 +268,8 @@ export default function AdminInvestorsPage() {
       if (kycFilter) params.set("kyc", kycFilter);
       if (pqFilter) params.set("pq", pqFilter);
       if (paymentFilter) params.set("payment", paymentFilter);
+      if (docsFilter) params.set("docs", docsFilter);
+      if (actionFilter) params.set("action", actionFilter);
 
       const res = await fetch(`/api/admin/investors?${params}`);
       if (!res.ok) throw new Error("Export failed");
@@ -356,36 +412,21 @@ export default function AdminInvestorsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full px-3 py-2 pl-9 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent placeholder:text-gray-400"
               />
-              {/* Search icon */}
               <svg
                 className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
             </div>
 
             <div className="flex gap-2 items-center ml-auto">
-              {/* Page size */}
               <label className="text-xs text-gray-500">Show</label>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className={selectCls}
-              >
+              <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className={selectCls}>
                 {PAGE_SIZE_OPTIONS.map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
-
-              {/* Export */}
               <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting}>
                 {exporting ? "Exporting..." : "Export CSV"}
               </Button>
@@ -395,33 +436,26 @@ export default function AdminInvestorsPage() {
           {/* Row 2: Filter dropdowns */}
           <div className="flex flex-wrap gap-2 items-center">
             <select value={kycFilter} onChange={(e) => setKycFilter(e.target.value)} className={selectCls}>
-              {KYC_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+              {KYC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-
             <select value={pqFilter} onChange={(e) => setPqFilter(e.target.value)} className={selectCls}>
-              {PQ_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+              {PQ_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-
             <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={selectCls}>
-              {PAYMENT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+              {PAYMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select value={docsFilter} onChange={(e) => setDocsFilter(e.target.value)} className={selectCls}>
+              {DOCS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectCls}>
+              {ACTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
 
             {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-gray-500 hover:text-gray-700 underline ml-1"
-              >
+              <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-gray-700 underline ml-1">
                 Clear filters
               </button>
             )}
-
-            {/* Result count */}
             <span className="text-xs text-gray-400 ml-auto">
               {total} result{total !== 1 ? "s" : ""}
             </span>
@@ -433,22 +467,22 @@ export default function AdminInvestorsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <SortHeader label="Name" column="full_name" current={sortBy} dir={sortDir} onSort={handleSort} />
-                <SortHeader label="Email" column="email" current={sortBy} dir={sortDir} onSort={handleSort} />
-                <SortHeader label="KYC" column="kyc_status" current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
-                <SortHeader label="PQ" column="pq_status" current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
-                <th className="text-center py-3 px-2 font-medium text-gray-500">Payment</th>
-                <th className="text-right py-3 px-2 font-medium text-gray-500">Tokens</th>
-                <SortHeader label="Added" column="created_at" current={sortBy} dir={sortDir} onSort={handleSort} align="right" />
+                <SortHeader label="Name"    column="full_name"       current={sortBy} dir={sortDir} onSort={handleSort} />
+                <SortHeader label="KYC"     column="kyc_status"      current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <SortHeader label="PQ"      column="pq_status"       current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <SortHeader label="Payment" column="payment_summary" current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <SortHeader label="Docs"    column="doc_status"      current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <SortHeader label="Tokens"  column="total_tokens"    current={sortBy} dir={sortDir} onSort={handleSort} align="right" />
+                <SortHeader label="Action"  column="action_needed"   current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <SortHeader label="Added"   column="created_at"      current={sortBy} dir={sortDir} onSort={handleSort} align="right" />
                 <th className="text-right py-3 px-2 font-medium text-gray-500"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                // Skeleton rows
                 Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: 9 }).map((_, j) => (
                       <td key={j} className="py-3 px-2">
                         <div className="h-4 bg-gray-100 rounded animate-pulse" />
                       </td>
@@ -457,29 +491,25 @@ export default function AdminInvestorsPage() {
                 ))
               ) : investors.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-400">
-                    {hasActiveFilters
-                      ? "No investors match your filters"
-                      : "No investors yet"}
+                  <td colSpan={9} className="py-12 text-center text-gray-400">
+                    {hasActiveFilters ? "No investors match your filters" : "No investors yet"}
                   </td>
                 </tr>
               ) : (
                 investors.map((inv) => (
                   <tr
                     key={inv.id}
-                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group"
+                    className={`border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group ${
+                      inv.action_needed ? "bg-amber-50/30" : ""
+                    }`}
                   >
+                    {/* Name + email (stacked) */}
                     <td className="py-3 px-2">
                       <Link href={`/admin/investors/${inv.id}`} className="font-medium text-gray-900 hover:text-kayan-600">
                         {inv.full_name}
                       </Link>
-                      {inv.pending_allocations > 0 && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
-                          {inv.pending_allocations} pending
-                        </span>
-                      )}
+                      <p className="text-xs text-gray-400 mt-0.5">{inv.email}</p>
                     </td>
-                    <td className="py-3 px-2 text-gray-600">{inv.email}</td>
                     <td className="py-3 px-2 text-center"><KycBadge status={inv.kyc_status} /></td>
                     <td className="py-3 px-2 text-center"><PqBadge status={inv.pq_status} /></td>
                     <td className="py-3 px-2 text-center">
@@ -489,8 +519,32 @@ export default function AdminInvestorsPage() {
                         <span className="text-xs text-gray-300">—</span>
                       )}
                     </td>
+                    <td className="py-3 px-2 text-center">
+                      <DocBadge status={inv.doc_status} />
+                    </td>
                     <td className="py-3 px-2 text-right text-gray-700">
                       {formatTokenAmount(inv.total_tokens)}
+                      {inv.pending_allocations > 0 && (
+                        <span className="ml-1 text-[10px] font-medium text-amber-600">
+                          +{inv.pending_allocations}?
+                        </span>
+                      )}
+                    </td>
+                    {/* Action needed */}
+                    <td className="py-3 px-2 text-center">
+                      {inv.action_needed ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 cursor-help"
+                          title={inv.action_reasons.join("\n")}
+                        >
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                          </svg>
+                          {inv.action_reasons.length}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-right text-xs text-gray-400">
                       {new Date(inv.created_at).toLocaleDateString()}
@@ -500,7 +554,7 @@ export default function AdminInvestorsPage() {
                         href={`/admin/investors/${inv.id}`}
                         className="text-kayan-500 hover:text-kayan-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        View →
+                        →
                       </Link>
                     </td>
                   </tr>
@@ -522,60 +576,34 @@ export default function AdminInvestorsPage() {
 
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
-              {/* First */}
-              <button
-                disabled={page === 0}
-                onClick={() => setPage(0)}
-                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                title="First page"
-              >
+              <button disabled={page === 0} onClick={() => setPage(0)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed" title="First page">
                 ««
               </button>
-              {/* Prev */}
-              <button
-                disabled={page === 0}
-                onClick={() => setPage((p) => p - 1)}
-                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
+              <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
                 ‹ Prev
               </button>
-
-              {/* Page numbers — show up to 5 pages around current */}
               {(() => {
                 const pages: number[] = [];
                 const start = Math.max(0, page - 2);
                 const end = Math.min(totalPages - 1, page + 2);
                 for (let i = start; i <= end; i++) pages.push(i);
                 return pages.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
+                  <button key={p} onClick={() => setPage(p)}
                     className={`px-2.5 py-1 text-xs rounded border ${
-                      p === page
-                        ? "bg-kayan-600 text-white border-kayan-600"
-                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
+                      p === page ? "bg-kayan-600 text-white border-kayan-600" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}>
                     {p + 1}
                   </button>
                 ));
               })()}
-
-              {/* Next */}
-              <button
-                disabled={page >= totalPages - 1}
-                onClick={() => setPage((p) => p + 1)}
-                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
+              <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
                 Next ›
               </button>
-              {/* Last */}
-              <button
-                disabled={page >= totalPages - 1}
-                onClick={() => setPage(totalPages - 1)}
-                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Last page"
-              >
+              <button disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed" title="Last page">
                 »»
               </button>
             </div>

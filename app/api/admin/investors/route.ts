@@ -10,12 +10,13 @@ import { sendEmail, composeWelcomeEmail } from "@/lib/email";
  *   search    — text search on name/email
  *   page      — 0-indexed page number
  *   limit     — rows per page (10|20|50|100, default 20)
- *   sort_by   — column to sort (full_name|email|kyc_status|pq_status|created_at)
+ *   sort_by   — column to sort (any column including aggregated ones)
  *   sort_dir  — asc or desc (default desc)
- *   kyc       — filter by kyc_status (unverified|pending|verified)
- *   pq        — filter by pq_status (not_sent|sent|submitted|approved|rejected)
- *   payment   — filter by payment summary (unpaid|invoiced|partial|paid)
- *   has_alloc — "true" or "false" to filter investors with/without allocations
+ *   kyc       — filter by kyc_status
+ *   pq        — filter by pq_status
+ *   payment   — filter by payment summary
+ *   docs      — filter by doc_status (none|pending|signed)
+ *   action    — "true" to show only investors needing admin action
  *   export    — "csv" to return all matching rows as CSV download
  */
 export async function GET(request: NextRequest) {
@@ -29,72 +30,64 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") || "0");
   const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
   const sortBy = searchParams.get("sort_by") || "created_at";
-  const sortDir = searchParams.get("sort_dir") === "asc" ? true : false; // ascending?
+  const sortDir = searchParams.get("sort_dir") || "desc";
   const kycFilter = searchParams.get("kyc") || "";
   const pqFilter = searchParams.get("pq") || "";
   const paymentFilter = searchParams.get("payment") || "";
+  const docsFilter = searchParams.get("docs") || "";
+  const actionFilter = searchParams.get("action") === "true";
   const isExport = searchParams.get("export") === "csv";
 
-  const offset = page * limit;
-
-  // Build query — always fetch allocations for aggregation
+  // ── Fetch all matching investors with allocations + documents ──
+  // We fetch everything and do aggregation/sort/paginate in JS because
+  // payment, tokens, docs, and action status are all computed fields.
   let query = auth.client
     .from("investors")
     .select(
-      "id, email, full_name, kyc_status, pq_status, created_at, allocations(token_amount, payment_status, approval_status)",
-      { count: "exact" }
+      "id, email, full_name, kyc_status, pq_status, created_at, " +
+      "allocations(token_amount, payment_status, approval_status), " +
+      "investor_documents(doc_type, status, round_id)"
     );
 
-  // Text search
+  // DB-level filters (fast)
   if (search) {
     query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
   }
-
-  // Column filters
   if (kycFilter) query = query.eq("kyc_status", kycFilter);
   if (pqFilter) query = query.eq("pq_status", pqFilter);
 
-  // Sort — only allow safe columns
-  const SAFE_SORT_COLS = ["full_name", "email", "kyc_status", "pq_status", "created_at"];
-  const sortCol = SAFE_SORT_COLS.includes(sortBy) ? sortBy : "created_at";
-  query = query.order(sortCol, { ascending: sortDir });
+  // Default DB sort for stable ordering
+  query = query.order("created_at", { ascending: false });
 
-  // For CSV export, fetch all matching rows (no pagination)
-  if (!isExport) {
-    query = query.range(offset, offset + limit - 1);
-  }
-
-  const { data, count, error } = await query;
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Transform rows — aggregate allocation data
-  const investors = (data || []).map((inv: any) => {
-    // Only count approved allocations for tokens/payment
-    const approved = (inv.allocations || []).filter(
-      (a: any) => a.approval_status === "approved"
-    );
+  // ── Transform rows — compute all aggregated fields ──
+  let investors = (data || []).map((inv: any) => {
     const allAllocs = inv.allocations || [];
+    const approved = allAllocs.filter((a: any) => a.approval_status === "approved");
+    const docs = inv.investor_documents || [];
 
+    // Tokens: sum of approved allocations
     const totalTokens = approved.reduce(
-      (sum: number, a: any) => sum + Number(a.token_amount),
-      0
+      (sum: number, a: any) => sum + Number(a.token_amount), 0
     );
-    const pendingCount = allAllocs.filter(
+
+    // Pending allocation proposals
+    const pendingAllocations = allAllocs.filter(
       (a: any) => a.approval_status === "pending"
     ).length;
 
-    // Aggregate payment summary from approved allocations
-    // "grant" counts as complete (same tier as "paid")
+    // Payment summary
     const paymentSummary = (() => {
       if (approved.length === 0) return "none";
       const allComplete = approved.every(
         (a: any) => a.payment_status === "paid" || a.payment_status === "grant"
       );
       if (allComplete) {
-        // If ALL are grants, show "grant"; if mixed or all paid, show "paid"
         return approved.every((a: any) => a.payment_status === "grant") ? "grant" : "paid";
       }
       if (approved.some((a: any) => a.payment_status === "paid" || a.payment_status === "partial"))
@@ -102,6 +95,22 @@ export async function GET(request: NextRequest) {
       if (approved.some((a: any) => a.payment_status === "invoiced")) return "invoiced";
       return "unpaid";
     })();
+
+    // Document status
+    // "none" = no docs, "pending" = unsigned docs exist, "signed" = all signed
+    const docStatus = (() => {
+      if (docs.length === 0) return "none";
+      const safts = docs.filter((d: any) => d.doc_type === "saft");
+      if (safts.length === 0) return "none";
+      if (safts.every((d: any) => d.status === "signed")) return "signed";
+      return "pending";
+    })();
+
+    // Action needed — investor requires admin/manager attention
+    // Reasons: PQ submitted (needs review), pending allocations (need approval)
+    const actionReasons: string[] = [];
+    if (inv.pq_status === "submitted") actionReasons.push("PQ needs review");
+    if (pendingAllocations > 0) actionReasons.push(`${pendingAllocations} allocation(s) pending`);
 
     return {
       id: inv.id,
@@ -111,21 +120,69 @@ export async function GET(request: NextRequest) {
       pq_status: inv.pq_status || "not_sent",
       total_tokens: totalTokens,
       round_count: approved.length,
-      pending_allocations: pendingCount,
+      pending_allocations: pendingAllocations,
       payment_summary: paymentSummary,
+      doc_status: docStatus,
+      action_needed: actionReasons.length > 0,
+      action_reasons: actionReasons,
       created_at: inv.created_at,
     };
   });
 
-  // Client-side payment filter (can't do this in PostgREST since it's aggregated)
-  const filtered = paymentFilter
-    ? investors.filter((inv: any) => inv.payment_summary === paymentFilter)
-    : investors;
+  // ── Client-side filters (aggregated fields) ──
+  if (paymentFilter) {
+    investors = investors.filter((inv: any) => inv.payment_summary === paymentFilter);
+  }
+  if (docsFilter) {
+    investors = investors.filter((inv: any) => inv.doc_status === docsFilter);
+  }
+  if (actionFilter) {
+    investors = investors.filter((inv: any) => inv.action_needed);
+  }
+
+  // ── Sort ──
+  // Rank maps for sorting status columns meaningfully
+  const PAYMENT_RANK: Record<string, number> = {
+    none: 0, unpaid: 1, invoiced: 2, partial: 3, paid: 4, grant: 5,
+  };
+  const DOC_RANK: Record<string, number> = {
+    none: 0, pending: 1, signed: 2,
+  };
+
+  const dir = sortDir === "asc" ? 1 : -1;
+  investors.sort((a: any, b: any) => {
+    let av: any, bv: any;
+    switch (sortBy) {
+      case "full_name":
+      case "email":
+        av = (a[sortBy] || "").toLowerCase();
+        bv = (b[sortBy] || "").toLowerCase();
+        return av < bv ? -dir : av > bv ? dir : 0;
+      case "kyc_status":
+      case "pq_status":
+        av = (a[sortBy] || "").toLowerCase();
+        bv = (b[sortBy] || "").toLowerCase();
+        return av < bv ? -dir : av > bv ? dir : 0;
+      case "total_tokens":
+        return (a.total_tokens - b.total_tokens) * dir;
+      case "payment_summary":
+        return ((PAYMENT_RANK[a.payment_summary] || 0) - (PAYMENT_RANK[b.payment_summary] || 0)) * dir;
+      case "doc_status":
+        return ((DOC_RANK[a.doc_status] || 0) - (DOC_RANK[b.doc_status] || 0)) * dir;
+      case "action_needed":
+        return ((a.action_needed ? 1 : 0) - (b.action_needed ? 1 : 0)) * dir;
+      case "created_at":
+      default:
+        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+    }
+  });
+
+  const total = investors.length;
 
   // ── CSV Export ──
   if (isExport) {
-    const headers = "Name,Email,KYC,PQ,Payment,Tokens,Rounds,Date Added";
-    const rows = filtered.map((inv: any) =>
+    const headers = "Name,Email,KYC,PQ,Payment,Tokens,Docs,Action Needed,Date Added";
+    const rows = investors.map((inv: any) =>
       [
         `"${inv.full_name}"`,
         inv.email,
@@ -133,7 +190,8 @@ export async function GET(request: NextRequest) {
         inv.pq_status,
         inv.payment_summary,
         inv.total_tokens,
-        inv.round_count,
+        inv.doc_status,
+        inv.action_needed ? `"${inv.action_reasons.join("; ")}"` : "",
         new Date(inv.created_at).toLocaleDateString(),
       ].join(",")
     );
@@ -147,14 +205,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // If payment filter is active, the count from Supabase won't match
-  // so we need to report the filtered total
-  const finalTotal = paymentFilter ? filtered.length : (count || 0);
+  // ── Paginate ──
+  const offset = page * limit;
+  const paged = investors.slice(offset, offset + limit);
 
-  return NextResponse.json({
-    investors: paymentFilter ? filtered.slice(offset, offset + limit) : filtered,
-    total: finalTotal,
-  });
+  return NextResponse.json({ investors: paged, total });
 }
 
 /**
