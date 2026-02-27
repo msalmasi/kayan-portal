@@ -41,7 +41,7 @@ export async function GET() {
     .from("admin_alert_subscriptions")
     .select("*")
     .eq("admin_id", admin.id)
-    .single();
+    .maybeSingle();
 
   return NextResponse.json({
     subscription: sub || null,
@@ -89,7 +89,7 @@ export async function PUT(request: NextRequest) {
     .from("admin_alert_subscriptions")
     .select("id")
     .eq("admin_id", admin.id)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     const { data, error } = await auth.client

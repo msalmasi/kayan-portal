@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase";
 import { useAdminRole } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { KycBadge, PqBadge, PaymentBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatTokenAmount } from "@/lib/vesting";
+
+// ─── Types ──────────────────────────────────────────────────
 
 interface InvestorRow {
   id: string;
@@ -18,28 +19,110 @@ interface InvestorRow {
   pq_status: string;
   total_tokens: number;
   round_count: number;
+  pending_allocations: number;
   payment_summary: string;
+  created_at: string;
 }
 
-const PAGE_SIZE = 20;
+type SortCol = "full_name" | "email" | "kyc_status" | "pq_status" | "created_at";
+type SortDir = "asc" | "desc";
 
-/**
- * /admin — Main admin panel
- *
- * Shows a searchable, paginated list of all investors.
- * Uses the client-side Supabase client — but this page is only
- * accessible to admin users (enforced by the admin layout).
- *
- * Note: Admin reads still go through RLS, so we use an API route
- * with the service role key for the actual data fetching.
- */
-export default function AdminPage() {
+// ─── Filter options ─────────────────────────────────────────
+
+const KYC_OPTIONS = [
+  { value: "", label: "All KYC" },
+  { value: "unverified", label: "Unverified" },
+  { value: "pending", label: "Pending" },
+  { value: "verified", label: "Verified" },
+];
+
+const PQ_OPTIONS = [
+  { value: "", label: "All PQ" },
+  { value: "not_sent", label: "Not Sent" },
+  { value: "sent", label: "Sent" },
+  { value: "submitted", label: "Submitted" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+];
+
+const PAYMENT_OPTIONS = [
+  { value: "", label: "All Payments" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "invoiced", label: "Invoiced" },
+  { value: "partial", label: "Partial" },
+  { value: "paid", label: "Paid" },
+];
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+// ─── Shared styles ──────────────────────────────────────────
+
+const selectCls =
+  "px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500 text-gray-700";
+
+// ─── Sort header component ──────────────────────────────────
+
+function SortHeader({
+  label,
+  column,
+  current,
+  dir,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  column: SortCol;
+  current: SortCol;
+  dir: SortDir;
+  onSort: (col: SortCol) => void;
+  align?: "left" | "center" | "right";
+}) {
+  const active = current === column;
+  const alignCls =
+    align === "right" ? "text-right justify-end" : align === "center" ? "text-center justify-center" : "text-left";
+
+  return (
+    <th className={`py-3 px-2 font-medium text-gray-500 ${alignCls}`}>
+      <button
+        onClick={() => onSort(column)}
+        className={`inline-flex items-center gap-1 hover:text-gray-800 transition-colors ${
+          active ? "text-gray-800" : ""
+        }`}
+      >
+        {label}
+        <span className="text-xs">
+          {active ? (dir === "asc" ? "↑" : "↓") : "⇅"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+// ─── Main Page ──────────────────────────────────────────────
+
+export default function AdminInvestorsPage() {
   const { canWrite } = useAdminRole();
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Data state
   const [investors, setInvestors] = useState<InvestorRow[]>([]);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Search + filters
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [kycFilter, setKycFilter] = useState("");
+  const [pqFilter, setPqFilter] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("");
+
+  // Sort
+  const [sortBy, setSortBy] = useState<SortCol>("created_at");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
 
   // Add investor form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -47,29 +130,109 @@ export default function AdminPage() {
   const [newName, setNewName] = useState("");
   const [addingSaving, setAddingSaving] = useState(false);
 
+  // Export loading
+  const [exporting, setExporting] = useState(false);
+
+  // ── Debounce search ──
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // ── Keyboard shortcut: / to focus search ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // ── Fetch investors ──
   const fetchInvestors = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(
-      `/api/admin/investors?search=${encodeURIComponent(search)}&page=${page}&limit=${PAGE_SIZE}`
-    );
+    const params = new URLSearchParams({
+      search: debouncedSearch,
+      page: String(page),
+      limit: String(pageSize),
+      sort_by: sortBy,
+      sort_dir: sortDir,
+    });
+    if (kycFilter) params.set("kyc", kycFilter);
+    if (pqFilter) params.set("pq", pqFilter);
+    if (paymentFilter) params.set("payment", paymentFilter);
+
+    const res = await fetch(`/api/admin/investors?${params}`);
     const data = await res.json();
     setInvestors(data.investors || []);
     setTotal(data.total || 0);
     setLoading(false);
-  }, [search, page]);
+  }, [debouncedSearch, page, pageSize, sortBy, sortDir, kycFilter, pqFilter, paymentFilter]);
 
   useEffect(() => {
     fetchInvestors();
   }, [fetchInvestors]);
 
-  // Reset to first page when search changes
+  // Reset to page 0 when filters/search/sort change
   useEffect(() => {
     setPage(0);
-  }, [search]);
+  }, [debouncedSearch, kycFilter, pqFilter, paymentFilter, sortBy, sortDir, pageSize]);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  // ── Sort handler ──
+  const handleSort = (col: SortCol) => {
+    if (sortBy === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(col);
+      setSortDir("asc");
+    }
+  };
 
-  /** Create a new investor manually */
+  // ── Clear all filters ──
+  const hasActiveFilters = kycFilter || pqFilter || paymentFilter || debouncedSearch;
+  const clearFilters = () => {
+    setSearch("");
+    setKycFilter("");
+    setPqFilter("");
+    setPaymentFilter("");
+  };
+
+  // ── CSV Export ──
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({
+        search: debouncedSearch,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+        export: "csv",
+      });
+      if (kycFilter) params.set("kyc", kycFilter);
+      if (pqFilter) params.set("pq", pqFilter);
+      if (paymentFilter) params.set("payment", paymentFilter);
+
+      const res = await fetch(`/api/admin/investors?${params}`);
+      if (!res.ok) throw new Error("Export failed");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `investors-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV exported");
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── Add investor ──
   const handleAddInvestor = async () => {
     if (!newEmail || !newName) return;
     setAddingSaving(true);
@@ -98,19 +261,23 @@ export default function AdminPage() {
     }
   };
 
+  // ── Pagination math ──
+  const totalPages = Math.ceil(total / pageSize);
+  const startRow = total === 0 ? 0 : page * pageSize + 1;
+  const endRow = Math.min((page + 1) * pageSize, total);
+
   return (
     <div className="space-y-6">
-      {/* Header with action buttons */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Investors</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage investors, rounds, and allocations
+            Manage investors, allocations, and KYC status
           </p>
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {/* All admin roles (including staff) can add investors */}
           <Button
             variant="secondary"
             size="sm"
@@ -121,39 +288,28 @@ export default function AdminPage() {
           {canWrite && (
             <>
               <Link href="/admin/rounds">
-                <Button variant="secondary" size="sm">
-                  Manage Rounds
-                </Button>
+                <Button variant="secondary" size="sm">Manage Rounds</Button>
               </Link>
               <Link href="/admin/import">
-                <Button variant="primary" size="sm">
-                  Import CSV
-                </Button>
+                <Button variant="primary" size="sm">Import CSV</Button>
               </Link>
             </>
           )}
           {!canWrite && (
             <Link href="/admin/rounds">
-              <Button variant="secondary" size="sm">
-                View Rounds
-              </Button>
+              <Button variant="secondary" size="sm">View Rounds</Button>
             </Link>
           )}
         </div>
       </div>
 
-      {/* Add Investor Form */}
+      {/* ── Add Investor Form ── */}
       {showAddForm && (
         <Card>
-          <CardHeader
-            title="Add Investor"
-            subtitle="Manually create a new investor record"
-          />
+          <CardHeader title="Add Investor" subtitle="Manually create a new investor record" />
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Full Name *
-              </label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
               <input
                 type="text"
                 value={newName}
@@ -163,9 +319,7 @@ export default function AdminPage() {
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Email *
-              </label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
               <input
                 type="email"
                 value={newEmail}
@@ -175,97 +329,158 @@ export default function AdminPage() {
               />
             </div>
             <div className="flex items-end">
-              <Button
-                onClick={handleAddInvestor}
-                loading={addingSaving}
-                disabled={!newEmail || !newName}
-              >
+              <Button onClick={handleAddInvestor} loading={addingSaving} disabled={!newEmail || !newName}>
                 Create
               </Button>
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            After creating the investor, you can add allocations from their
-            detail page.
+            After creating the investor, you can add allocations from their detail page.
           </p>
         </Card>
       )}
 
-      {/* Investor List */}
+      {/* ── Investor List Card ── */}
       <Card>
-        <CardHeader
-          title="Investors"
-          subtitle={`${total} total investor${total !== 1 ? "s" : ""}`}
-        />
+        {/* ── Search + Filters toolbar ── */}
+        <div className="space-y-3 mb-4">
+          {/* Row 1: Search + Export + Page size */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="relative flex-1 max-w-sm">
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search by name or email...  ( / )"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-3 py-2 pl-9 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent placeholder:text-gray-400"
+              />
+              {/* Search icon */}
+              <svg
+                className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+            </div>
 
-        {/* Search */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent placeholder:text-gray-400"
-          />
+            <div className="flex gap-2 items-center ml-auto">
+              {/* Page size */}
+              <label className="text-xs text-gray-500">Show</label>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className={selectCls}
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+
+              {/* Export */}
+              <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting}>
+                {exporting ? "Exporting..." : "Export CSV"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Row 2: Filter dropdowns */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <select value={kycFilter} onChange={(e) => setKycFilter(e.target.value)} className={selectCls}>
+              {KYC_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            <select value={pqFilter} onChange={(e) => setPqFilter(e.target.value)} className={selectCls}>
+              {PQ_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={selectCls}>
+              {PAYMENT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-xs text-gray-500 hover:text-gray-700 underline ml-1"
+              >
+                Clear filters
+              </button>
+            )}
+
+            {/* Result count */}
+            <span className="text-xs text-gray-400 ml-auto">
+              {total} result{total !== 1 ? "s" : ""}
+            </span>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* ── Table ── */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left py-3 px-2 font-medium text-gray-500">
-                  Name
-                </th>
-                <th className="text-left py-3 px-2 font-medium text-gray-500">
-                  Email
-                </th>
-                <th className="text-center py-3 px-2 font-medium text-gray-500">
-                  KYC
-                </th>
-                <th className="text-center py-3 px-2 font-medium text-gray-500">
-                  PQ
-                </th>
-                <th className="text-center py-3 px-2 font-medium text-gray-500">
-                  Payment
-                </th>
-                <th className="text-right py-3 px-2 font-medium text-gray-500">
-                  Tokens
-                </th>
-                <th className="text-right py-3 px-2 font-medium text-gray-500">
-                  
-                </th>
+                <SortHeader label="Name" column="full_name" current={sortBy} dir={sortDir} onSort={handleSort} />
+                <SortHeader label="Email" column="email" current={sortBy} dir={sortDir} onSort={handleSort} />
+                <SortHeader label="KYC" column="kyc_status" current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <SortHeader label="PQ" column="pq_status" current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <th className="text-center py-3 px-2 font-medium text-gray-500">Payment</th>
+                <th className="text-right py-3 px-2 font-medium text-gray-500">Tokens</th>
+                <SortHeader label="Added" column="created_at" current={sortBy} dir={sortDir} onSort={handleSort} align="right" />
+                <th className="text-right py-3 px-2 font-medium text-gray-500"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-400">
-                    Loading...
-                  </td>
-                </tr>
+                // Skeleton rows
+                Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <td key={j} className="py-3 px-2">
+                        <div className="h-4 bg-gray-100 rounded animate-pulse" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : investors.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-400">
-                    {search ? "No investors match your search" : "No investors yet"}
+                  <td colSpan={8} className="py-12 text-center text-gray-400">
+                    {hasActiveFilters
+                      ? "No investors match your filters"
+                      : "No investors yet"}
                   </td>
                 </tr>
               ) : (
                 investors.map((inv) => (
                   <tr
                     key={inv.id}
-                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
+                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group"
                   >
-                    <td className="py-3 px-2 font-medium text-gray-900">
-                      {inv.full_name}
+                    <td className="py-3 px-2">
+                      <Link href={`/admin/investors/${inv.id}`} className="font-medium text-gray-900 hover:text-kayan-600">
+                        {inv.full_name}
+                      </Link>
+                      {inv.pending_allocations > 0 && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                          {inv.pending_allocations} pending
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-gray-600">{inv.email}</td>
-                    <td className="py-3 px-2 text-center">
-                      <KycBadge status={inv.kyc_status} />
-                    </td>
-                    <td className="py-3 px-2 text-center">
-                      <PqBadge status={inv.pq_status} />
-                    </td>
+                    <td className="py-3 px-2 text-center"><KycBadge status={inv.kyc_status} /></td>
+                    <td className="py-3 px-2 text-center"><PqBadge status={inv.pq_status} /></td>
                     <td className="py-3 px-2 text-center">
                       {inv.payment_summary !== "none" ? (
                         <PaymentBadge status={inv.payment_summary} />
@@ -276,12 +491,15 @@ export default function AdminPage() {
                     <td className="py-3 px-2 text-right text-gray-700">
                       {formatTokenAmount(inv.total_tokens)}
                     </td>
+                    <td className="py-3 px-2 text-right text-xs text-gray-400">
+                      {new Date(inv.created_at).toLocaleDateString()}
+                    </td>
                     <td className="py-3 px-2 text-right">
                       <Link
                         href={`/admin/investors/${inv.id}`}
-                        className="text-kayan-500 hover:text-kayan-600 text-sm font-medium"
+                        className="text-kayan-500 hover:text-kayan-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        View
+                        View →
                       </Link>
                     </td>
                   </tr>
@@ -291,32 +509,77 @@ export default function AdminPage() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-            <p className="text-sm text-gray-500">
-              Page {page + 1} of {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
+        {/* ── Pagination ── */}
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t border-gray-100 gap-3">
+          <p className="text-sm text-gray-500">
+            {total > 0 ? (
+              <>Showing <span className="font-medium">{startRow}–{endRow}</span> of <span className="font-medium">{total}</span></>
+            ) : (
+              "No results"
+            )}
+          </p>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              {/* First */}
+              <button
+                disabled={page === 0}
+                onClick={() => setPage(0)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="First page"
+              >
+                ««
+              </button>
+              {/* Prev */}
+              <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => p - 1)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Previous
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
+                ‹ Prev
+              </button>
+
+              {/* Page numbers — show up to 5 pages around current */}
+              {(() => {
+                const pages: number[] = [];
+                const start = Math.max(0, page - 2);
+                const end = Math.min(totalPages - 1, page + 2);
+                for (let i = start; i <= end; i++) pages.push(i);
+                return pages.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`px-2.5 py-1 text-xs rounded border ${
+                      p === page
+                        ? "bg-kayan-600 text-white border-kayan-600"
+                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {p + 1}
+                  </button>
+                ));
+              })()}
+
+              {/* Next */}
+              <button
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage((p) => p + 1)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Next
-              </Button>
+                Next ›
+              </button>
+              {/* Last */}
+              <button
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage(totalPages - 1)}
+                className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Last page"
+              >
+                »»
+              </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </Card>
     </div>
   );

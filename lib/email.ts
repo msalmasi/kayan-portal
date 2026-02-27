@@ -124,7 +124,7 @@ export function composeDocsPackageEmail(investorName: string) {
       <li><strong>SAFT Agreement</strong> — your token purchase contract</li>
       <li><strong>Purchaser Questionnaire (PQ)</strong> — complete directly in the portal</li>
       <li><strong>Private Placement Memorandum (PPM)</strong> — offering details</li>
-      <li><strong>Company Information Sheet (CIS)</strong> — Kayan project overview</li>
+      <li><strong>Confidential Information Statement (CIS)</strong> — Kayan project overview</li>
     </ol>
     <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.6;">
       Please log in to the portal to complete your <strong>Purchaser Questionnaire</strong>.
@@ -201,7 +201,7 @@ export function composeDocumentsReadyEmail(investorName: string, roundName: stri
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#6b7280;line-height:1.8;">
       <li><strong>SAFT Agreement</strong> — review and sign electronically</li>
       <li><strong>Private Placement Memorandum (PPM)</strong> — for your reference</li>
-      <li><strong>Company Information Sheet (CIS)</strong> — for your reference</li>
+      <li><strong>Confidential Information Statement (CIS)</strong> — for your reference</li>
     </ol>
     <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Review & Sign Documents

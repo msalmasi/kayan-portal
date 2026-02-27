@@ -406,7 +406,7 @@ export default function PurchaserQuestionnairePage() {
           <Check checked={sectionF.has_read_saft} onChange={(v) => setSectionF({ ...sectionF, has_read_saft: v })} disabled={readOnly}
             label="I have received and read the Simple Agreement for Future Tokens (SAFT)" />
           <Check checked={sectionF.has_read_cis} onChange={(v) => setSectionF({ ...sectionF, has_read_cis: v })} disabled={readOnly}
-            label="I have received and read the Company Information Sheet (CIS)" />
+            label="I have received and read the Confidential Information Statement (CIS)" />
           <Check checked={sectionF.has_investment_experience} onChange={(v) => setSectionF({ ...sectionF, has_investment_experience: v })} disabled={readOnly}
             label="I have sufficient knowledge and experience in financial and business matters to evaluate the merits and risks of this investment" />
           <Check checked={sectionF.no_reliance_on_company} onChange={(v) => setSectionF({ ...sectionF, no_reliance_on_company: v })} disabled={readOnly}

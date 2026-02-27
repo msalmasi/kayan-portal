@@ -128,7 +128,7 @@ export default function AdminDocumentsPage() {
 
       {/* ── CIS (Global) ── */}
       <Card>
-        <CardHeader title="Company Information Sheet (CIS)" subtitle="Same for all rounds" />
+        <CardHeader title="Confidential Information Statement (CIS)" subtitle="Same for all rounds" />
         {cis ? (
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-3">

@@ -308,7 +308,7 @@ export interface SigningEvent {
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
   saft: "SAFT Agreement",
   ppm: "Private Placement Memorandum",
-  cis: "Company Information Sheet",
+  cis: "Confidential Information Statement",
 };
 
 export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
