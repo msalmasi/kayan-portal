@@ -66,11 +66,14 @@ export default async function DashboardPage() {
     );
   }
 
-  // Fetch allocations with joined round details
+  // Fetch allocations — only show paid allocations to investors.
+  // Unpaid/invoiced allocations are internal workflow state and
+  // should not be represented as granted until payment clears.
   const { data: allocations } = await supabase
     .from("allocations")
     .select("*, saft_rounds(*)")
-    .eq("investor_id", investor.id);
+    .eq("investor_id", investor.id)
+    .eq("payment_status", "paid");
 
   const typedAllocations = (allocations || []) as AllocationWithRound[];
   const typedInvestor = investor as Investor;
@@ -83,7 +86,9 @@ export default async function DashboardPage() {
           Welcome, {typedInvestor.full_name}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Your $KAYAN token allocation overview
+          {typedAllocations.length > 0
+            ? "Your $KAYAN token allocation overview"
+            : "Complete your subscription to see your token allocations"}
         </p>
       </div>
 

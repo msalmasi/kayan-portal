@@ -68,8 +68,8 @@ export function AllocationTable({ allocations }: AllocationTableProps) {
                   colSpan={5}
                   className="py-8 text-center text-gray-400"
                 >
-                  No allocations found. Contact support if this seems
-                  incorrect.
+                  Your token allocations will appear here once payment has been confirmed.
+                  If you have completed payment, please allow time for processing.
                 </td>
               </tr>
             )}
