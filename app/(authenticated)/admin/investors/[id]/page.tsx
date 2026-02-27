@@ -134,7 +134,11 @@ export default function InvestorDetailPage() {
     if (res.ok) {
       const result = await res.json();
       if (result.capital_call_sent) {
-        toast.success("PQ approved — capital call email sent automatically");
+        const cc = result.capital_call_status;
+        const parts: string[] = [];
+        if (cc?.capital_calls_sent > 0) parts.push(`${cc.capital_calls_sent} capital call(s) sent`);
+        if (cc?.grants_confirmed > 0) parts.push(`${cc.grants_confirmed} grant(s) confirmed`);
+        toast.success(`PQ approved — ${parts.join(", ") || "automation triggered"}`);
       } else if (updates.pq_status === "approved" && result.capital_call_status?.pending?.length > 0) {
         // PQ approved but capital call waiting on other gates
         const reasons = result.capital_call_status.pending.join(", ");
@@ -272,8 +276,10 @@ export default function InvestorDetailPage() {
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
   const selectCls = `${inputCls} bg-white`;
 
-  const totalDue = investor.allocations.reduce((s, a) => s + Number(a.amount_usd || 0), 0);
-  const totalReceived = investor.allocations.reduce((s, a) => s + Number(a.amount_received_usd || 0), 0);
+  const payableAllocs = investor.allocations.filter(a => a.payment_status !== "grant" && (a as any).approval_status === "approved");
+  const grantAllocs = investor.allocations.filter(a => a.payment_status === "grant" && (a as any).approval_status === "approved");
+  const totalDue = payableAllocs.reduce((s, a) => s + Number(a.amount_usd || 0), 0);
+  const totalReceived = payableAllocs.reduce((s, a) => s + Number(a.amount_received_usd || 0), 0);
   const allPaid = investor.allocations.length > 0 && investor.allocations.every(a => a.payment_status === "paid" || a.payment_status === "grant");
 
   return (
@@ -373,10 +379,15 @@ export default function InvestorDetailPage() {
             <div className="bg-gray-50 rounded-lg p-3 text-center">
               <p className="text-xs text-gray-500 mb-1">Status</p>
               <p className="text-sm font-medium mt-1">
-                {allPaid ? <span className="text-emerald-700">Fully Paid</span>
-                  : investor.allocations.some(a => a.payment_status === "partial") ? <span className="text-amber-700">Partial</span>
+                {allPaid ? <span className="text-emerald-700">Fully {grantAllocs.length > 0 && payableAllocs.length === 0 ? "Granted" : "Paid"}</span>
+                  : payableAllocs.some(a => a.payment_status === "partial") ? <span className="text-amber-700">Partial</span>
                   : <span className="text-gray-500">Awaiting</span>}
               </p>
+              {grantAllocs.length > 0 && payableAllocs.length > 0 && (
+                <p className="text-[10px] text-gray-400 mt-1">
+                  + {formatTokenAmount(grantAllocs.reduce((s, a) => s + Number(a.token_amount), 0))} granted
+                </p>
+              )}
             </div>
           </div>
         </Card>
@@ -601,71 +612,285 @@ export default function InvestorDetailPage() {
         )}
       </Card>
 
-      {/* ── Capital Call Status ── */}
+      {/* ── Capital Calls — Per Round ── */}
       {(() => {
-        // Derive capital call gate status from loaded data
+        // Group approved allocations by round
+        const approvedAllocs = investor.allocations.filter(
+          (a: any) => (a as any).approval_status === "approved"
+        );
+        const pendingByRound = investor.allocations.filter(
+          (a: any) => (a as any).approval_status === "pending"
+        );
+
+        // Get unique round IDs (approved + pending, skip rejected)
+        const allRoundIds = Array.from(
+          new Set(investor.allocations
+            .filter((a: any) => (a as any).approval_status !== "rejected")
+            .map((a) => a.round_id))
+        );
+
+        if (allRoundIds.length === 0) return null;
+
         const pqApproved = investor.pq_status === "approved";
-        const hasAllocations = investor.allocations.length > 0;
-        const saftSigned = investor.investor_documents?.some(
-          (d) => d.doc_type === "saft" && d.status === "signed"
-        );
-        const capitalCallSent = investor.email_events?.some(
-          (e: EmailEvent) => e.email_type === "capital_call"
-        );
-        const allReady = pqApproved && hasAllocations && saftSigned;
+
+        // Helper: find email events for a specific round
+        // Supports both new format (round_id) and legacy (rounds array of names)
+        const findEmailForRound = (type: string, roundId: string, roundName: string) => {
+          return investor.email_events?.find(
+            (e: EmailEvent) =>
+              e.email_type === type &&
+              (e.metadata?.round_id === roundId || e.metadata?.rounds?.includes(roundName))
+          ) || null;
+        };
 
         return (
           <Card>
-            <CardHeader title="Capital Call" subtitle="Auto-sends when all conditions are met" />
-            {capitalCallSent ? (
-              <div className="flex items-center gap-2 bg-emerald-50 rounded-lg p-3 text-sm text-emerald-700">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="font-medium">Capital call sent</span>
-                <span className="text-emerald-500 text-xs ml-auto">
-                  {investor.email_events?.find((e: EmailEvent) => e.email_type === "capital_call")?.sent_at
-                    ? new Date(investor.email_events.find((e: EmailEvent) => e.email_type === "capital_call")!.sent_at).toLocaleString()
-                    : ""}
-                </span>
-                {canWrite && (
-                  <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-2 text-xs">
-                    Resend
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 text-sm">
-                  <span className={`inline-block w-2 h-2 rounded-full ${hasAllocations ? "bg-emerald-400" : "bg-gray-300"}`} />
-                  <span className={hasAllocations ? "text-gray-700" : "text-gray-400"}>
-                    Allocation assigned {hasAllocations ? "✓" : "— waiting"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className={`inline-block w-2 h-2 rounded-full ${pqApproved ? "bg-emerald-400" : "bg-gray-300"}`} />
-                  <span className={pqApproved ? "text-gray-700" : "text-gray-400"}>
-                    PQ approved {pqApproved ? "✓" : "— waiting"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className={`inline-block w-2 h-2 rounded-full ${saftSigned ? "bg-emerald-400" : "bg-gray-300"}`} />
-                  <span className={saftSigned ? "text-gray-700" : "text-gray-400"}>
-                    SAFT signed {saftSigned ? "✓" : "— waiting"}
-                  </span>
-                </div>
-                {allReady && !capitalCallSent && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-xs text-amber-600 mb-2">All conditions met but no capital call found. You can trigger one manually:</p>
-                    <Button variant="secondary" size="sm" onClick={() => handleSendEmail("capital_call")}>
-                      Send Capital Call
-                    </Button>
+            <CardHeader
+              title="Capital Calls"
+              subtitle="Per-round payment tracking — auto-triggers when PQ approved + SAFT signed"
+            />
+            <div className="space-y-3">
+              {allRoundIds.map((roundId) => {
+                const roundApproved = approvedAllocs.filter((a) => a.round_id === roundId);
+                const roundPending = pendingByRound.filter((a) => a.round_id === roundId);
+
+                // ── Pending-only round ──
+                if (roundApproved.length === 0 && roundPending.length > 0) {
+                  const roundName = roundPending[0]?.saft_rounds?.name || "Unknown";
+                  return (
+                    <div key={roundId} className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-gray-700">{roundName}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                            Pending Approval
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        {roundPending.length} allocation proposal{roundPending.length > 1 ? "s" : ""} awaiting manager approval.
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (roundApproved.length === 0) return null;
+
+                const roundName = roundApproved[0]?.saft_rounds?.name || "Unknown";
+                const tokenPrice = Number(roundApproved[0]?.saft_rounds?.token_price || 0);
+                const totalTokens = roundApproved.reduce((s, a) => s + Number(a.token_amount), 0);
+                const totalDueRound = roundApproved.reduce(
+                  (s, a) => s + (Number(a.amount_usd) || Number(a.token_amount) * tokenPrice), 0
+                );
+                const totalReceivedRound = roundApproved.reduce(
+                  (s, a) => s + Number(a.amount_received_usd || 0), 0
+                );
+
+                // Payment classification
+                const isGrant = roundApproved.every((a) => a.payment_status === "grant");
+                const isFullyPaid = roundApproved.every(
+                  (a) => a.payment_status === "paid" || a.payment_status === "grant"
+                );
+                const isPartialPaid = !isFullyPaid && roundApproved.some(
+                  (a) => a.payment_status === "paid" || a.payment_status === "partial"
+                );
+                const isInvoiced = roundApproved.some((a) => a.payment_status === "invoiced");
+                const hasUnpaid = roundApproved.some((a) => a.payment_status === "unpaid");
+
+                // Document status
+                const saftSigned = investor.investor_documents?.some(
+                  (d) => d.doc_type === "saft" && d.round_id === roundId && d.status === "signed"
+                );
+                const saftExists = investor.investor_documents?.some(
+                  (d) => d.doc_type === "saft" && d.round_id === roundId
+                );
+
+                // Email events for this round
+                const capitalCallEvent = findEmailForRound("capital_call", roundId, roundName);
+                const confirmationEvent = findEmailForRound("allocation_confirmed", roundId, roundName);
+
+                const allGatesMet = pqApproved && saftSigned;
+
+                // ── Visual style by state ──
+                let statusLabel: string;
+                let bgColor: string;
+                let borderColor: string;
+                let statusColor: string;
+
+                if (isGrant) {
+                  statusLabel = "Grant — No Payment Required";
+                  bgColor = "bg-emerald-50/50"; borderColor = "border-emerald-200"; statusColor = "text-emerald-700";
+                } else if (isFullyPaid) {
+                  statusLabel = "Payment Confirmed";
+                  bgColor = "bg-emerald-50/50"; borderColor = "border-emerald-200"; statusColor = "text-emerald-700";
+                } else if (isPartialPaid) {
+                  statusLabel = `Partial — $${totalReceivedRound.toLocaleString()} of $${totalDueRound.toLocaleString()}`;
+                  bgColor = "bg-amber-50/30"; borderColor = "border-amber-200"; statusColor = "text-amber-700";
+                } else if (isInvoiced || capitalCallEvent) {
+                  statusLabel = "Capital Call Sent — Awaiting Payment";
+                  bgColor = "bg-blue-50/30"; borderColor = "border-blue-200"; statusColor = "text-blue-700";
+                } else if (allGatesMet && hasUnpaid) {
+                  statusLabel = "Ready to Send";
+                  bgColor = "bg-amber-50/30"; borderColor = "border-amber-200"; statusColor = "text-amber-700";
+                } else {
+                  statusLabel = "Waiting on Prerequisites";
+                  bgColor = "bg-gray-50/50"; borderColor = "border-gray-200"; statusColor = "text-gray-500";
+                }
+
+                return (
+                  <div key={roundId} className={`border rounded-lg p-4 ${bgColor} ${borderColor}`}>
+                    {/* ── Round header ── */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-gray-900">{roundName}</span>
+                        <span className="text-xs text-gray-400">
+                          {formatTokenAmount(totalTokens)} tokens
+                          {!isGrant && totalDueRound > 0 && ` · $${totalDueRound.toLocaleString()}`}
+                        </span>
+                        {roundPending.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                            +{roundPending.length} pending
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-medium ${statusColor}`}>{statusLabel}</span>
+                    </div>
+
+                    {/* ── GRANT round ── */}
+                    {isGrant && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-emerald-700">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+                          </svg>
+                          <span>Token grant — capital call not required</span>
+                        </div>
+                        {confirmationEvent && (
+                          <span className="text-xs text-emerald-500">
+                            Confirmation sent {new Date(confirmationEvent.sent_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── FULLY PAID round ── */}
+                    {!isGrant && isFullyPaid && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-emerald-700">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+                          </svg>
+                          <span>Payment received — ${totalReceivedRound.toLocaleString()}</span>
+                        </div>
+                        {roundApproved.some((a) => a.tx_reference) && (
+                          <div className="text-xs text-gray-500 pl-6 space-x-2">
+                            {roundApproved.filter((a) => a.tx_reference).map((a, i) => (
+                              <span key={i}>
+                                {roundApproved.filter(x => x.tx_reference).length > 1 && `#${i + 1}: `}
+                                <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">{a.tx_reference}</code>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {roundApproved.some((a) => a.payment_method) && (
+                          <p className="text-xs text-gray-400 pl-6">
+                            via {PAYMENT_METHOD_LABELS[roundApproved.find((a) => a.payment_method)!.payment_method!]}
+                          </p>
+                        )}
+                        {confirmationEvent && (
+                          <p className="text-xs text-emerald-500 pl-6">
+                            Confirmation email sent {new Date(confirmationEvent.sent_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── PARTIAL PAID round ── */}
+                    {!isGrant && isPartialPaid && (
+                      <div className="space-y-2">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-amber-500 h-1.5 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, (totalReceivedRound / totalDueRound) * 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">${totalReceivedRound.toLocaleString()} received</span>
+                          <span className="text-amber-600 font-medium">${(totalDueRound - totalReceivedRound).toLocaleString()} outstanding</span>
+                        </div>
+                        {capitalCallEvent && (
+                          <div className="flex items-center gap-2 text-xs text-blue-600 pt-1 border-t border-gray-100">
+                            <span>Capital call sent {new Date(capitalCallEvent.sent_at).toLocaleDateString()}</span>
+                            {canWrite && (
+                              <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-auto text-[11px] py-0">
+                                Resend
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── INVOICED / CAPITAL CALL SENT (awaiting payment) ── */}
+                    {!isGrant && !isFullyPaid && !isPartialPaid && (isInvoiced || capitalCallEvent) && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400" />
+                        <span className="text-blue-700">
+                          Capital call sent{capitalCallEvent && ` on ${new Date(capitalCallEvent.sent_at).toLocaleDateString()}`}
+                        </span>
+                        <span className="text-gray-400">·</span>
+                        <span className="text-gray-500">${totalDueRound.toLocaleString()} due</span>
+                        {canWrite && (
+                          <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-auto text-[11px] py-0">
+                            Resend
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── UNPAID — show prerequisite gates ── */}
+                    {!isGrant && !isFullyPaid && !isPartialPaid && !isInvoiced && !capitalCallEvent && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: "Allocation", met: roundApproved.length > 0 },
+                            { label: "PQ Approved", met: pqApproved },
+                            { label: "SAFT Signed", met: !!saftSigned },
+                          ].map((gate) => (
+                            <div key={gate.label} className="flex items-center gap-1.5 text-xs">
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full ${gate.met ? "bg-emerald-400" : "bg-gray-300"}`} />
+                              <span className={gate.met ? "text-gray-600" : "text-gray-400"}>
+                                {gate.label} {gate.met ? "✓" : "—"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {!saftExists && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Documents not yet generated for this round.
+                          </p>
+                        )}
+
+                        {allGatesMet && hasUnpaid && (
+                          <div className="flex items-center gap-2 mt-1 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-amber-600">All conditions met — capital call ready to send.</p>
+                            {canWrite && (
+                              <Button variant="secondary" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-auto text-xs">
+                                Send Capital Call
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </Card>
         );
       })()}
-
       {/* ── Emails ── */}
       <Card>
         <CardHeader title="Emails" subtitle="Sent emails and manual triggers" />

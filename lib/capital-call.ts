@@ -10,37 +10,40 @@ import {
  * Returned to callers so UI can show exactly what's pending.
  */
 export interface CapitalCallStatus {
-  /** Whether the capital call was sent during this check */
+  /** Whether any capital call was sent during this check */
   sent: boolean;
-  /** Whether all conditions are met (may already have been sent before) */
+  /** Whether all conditions are met */
   ready: boolean;
-  /** Human-readable reasons why the capital call can't be sent yet */
+  /** Human-readable reasons why capital calls can't be sent yet */
   pending: string[];
-  /** Whether grant confirmations were sent */
-  grants_confirmed?: number;
-  /** Metadata about what was sent (if sent) */
-  details?: {
-    total_due: number;
-    rounds: string[];
-    trigger: string;
-  };
+  /** Number of grant confirmations sent */
+  grants_confirmed: number;
+  /** Number of capital calls sent (one per round) */
+  capital_calls_sent: number;
+  /** Per-round details */
+  rounds: {
+    round_id: string;
+    round_name: string;
+    action: "capital_call" | "grant_confirmed" | "already_sent" | "already_paid" | "skipped";
+    amount_due?: number;
+  }[];
 }
 
 /**
  * Check all capital call prerequisites and send if ready.
  *
- * Three gates must ALL be true:
+ * Three gates must ALL be true per round:
  *   1. PQ status = "approved"
- *   2. At least one approved allocation exists
- *   3. SAFT is signed for at least one round
+ *   2. Approved allocation(s) exist for this round
+ *   3. SAFT is signed for this round
  *
  * Behaviour by payment status:
- *   - "unpaid"/"invoiced" → send capital call email, mark as invoiced
- *   - "grant"             → skip capital call, send grant confirmation email
+ *   - "unpaid"            → send capital call email, mark as invoiced
+ *   - "invoiced"          → capital call already sent, skip
+ *   - "grant"             → send grant confirmation email, no capital call
  *   - "paid"/"partial"    → already handled, skip
  *
- * If already sent (no actionable allocations remain), returns { ready: true, sent: false }.
- * If conditions aren't met, returns { ready: false, pending: [...reasons] }.
+ * Capital calls are sent PER ROUND (not batched) for clean tracking.
  */
 export async function checkAndSendCapitalCall(
   supabase: SupabaseClient,
@@ -58,7 +61,7 @@ export async function checkAndSendCapitalCall(
     .single();
 
   if (!investor) {
-    return { sent: false, ready: false, pending: ["Investor not found"] };
+    return { sent: false, ready: false, pending: ["Investor not found"], grants_confirmed: 0, capital_calls_sent: 0, rounds: [] };
   }
 
   // ── Gate 1: PQ approved ──
@@ -66,10 +69,10 @@ export async function checkAndSendCapitalCall(
     pending.push("Purchaser Questionnaire not yet approved");
   }
 
-  // ── Gate 2: Approved allocations exist ──
+  // ── Fetch approved allocations ──
   const { data: allocations } = await supabase
     .from("allocations")
-    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(name, token_price)")
+    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(id, name, token_price)")
     .eq("investor_id", investorId)
     .eq("approval_status", "approved");
 
@@ -77,7 +80,7 @@ export async function checkAndSendCapitalCall(
     pending.push("No allocations assigned");
   }
 
-  // ── Gate 3: SAFT signed ──
+  // ── Gate 3: Signed SAFTs ──
   const { data: signedDocs } = await supabase
     .from("investor_documents")
     .select("id, round_id, status")
@@ -91,55 +94,53 @@ export async function checkAndSendCapitalCall(
     pending.push("SAFT not yet signed");
   }
 
-  // ── If any gate is open, return pending status ──
-  if (pending.length > 0) {
-    return { sent: false, ready: false, pending };
+  // ── If PQ not approved, nothing can fire ──
+  if (investor.pq_status !== "approved") {
+    return { sent: false, ready: false, pending, grants_confirmed: 0, capital_calls_sent: 0, rounds: [] };
   }
 
-  // ── All gates cleared — separate grants from payable allocations ──
-
-  // Grant allocations: SAFT signed, payment_status = "grant"
-  const grantAllocations = (allocations || []).filter((a: any) => {
-    return a.payment_status === "grant" && signedRoundIds.has(a.round_id);
-  });
-
-  // Payable allocations: SAFT signed, unpaid or invoiced
-  const eligibleAllocations = (allocations || []).filter((a: any) => {
-    const isUnpaid = a.payment_status === "unpaid" || a.payment_status === "invoiced";
-    const isSigned = signedRoundIds.has(a.round_id);
-    return isUnpaid && isSigned;
-  });
+  // ── Group allocations by round ──
+  const roundMap: Record<string, any[]> = {};
+  for (const alloc of (allocations || [])) {
+    const rid = alloc.round_id;
+    if (!roundMap[rid]) roundMap[rid] = [];
+    roundMap[rid].push(alloc);
+  }
 
   let grantsConfirmed = 0;
+  let capitalCallsSent = 0;
+  const roundResults: CapitalCallStatus["rounds"] = [];
 
-  // ── Handle grant allocations: send confirmation, no capital call ──
-  if (grantAllocations.length > 0) {
-    // Group grants by round to send one email per round
-    const grantsByRound: Record<string, any[]> = {};
-    for (const g of grantAllocations) {
-      const rid = g.round_id;
-      if (!grantsByRound[rid]) grantsByRound[rid] = [];
-      grantsByRound[rid].push(g);
+  // ── Process each round independently ──
+  for (const [roundId, roundAllocs] of Object.entries(roundMap)) {
+    const roundName = (roundAllocs[0] as any).saft_rounds?.name || "Unknown";
+    const tokenPrice = Number((roundAllocs[0] as any).saft_rounds?.token_price || 0);
+    const hasSigned = signedRoundIds.has(roundId);
+
+    // Skip rounds without signed SAFT
+    if (!hasSigned) {
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped" });
+      continue;
     }
 
-    for (const [roundId, grants] of Object.entries(grantsByRound)) {
-      const totalTokens = grants.reduce(
-        (sum: number, a: any) => sum + Number(a.token_amount),
-        0
+    // Check if ALL allocations in this round are grants
+    const allGrants = roundAllocs.every((a: any) => a.payment_status === "grant");
+    // Check if ALL are paid/grant (fully complete)
+    const allComplete = roundAllocs.every(
+      (a: any) => a.payment_status === "paid" || a.payment_status === "grant"
+    );
+    // Check if any are still unpaid (need a fresh capital call)
+    const hasUnpaid = roundAllocs.some((a: any) => a.payment_status === "unpaid");
+    // Check if already invoiced (capital call was sent before)
+    const allInvoicedOrBetter = roundAllocs.every(
+      (a: any) => a.payment_status !== "unpaid"
+    );
+
+    // ── Grant round: send confirmation, no capital call ──
+    if (allGrants) {
+      const totalTokens = roundAllocs.reduce(
+        (sum: number, a: any) => sum + Number(a.token_amount), 0
       );
-      const roundName = (grants[0] as any).saft_rounds?.name || "Unknown";
-
-      // Check if we already sent a grant confirmation for this round
-      const { data: existingEmail } = await supabase
-        .from("email_events")
-        .select("id")
-        .eq("investor_id", investorId)
-        .eq("email_type", "allocation_confirmed")
-        .limit(1);
-
-      // Only check for this specific round via metadata
-      const alreadySent = (existingEmail || []).length > 0;
-      // We'll send regardless since the dedup is best-effort here
 
       const { subject, html } = composeAllocationConfirmedEmail(
         investor.full_name,
@@ -164,69 +165,80 @@ export async function checkAndSendCapitalCall(
       });
 
       grantsConfirmed++;
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "grant_confirmed" });
+      continue;
     }
-  }
 
-  // ── Handle payable allocations: send capital call ──
-  if (eligibleAllocations.length === 0) {
-    // No payable allocations need capital calls (already sent, paid, or all grants)
-    return {
-      sent: false,
-      ready: true,
-      pending: [],
-      grants_confirmed: grantsConfirmed,
-    };
-  }
-
-  // ── Calculate total and send capital call ──
-  let totalDue = 0;
-  const roundNames: string[] = [];
-
-  for (const alloc of eligibleAllocations) {
-    const price = (alloc as any).saft_rounds?.token_price || 0;
-    const amount = Number(alloc.token_amount) * Number(price);
-    totalDue += amount;
-
-    const rName = (alloc as any).saft_rounds?.name;
-    if (rName && !roundNames.includes(rName)) roundNames.push(rName);
-
-    // Mark as invoiced
-    if (alloc.payment_status === "unpaid") {
-      await supabase
-        .from("allocations")
-        .update({ payment_status: "invoiced", amount_usd: amount })
-        .eq("id", alloc.id);
+    // ── Already fully paid ──
+    if (allComplete) {
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "already_paid" });
+      continue;
     }
+
+    // ── Already invoiced (capital call was sent), no new unpaid ──
+    if (allInvoicedOrBetter && !hasUnpaid) {
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "already_sent" });
+      continue;
+    }
+
+    // ── Unpaid allocations in this round: send capital call ──
+    let amountDue = 0;
+    for (const alloc of roundAllocs) {
+      if (alloc.payment_status === "unpaid") {
+        const amount = Number(alloc.amount_usd) || Number(alloc.token_amount) * tokenPrice;
+        amountDue += amount;
+
+        await supabase
+          .from("allocations")
+          .update({ payment_status: "invoiced", amount_usd: amount })
+          .eq("id", alloc.id);
+      }
+    }
+
+    // Total due for display includes any previously invoiced amounts still outstanding
+    const totalDueRound = roundAllocs.reduce(
+      (s: number, a: any) => {
+        if (a.payment_status === "paid" || a.payment_status === "grant") return s;
+        return s + (Number(a.amount_usd) || Number(a.token_amount) * tokenPrice);
+      }, 0
+    );
+
+    const { subject, html } = composeCapitalCallEmail(
+      investor.full_name,
+      totalDueRound,
+      roundName
+    );
+    const emailSent = await sendEmail(investor.email, subject, html);
+
+    await supabase.from("email_events").insert({
+      investor_id: investorId,
+      email_type: "capital_call",
+      sent_by: triggeredBy,
+      metadata: {
+        trigger,
+        round_id: roundId,
+        round_name: roundName,
+        total_due: totalDueRound,
+        allocations: roundAllocs.map((a: any) => a.id),
+        sent_successfully: emailSent,
+      },
+    });
+
+    capitalCallsSent++;
+    roundResults.push({
+      round_id: roundId,
+      round_name: roundName,
+      action: "capital_call",
+      amount_due: totalDueRound,
+    });
   }
-
-  // ── Send capital call email ──
-  const roundLabel = roundNames.join(" + ");
-  const { subject, html } = composeCapitalCallEmail(
-    investor.full_name,
-    totalDue,
-    roundLabel
-  );
-  const emailSent = await sendEmail(investor.email, subject, html);
-
-  // ── Log email event ──
-  await supabase.from("email_events").insert({
-    investor_id: investorId,
-    email_type: "capital_call",
-    sent_by: triggeredBy,
-    metadata: {
-      total_due: totalDue,
-      rounds: roundNames,
-      trigger,
-      sent_successfully: emailSent,
-      allocations: eligibleAllocations.map((a: any) => a.id),
-    },
-  });
 
   return {
-    sent: true,
-    ready: true,
-    pending: [],
+    sent: capitalCallsSent > 0 || grantsConfirmed > 0,
+    ready: pending.length === 0,
+    pending,
     grants_confirmed: grantsConfirmed,
-    details: { total_due: totalDue, rounds: roundNames, trigger },
+    capital_calls_sent: capitalCallsSent,
+    rounds: roundResults,
   };
 }
