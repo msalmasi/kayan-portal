@@ -38,6 +38,7 @@ export function KycBadge({ status }: { status: string }) {
 export function PaymentBadge({ status }: { status: string }) {
   const map: Record<string, { variant: BadgeProps["variant"]; label: string }> = {
     paid: { variant: "green", label: "Paid" },
+    grant: { variant: "green", label: "Grant" },
     partial: { variant: "yellow", label: "Partial" },
     invoiced: { variant: "yellow", label: "Invoiced" },
     unpaid: { variant: "gray", label: "Unpaid" },

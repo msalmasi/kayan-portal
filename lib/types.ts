@@ -35,7 +35,7 @@ export interface SaftRound {
 }
 
 /** Payment status for an allocation */
-export type PaymentStatus = "unpaid" | "invoiced" | "partial" | "paid";
+export type PaymentStatus = "unpaid" | "invoiced" | "partial" | "paid" | "grant";
 
 /** Accepted payment methods (matches PQ Section D) */
 export type PaymentMethod = "wire" | "usdt" | "usdc" | "credit_card";
@@ -221,6 +221,7 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   invoiced: "Invoiced",
   partial: "Partial",
   paid: "Paid",
+  grant: "Grant",
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

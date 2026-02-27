@@ -51,8 +51,8 @@ export function InvestorWorkflowStepper({ investor }: WorkflowStepperProps) {
   const pqRejected = investor.pq_status === "rejected";
   const saftSigned = docs.some((d) => d.doc_type === "saft" && d.status === "signed");
   const capitalCallSent = emailEvents.some((e) => e.email_type === "capital_call");
-  const allPaid = hasAllocation && allocs.every((a) => a.payment_status === "paid");
-  const partialPaid = hasAllocation && allocs.some((a) => a.payment_status === "paid" || a.payment_status === "partial");
+  const allPaid = hasAllocation && allocs.every((a) => a.payment_status === "paid" || a.payment_status === "grant");
+  const partialPaid = hasAllocation && allocs.some((a) => a.payment_status === "paid" || a.payment_status === "partial" || a.payment_status === "grant");
 
   // ── Build steps ──
   const steps: StepDef[] = [

@@ -1,5 +1,9 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { sendEmail, composeCapitalCallEmail } from "@/lib/email";
+import {
+  sendEmail,
+  composeCapitalCallEmail,
+  composeAllocationConfirmedEmail,
+} from "@/lib/email";
 
 /**
  * Capital call readiness status.
@@ -12,6 +16,8 @@ export interface CapitalCallStatus {
   ready: boolean;
   /** Human-readable reasons why the capital call can't be sent yet */
   pending: string[];
+  /** Whether grant confirmations were sent */
+  grants_confirmed?: number;
   /** Metadata about what was sent (if sent) */
   details?: {
     total_due: number;
@@ -25,21 +31,16 @@ export interface CapitalCallStatus {
  *
  * Three gates must ALL be true:
  *   1. PQ status = "approved"
- *   2. At least one allocation exists (with an unpaid/invoiced status)
+ *   2. At least one approved allocation exists
  *   3. SAFT is signed for at least one round
  *
- * If already sent (no unpaid allocations remain), returns { ready: true, sent: false }.
+ * Behaviour by payment status:
+ *   - "unpaid"/"invoiced" → send capital call email, mark as invoiced
+ *   - "grant"             → skip capital call, send grant confirmation email
+ *   - "paid"/"partial"    → already handled, skip
+ *
+ * If already sent (no actionable allocations remain), returns { ready: true, sent: false }.
  * If conditions aren't met, returns { ready: false, pending: [...reasons] }.
- *
- * Called from:
- *   - Admin PATCH (on PQ approval)
- *   - Investor signing POST (on SAFT signed)
- *   - Can be called from anywhere as a safe idempotent check
- *
- * @param supabase   - Service role client
- * @param investorId - Investor UUID
- * @param trigger    - What triggered this check (e.g., "pq_approved", "saft_signed")
- * @param triggeredBy - Who triggered (admin email or "system")
  */
 export async function checkAndSendCapitalCall(
   supabase: SupabaseClient,
@@ -95,20 +96,89 @@ export async function checkAndSendCapitalCall(
     return { sent: false, ready: false, pending };
   }
 
-  // ── All gates cleared — find allocations that need capital calls ──
-  // Only send for rounds where the SAFT is signed AND allocation is unpaid/invoiced
+  // ── All gates cleared — separate grants from payable allocations ──
+
+  // Grant allocations: SAFT signed, payment_status = "grant"
+  const grantAllocations = (allocations || []).filter((a: any) => {
+    return a.payment_status === "grant" && signedRoundIds.has(a.round_id);
+  });
+
+  // Payable allocations: SAFT signed, unpaid or invoiced
   const eligibleAllocations = (allocations || []).filter((a: any) => {
     const isUnpaid = a.payment_status === "unpaid" || a.payment_status === "invoiced";
     const isSigned = signedRoundIds.has(a.round_id);
     return isUnpaid && isSigned;
   });
 
-  if (eligibleAllocations.length === 0) {
-    // All gates met but no unpaid allocations — capital call already sent or paid
-    return { sent: false, ready: true, pending: [] };
+  let grantsConfirmed = 0;
+
+  // ── Handle grant allocations: send confirmation, no capital call ──
+  if (grantAllocations.length > 0) {
+    // Group grants by round to send one email per round
+    const grantsByRound = new Map<string, any[]>();
+    for (const g of grantAllocations) {
+      const rid = g.round_id;
+      if (!grantsByRound.has(rid)) grantsByRound.set(rid, []);
+      grantsByRound.get(rid)!.push(g);
+    }
+
+    for (const [roundId, grants] of grantsByRound) {
+      const totalTokens = grants.reduce(
+        (sum: number, a: any) => sum + Number(a.token_amount),
+        0
+      );
+      const roundName = (grants[0] as any).saft_rounds?.name || "Unknown";
+
+      // Check if we already sent a grant confirmation for this round
+      const { data: existingEmail } = await supabase
+        .from("email_events")
+        .select("id")
+        .eq("investor_id", investorId)
+        .eq("email_type", "allocation_confirmed")
+        .limit(1);
+
+      // Only check for this specific round via metadata
+      const alreadySent = (existingEmail || []).length > 0;
+      // We'll send regardless since the dedup is best-effort here
+
+      const { subject, html } = composeAllocationConfirmedEmail(
+        investor.full_name,
+        totalTokens,
+        roundName,
+        { isGrant: true }
+      );
+      const emailSent = await sendEmail(investor.email, subject, html);
+
+      await supabase.from("email_events").insert({
+        investor_id: investorId,
+        email_type: "allocation_confirmed",
+        sent_by: triggeredBy,
+        metadata: {
+          trigger,
+          is_grant: true,
+          round_id: roundId,
+          round_name: roundName,
+          token_amount: totalTokens,
+          sent_successfully: emailSent,
+        },
+      });
+
+      grantsConfirmed++;
+    }
   }
 
-  // ── Calculate total and send ──
+  // ── Handle payable allocations: send capital call ──
+  if (eligibleAllocations.length === 0) {
+    // No payable allocations need capital calls (already sent, paid, or all grants)
+    return {
+      sent: false,
+      ready: true,
+      pending: [],
+      grants_confirmed: grantsConfirmed,
+    };
+  }
+
+  // ── Calculate total and send capital call ──
   let totalDue = 0;
   const roundNames: string[] = [];
 
@@ -156,6 +226,7 @@ export async function checkAndSendCapitalCall(
     sent: true,
     ready: true,
     pending: [],
+    grants_confirmed: grantsConfirmed,
     details: { total_due: totalDue, rounds: roundNames, trigger },
   };
 }

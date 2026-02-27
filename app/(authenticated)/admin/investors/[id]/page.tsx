@@ -274,7 +274,7 @@ export default function InvestorDetailPage() {
 
   const totalDue = investor.allocations.reduce((s, a) => s + Number(a.amount_usd || 0), 0);
   const totalReceived = investor.allocations.reduce((s, a) => s + Number(a.amount_received_usd || 0), 0);
-  const allPaid = investor.allocations.length > 0 && investor.allocations.every(a => a.payment_status === "paid");
+  const allPaid = investor.allocations.length > 0 && investor.allocations.every(a => a.payment_status === "paid" || a.payment_status === "grant");
 
   return (
     <div className="space-y-6">

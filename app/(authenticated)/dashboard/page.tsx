@@ -67,12 +67,12 @@ export default async function DashboardPage() {
     );
   }
 
-  // Fetch paid allocations (fully confirmed, approved only)
+  // Fetch paid allocations (fully confirmed, approved only — includes grants)
   const { data: paidAllocations } = await supabase
     .from("allocations")
     .select("*, saft_rounds(*)")
     .eq("investor_id", investor.id)
-    .eq("payment_status", "paid")
+    .in("payment_status", ["paid", "grant"])
     .eq("approval_status", "approved");
 
   // Fetch partial allocations (some payment received, approved only)

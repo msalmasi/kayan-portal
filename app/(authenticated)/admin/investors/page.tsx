@@ -51,6 +51,7 @@ const PAYMENT_OPTIONS = [
   { value: "invoiced", label: "Invoiced" },
   { value: "partial", label: "Partial" },
   { value: "paid", label: "Paid" },
+  { value: "grant", label: "Grant" },
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];

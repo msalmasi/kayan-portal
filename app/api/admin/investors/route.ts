@@ -87,9 +87,16 @@ export async function GET(request: NextRequest) {
     ).length;
 
     // Aggregate payment summary from approved allocations
+    // "grant" counts as complete (same tier as "paid")
     const paymentSummary = (() => {
       if (approved.length === 0) return "none";
-      if (approved.every((a: any) => a.payment_status === "paid")) return "paid";
+      const allComplete = approved.every(
+        (a: any) => a.payment_status === "paid" || a.payment_status === "grant"
+      );
+      if (allComplete) {
+        // If ALL are grants, show "grant"; if mixed or all paid, show "paid"
+        return approved.every((a: any) => a.payment_status === "grant") ? "grant" : "paid";
+      }
       if (approved.some((a: any) => a.payment_status === "paid" || a.payment_status === "partial"))
         return "partial";
       if (approved.some((a: any) => a.payment_status === "invoiced")) return "invoiced";

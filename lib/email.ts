@@ -214,6 +214,97 @@ export function composeDocumentsReadyEmail(investorName: string, roundName: stri
   return { subject, html };
 }
 
+/**
+ * Compose allocation confirmed email — sent when:
+ *   - Admin marks payment as "paid" (includes wire ref / tx hash)
+ *   - Grant allocations are auto-confirmed (no payment required)
+ */
+export function composeAllocationConfirmedEmail(
+  investorName: string,
+  tokenAmount: number,
+  roundName: string,
+  opts?: {
+    isGrant?: boolean;
+    txReference?: string;
+    paymentMethod?: string;
+    amountUsd?: number;
+  }
+) {
+  const isGrant = opts?.isGrant || false;
+  const formattedTokens = tokenAmount.toLocaleString();
+
+  const subject = isGrant
+    ? `Kayan Token — Your ${roundName} Token Grant is Confirmed`
+    : `Kayan Token — Payment Confirmed for ${roundName}`;
+
+  // Payment details row (only for non-grant)
+  const paymentDetails = !isGrant
+    ? `
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:0 0 16px;">
+        <table style="width:100%;font-size:14px;color:#374151;" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:4px 0;font-weight:600;">Round</td>
+            <td style="padding:4px 0;">${roundName}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;font-weight:600;">Tokens</td>
+            <td style="padding:4px 0;">${formattedTokens} $KAYAN</td>
+          </tr>
+          ${opts?.amountUsd ? `<tr>
+            <td style="padding:4px 0;font-weight:600;">Amount</td>
+            <td style="padding:4px 0;">$${opts.amountUsd.toLocaleString()}</td>
+          </tr>` : ""}
+          ${opts?.paymentMethod ? `<tr>
+            <td style="padding:4px 0;font-weight:600;">Method</td>
+            <td style="padding:4px 0;">${opts.paymentMethod}</td>
+          </tr>` : ""}
+          ${opts?.txReference ? `<tr>
+            <td style="padding:4px 0;font-weight:600;">Reference</td>
+            <td style="padding:4px 0;font-family:monospace;font-size:13px;">${opts.txReference}</td>
+          </tr>` : ""}
+        </table>
+      </div>`
+    : `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:0 0 16px;">
+        <table style="width:100%;font-size:14px;color:#374151;" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:4px 0;font-weight:600;">Round</td>
+            <td style="padding:4px 0;">${roundName}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;font-weight:600;">Tokens</td>
+            <td style="padding:4px 0;">${formattedTokens} $KAYAN</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;font-weight:600;">Type</td>
+            <td style="padding:4px 0;">Grant — no payment required</td>
+          </tr>
+        </table>
+      </div>`;
+
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">
+      ${isGrant ? "Token Grant Confirmed" : "Payment Confirmed"}
+    </h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      Dear ${investorName}, ${isGrant
+        ? `your <strong>${formattedTokens} $KAYAN</strong> token grant for the <strong>${roundName}</strong> round has been confirmed.`
+        : `we have received and confirmed your payment for the <strong>${roundName}</strong> round. Your token allocation is now secured.`
+      }
+    </p>
+    ${paymentDetails}
+    <a href="${PORTAL_URL}/dashboard" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      View Your Dashboard
+    </a>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      Your tokens will be distributed according to the vesting schedule in your SAFT agreement.
+    </p>
+  `);
+
+  return { subject, html };
+}
+
 /** Send email via Resend. Returns true if sent, false if no API key. */
 export async function sendEmail(
   to: string,
