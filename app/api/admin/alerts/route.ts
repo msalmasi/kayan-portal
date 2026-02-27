@@ -5,7 +5,7 @@ import { getAdminAuth } from "@/lib/admin-auth";
  * All subscribable event types.
  * Used for validation and to display the full list on the settings UI.
  */
-export const ALERT_EVENT_TYPES = [
+const ALERT_EVENT_TYPES = [
   "kyc_verified",
   "kyc_rejected",
   "pq_submitted",
