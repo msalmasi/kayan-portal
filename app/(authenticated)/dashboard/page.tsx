@@ -66,30 +66,58 @@ export default async function DashboardPage() {
     );
   }
 
-  // Fetch allocations — only show paid allocations to investors.
-  // Unpaid/invoiced allocations are internal workflow state and
-  // should not be represented as granted until payment clears.
-  const { data: allocations } = await supabase
+  // Fetch paid allocations (fully confirmed)
+  const { data: paidAllocations } = await supabase
     .from("allocations")
     .select("*, saft_rounds(*)")
     .eq("investor_id", investor.id)
     .eq("payment_status", "paid");
 
-  // Fetch invoiced allocations to show amount due
-  const { data: invoicedAllocations } = await supabase
+  // Fetch partial allocations (some payment received)
+  const { data: partialAllocations } = await supabase
     .from("allocations")
-    .select("amount_usd, token_amount, saft_rounds(name, token_price)")
+    .select("*, saft_rounds(*)")
     .eq("investor_id", investor.id)
-    .eq("payment_status", "invoiced");
+    .eq("payment_status", "partial");
 
-  const typedAllocations = (allocations || []) as AllocationWithRound[];
+  // Fetch invoiced + partial for amount due banner
+  const { data: outstandingAllocations } = await supabase
+    .from("allocations")
+    .select("amount_usd, amount_received_usd, token_amount, saft_rounds(name, token_price)")
+    .eq("investor_id", investor.id)
+    .in("payment_status", ["invoiced", "partial"]);
+
+  // For partial allocations, scale token_amount to the paid proportion.
+  // e.g. 100,000 tokens at $50k, $20k received → show 40,000 tokens
+  const scaledPartials = (partialAllocations || []).map((a: any) => {
+    const totalDue = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
+    const received = Number(a.amount_received_usd) || 0;
+    const paidRatio = totalDue > 0 ? received / totalDue : 0;
+    return {
+      ...a,
+      token_amount: Math.floor(Number(a.token_amount) * paidRatio),
+      _is_partial: true,
+      _paid_ratio: paidRatio,
+      _amount_received: received,
+      _amount_total: totalDue,
+    };
+  });
+
+  const typedAllocations = [
+    ...(paidAllocations || []),
+    ...scaledPartials,
+  ] as AllocationWithRound[];
+
   const typedInvestor = investor as Investor;
 
-  // Calculate total amount due from invoiced allocations
-  const amountDue = (invoicedAllocations || []).reduce((sum: number, a: any) => {
-    const amt = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
-    return sum + amt;
+  // Calculate remaining balance: total due minus what's been received
+  const amountDue = (outstandingAllocations || []).reduce((sum: number, a: any) => {
+    const total = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
+    const received = Number(a.amount_received_usd) || 0;
+    return sum + (total - received);
   }, 0);
+
+  const hasPartials = scaledPartials.length > 0;
 
   return (
     <div className="space-y-6">
@@ -109,9 +137,13 @@ export default async function DashboardPage() {
       {amountDue > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-amber-800">Payment Due</p>
+            <p className="text-sm font-semibold text-amber-800">
+              {hasPartials ? "Remaining Balance" : "Payment Due"}
+            </p>
             <p className="text-xs text-amber-600 mt-0.5">
-              Please remit payment to complete your subscription. Your token allocation will appear once payment is confirmed.
+              {hasPartials
+                ? "A partial payment has been received. Your confirmed tokens are shown below. The remaining allocation will unlock once the balance is settled."
+                : "Please remit payment to complete your subscription. Your token allocation will appear once payment is confirmed."}
             </p>
           </div>
           <p className="text-2xl font-bold text-amber-900 whitespace-nowrap ml-4">

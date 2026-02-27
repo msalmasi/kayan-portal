@@ -37,30 +37,42 @@ export function AllocationTable({ allocations }: AllocationTableProps) {
             </tr>
           </thead>
           <tbody>
-            {allocations.map((alloc) => (
-              <tr
-                key={alloc.id}
-                className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
-              >
-                <td className="py-3 px-2 font-medium text-gray-900">
-                  {alloc.saft_rounds.name}
-                </td>
-                <td className="py-3 px-2 text-right text-gray-700">
-                  {formatTokenAmount(Number(alloc.token_amount))}
-                </td>
-                <td className="py-3 px-2 text-right text-gray-700">
-                  {alloc.saft_rounds.tge_unlock_pct}%
-                </td>
-                <td className="py-3 px-2 text-right text-gray-700">
-                  {alloc.saft_rounds.cliff_months > 0
-                    ? `${alloc.saft_rounds.cliff_months}mo`
-                    : "None"}
-                </td>
-                <td className="py-3 px-2 text-right text-gray-700">
-                  {alloc.saft_rounds.vesting_months}mo
-                </td>
-              </tr>
-            ))}
+            {allocations.map((alloc) => {
+              const isPartial = (alloc as any)._is_partial;
+              const paidPct = isPartial
+                ? Math.round((alloc as any)._paid_ratio * 100)
+                : null;
+
+              return (
+                <tr
+                  key={alloc.id}
+                  className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
+                >
+                  <td className="py-3 px-2 font-medium text-gray-900">
+                    {alloc.saft_rounds.name}
+                    {isPartial && (
+                      <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                        {paidPct}% paid
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-2 text-right text-gray-700">
+                    {formatTokenAmount(Number(alloc.token_amount))}
+                  </td>
+                  <td className="py-3 px-2 text-right text-gray-700">
+                    {alloc.saft_rounds.tge_unlock_pct}%
+                  </td>
+                  <td className="py-3 px-2 text-right text-gray-700">
+                    {alloc.saft_rounds.cliff_months > 0
+                      ? `${alloc.saft_rounds.cliff_months}mo`
+                      : "None"}
+                  </td>
+                  <td className="py-3 px-2 text-right text-gray-700">
+                    {alloc.saft_rounds.vesting_months}mo
+                  </td>
+                </tr>
+              );
+            })}
 
             {allocations.length === 0 && (
               <tr>
