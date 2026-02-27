@@ -159,6 +159,52 @@ export async function PATCH(
 
       docsSent = true;
     }
+
+    // Auto-generate document sets for each round with an allocation
+    try {
+      const { generateDocsForInvestor } = await import("@/lib/doc-generate-core");
+
+      const { data: fullInv } = await auth.client
+        .from("investors")
+        .select("*")
+        .eq("id", params.id)
+        .single();
+
+      const { data: allocations } = await auth.client
+        .from("allocations")
+        .select("round_id")
+        .eq("investor_id", params.id);
+
+      if (fullInv && allocations && allocations.length > 0) {
+        const uniqueRounds = Array.from(new Set(allocations.map((a: any) => a.round_id)));
+        for (const rid of uniqueRounds) {
+          // Skip if already signed
+          const { data: existing } = await auth.client
+            .from("investor_documents")
+            .select("id, status")
+            .eq("investor_id", params.id)
+            .eq("round_id", rid)
+            .eq("doc_type", "saft");
+
+          if (existing?.some((d: any) => d.status === "signed")) continue;
+
+          // Check SAFT template exists
+          const { data: tmpl } = await auth.client
+            .from("doc_templates")
+            .select("id")
+            .eq("doc_type", "saft")
+            .eq("round_id", rid)
+            .eq("is_active", true)
+            .single();
+
+          if (!tmpl) continue;
+
+          await generateDocsForInvestor(auth.client, fullInv, rid, auth.email);
+        }
+      }
+    } catch (err: any) {
+      console.error("[ADMIN] Auto-generate docs failed:", err.message);
+    }
   }
 
   // ── Auto-send capital call on PQ approval ──

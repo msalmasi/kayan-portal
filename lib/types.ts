@@ -315,10 +315,12 @@ export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
 export const SAFT_PLACEHOLDERS = [
   "investor_name",
   "investor_email",
+  "investor_address",
   "investor_jurisdiction",
   "investment_amount_usd",
   "token_amount",
   "token_price",
   "round_name",
+  "payment_method",
   "date",
 ] as const;

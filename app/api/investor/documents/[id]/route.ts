@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
-import { generateSignedPdf, hashContent, SigningData } from "@/lib/doc-generator";
-import { sendEmail } from "@/lib/email";
+import {
+  generateSignedPdf,
+  hashContent,
+  fillDocxTemplate,
+  docxToHtml,
+  SigningData,
+  SaftVariables,
+  MissingVariable,
+} from "@/lib/doc-generator";
 
 /**
  * Helper: verify the request comes from the investor who owns the document.
@@ -26,7 +33,6 @@ async function getDocContext(docId: string) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // Get investor
   const { data: investor } = await admin
     .from("investors")
     .select("*")
@@ -35,7 +41,6 @@ async function getDocContext(docId: string) {
 
   if (!investor) return null;
 
-  // Get document (must belong to this investor)
   const { data: doc } = await admin
     .from("investor_documents")
     .select("*, saft_rounds(name)")
@@ -50,9 +55,7 @@ async function getDocContext(docId: string) {
 
 /**
  * GET /api/investor/documents/[id]
- * Returns document details.
- * - For SAFT: includes html_content for in-portal viewing
- * - For PPM/CIS: includes a signed download URL
+ * Returns document details including missing_variables.
  */
 export async function GET(
   _request: NextRequest,
@@ -61,18 +64,17 @@ export async function GET(
   const ctx = await getDocContext(params.id);
   if (!ctx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { doc, admin, investor } = ctx;
+  const { doc, admin } = ctx;
 
-  // For PPM/CIS, generate a signed URL for the PDF
+  // Signed URLs for downloads
   let downloadUrl: string | null = null;
   if (doc.doc_type !== "saft" && doc.storage_path) {
     const { data } = await admin.storage
       .from("documents")
-      .createSignedUrl(doc.storage_path, 3600); // 1 hour
+      .createSignedUrl(doc.storage_path, 3600);
     downloadUrl = data?.signedUrl || null;
   }
 
-  // For SAFT, also provide a signed URL for the filled docx download
   let docxDownloadUrl: string | null = null;
   if (doc.doc_type === "saft" && doc.storage_path) {
     const { data } = await admin.storage
@@ -81,7 +83,6 @@ export async function GET(
     docxDownloadUrl = data?.signedUrl || null;
   }
 
-  // Signed certificate URL
   let signedPdfUrl: string | null = null;
   if (doc.signed_pdf_path) {
     const { data } = await admin.storage
@@ -94,6 +95,7 @@ export async function GET(
     id: doc.id,
     doc_type: doc.doc_type,
     round_name: doc.saft_rounds?.name || null,
+    round_id: doc.round_id,
     status: doc.status,
     html_content: doc.doc_type === "saft" ? doc.html_content : null,
     doc_hash: doc.doc_hash,
@@ -104,15 +106,22 @@ export async function GET(
     docx_download_url: docxDownloadUrl,
     signed_pdf_url: signedPdfUrl,
     variables: doc.variables,
+    missing_variables: doc.missing_variables || [],
+    template_id: doc.template_id,
   });
 }
 
 /**
  * PATCH /api/investor/documents/[id]
- * Mark document as "viewed". Logged in audit trail.
+ * Two uses:
+ *   1. Mark as "viewed" (no body needed)
+ *   2. Fill missing variables (body: { filled_variables: { key: value } })
+ *
+ * When missing variables are filled, the SAFT is re-rendered with
+ * the completed data and the document hash is updated.
  */
 export async function PATCH(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const ctx = await getDocContext(params.id);
@@ -123,7 +132,101 @@ export async function PATCH(
   const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const ua = headersList.get("user-agent") || "unknown";
 
-  // Only update if currently pending
+  // Parse body (may be empty for simple view tracking)
+  let body: any = {};
+  try { body = await request.json(); } catch { /* empty body = view tracking */ }
+
+  // ── Fill missing variables ──
+  if (body.filled_variables && doc.doc_type === "saft" && doc.status !== "signed") {
+    const filled: Record<string, string> = body.filled_variables;
+    const currentVars: SaftVariables = doc.variables || {};
+    const currentMissing: MissingVariable[] = doc.missing_variables || [];
+
+    // Merge filled values into existing variables
+    const updatedVars = { ...currentVars };
+    for (const [key, value] of Object.entries(filled)) {
+      if (typeof value === "string" && value.trim()) {
+        updatedVars[key] = value.trim();
+      }
+    }
+
+    // Recalculate which variables are still missing
+    const stillMissing = currentMissing.filter(
+      (m) => !updatedVars[m.key] || updatedVars[m.key] === "" || updatedVars[m.key] === "—"
+    );
+
+    // Re-render the SAFT with updated variables
+    let newHtml = doc.html_content;
+    let newHash = doc.doc_hash;
+
+    if (doc.template_id) {
+      try {
+        // Fetch template to re-render
+        const { data: template } = await admin
+          .from("doc_templates")
+          .select("storage_path")
+          .eq("id", doc.template_id)
+          .single();
+
+        if (template) {
+          const { data: templateFile } = await admin.storage
+            .from("documents")
+            .download(template.storage_path);
+
+          if (templateFile) {
+            const templateBuffer = Buffer.from(await templateFile.arrayBuffer());
+            const filledDocx = fillDocxTemplate(templateBuffer, updatedVars);
+            newHtml = await docxToHtml(filledDocx);
+            newHash = hashContent(newHtml);
+
+            // Also re-upload the filled docx
+            if (doc.storage_path) {
+              await admin.storage
+                .from("documents")
+                .update(doc.storage_path, filledDocx, {
+                  contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                  upsert: true,
+                });
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error("[FILL] Re-render failed, keeping existing HTML:", err.message);
+      }
+    }
+
+    // Update document record
+    await admin
+      .from("investor_documents")
+      .update({
+        variables: updatedVars,
+        missing_variables: stillMissing,
+        html_content: newHtml,
+        doc_hash: newHash,
+        status: doc.status === "pending" ? "viewed" : doc.status,
+      })
+      .eq("id", doc.id);
+
+    // Log event
+    await admin.from("signing_events").insert({
+      document_id: doc.id,
+      investor_id: investor.id,
+      event_type: "viewed",
+      ip_address: ip,
+      user_agent: ua,
+      metadata: { action: "filled_variables", filled: Object.keys(filled), still_missing: stillMissing.map((m) => m.key) },
+    });
+
+    return NextResponse.json({
+      success: true,
+      html_content: newHtml,
+      doc_hash: newHash,
+      missing_variables: stillMissing,
+      variables: updatedVars,
+    });
+  }
+
+  // ── Simple view tracking ──
   if (doc.status === "pending") {
     await admin
       .from("investor_documents")
@@ -131,7 +234,6 @@ export async function PATCH(
       .eq("id", doc.id);
   }
 
-  // Log view event
   await admin.from("signing_events").insert({
     document_id: doc.id,
     investor_id: investor.id,
@@ -149,9 +251,7 @@ export async function PATCH(
  *
  * Body: { signature_name: string }
  *
- * Captures: typed signature, timestamp, IP, user agent, document hash.
- * Generates Certificate of Execution PDF.
- * Stores signed PDF in Supabase Storage.
+ * Blocks signing if missing_variables still has unfilled entries.
  */
 export async function POST(
   request: NextRequest,
@@ -165,14 +265,20 @@ export async function POST(
   const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const ua = headersList.get("user-agent") || "unknown";
 
-  // Can only sign SAFT documents
   if (doc.doc_type !== "saft") {
     return NextResponse.json({ error: "Only SAFT documents require signing" }, { status: 400 });
   }
-
-  // Can't sign if already signed
   if (doc.status === "signed") {
     return NextResponse.json({ error: "Document already signed" }, { status: 400 });
+  }
+
+  // Block signing if there are still missing variables
+  const missing: MissingVariable[] = doc.missing_variables || [];
+  if (missing.length > 0) {
+    return NextResponse.json(
+      { error: `Please fill in all required fields first: ${missing.map((m) => m.label).join(", ")}` },
+      { status: 400 }
+    );
   }
 
   const { signature_name } = await request.json();
@@ -198,17 +304,12 @@ export async function POST(
   let signedPdfPath: string | null = null;
   try {
     const pdfBytes = await generateSignedPdf(signingData);
-
-    // Store in Supabase Storage
     signedPdfPath = `signed/${investor.id}/${doc.round_id}/Certificate-${Date.now()}.pdf`;
     await admin.storage
       .from("documents")
-      .upload(signedPdfPath, pdfBytes, {
-        contentType: "application/pdf",
-      });
+      .upload(signedPdfPath, pdfBytes, { contentType: "application/pdf" });
   } catch (err: any) {
     console.error("[SIGNING] PDF generation failed:", err);
-    // Non-fatal — the signing still goes through, we just don't have a PDF
   }
 
   // ── Update document record ──
@@ -234,6 +335,7 @@ export async function POST(
     metadata: {
       signature_name: signature_name.trim(),
       document_hash: doc.doc_hash,
+      final_variables: doc.variables,
       signed_pdf_path: signedPdfPath,
     },
   });

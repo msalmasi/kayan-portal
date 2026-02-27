@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         .update(updates)
         .eq("id", investor.id);
 
-      // Auto-send subscription docs if not already sent
+      // Send docs_package email + update PQ status
       if (!investor.docs_sent_at) {
         const { subject, html } = composeDocsPackageEmail(investor.full_name);
         const sent = await sendEmail(investor.email, subject, html);
@@ -132,7 +132,6 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", investor.id);
 
-        // Log email event
         await supabase.from("email_events").insert({
           investor_id: investor.id,
           email_type: "docs_package",
@@ -145,7 +144,57 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ ok: true, status: "verified", docs_sent: !investor.docs_sent_at });
+      // ── Auto-generate document sets for each round with an allocation ──
+      const { data: allocations } = await supabase
+        .from("allocations")
+        .select("round_id")
+        .eq("investor_id", investor.id);
+
+      let docsGenerated = 0;
+      if (allocations && allocations.length > 0) {
+        const uniqueRounds = Array.from(new Set(allocations.map((a: any) => a.round_id)));
+
+        for (const roundId of uniqueRounds) {
+          // Skip if docs already generated for this round
+          const { data: existing } = await supabase
+            .from("investor_documents")
+            .select("id")
+            .eq("investor_id", investor.id)
+            .eq("round_id", roundId)
+            .eq("doc_type", "saft");
+
+          if (existing && existing.length > 0) continue;
+
+          // Check that a SAFT template exists for this round
+          const { data: saftTemplate } = await supabase
+            .from("doc_templates")
+            .select("id")
+            .eq("doc_type", "saft")
+            .eq("round_id", roundId)
+            .eq("is_active", true)
+            .single();
+
+          if (!saftTemplate) continue;
+
+          // Trigger generation via internal API call
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "http://localhost:3000";
+
+            // Use the internal generate function directly via service role
+            // (we can't call our own API from a webhook easily, so replicate the core logic)
+            const { generateDocsForInvestor } = await import("@/lib/doc-generate-core");
+            await generateDocsForInvestor(supabase, investor, roundId, "system (kyc_approved)");
+            docsGenerated++;
+          } catch (err: any) {
+            console.error(`[SUMSUB] Auto-generate failed for round ${roundId}:`, err.message);
+          }
+        }
+      }
+
+      console.log(`[SUMSUB] KYC approved for ${externalUserId}, ${docsGenerated} doc set(s) generated`);
+      return NextResponse.json({ ok: true, status: "verified", docs_sent: !investor.docs_sent_at, docs_generated: docsGenerated });
 
     } else if (answer === "RED") {
       // ── KYC Rejected ──

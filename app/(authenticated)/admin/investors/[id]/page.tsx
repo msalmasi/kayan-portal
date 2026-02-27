@@ -44,6 +44,7 @@ interface InvestorDocItem {
   saft_rounds: { name: string } | null;
   download_url: string | null;
   signed_pdf_url: string | null;
+  missing_variables: { key: string; label: string }[];
 }
 
 export default function InvestorDetailPage() {
@@ -462,6 +463,11 @@ export default function InvestorDetailPage() {
                         {doc.signature_ip && <span className="text-gray-400"> · IP {doc.signature_ip}</span>}
                       </p>
                     )}
+                    {doc.doc_type === "saft" && doc.missing_variables?.length > 0 && doc.status !== "signed" && (
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        ⚠ Awaiting investor input: {doc.missing_variables.map((m) => m.label).join(", ")}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -509,19 +515,25 @@ export default function InvestorDetailPage() {
               {/* Get unique rounds from allocations */}
               {Array.from(new Set(investor.allocations.map(a => a.round_id))).map(roundId => {
                 const roundName = investor.allocations.find(a => a.round_id === roundId)?.saft_rounds?.name || "Unknown";
-                const hasDoc = investor.investor_documents?.some(
+                const existingSaft = investor.investor_documents?.find(
                   d => d.doc_type === "saft" && d.round_id === roundId
                 );
+                const isSigned = existingSaft?.status === "signed";
                 return (
                   <Button
                     key={roundId}
-                    variant={hasDoc ? "ghost" : "secondary"}
+                    variant={existingSaft ? "ghost" : "secondary"}
                     size="sm"
                     onClick={() => handleGenerateDocs(roundId)}
-                    disabled={generatingDocs || hasDoc}
+                    disabled={generatingDocs || isSigned}
                     loading={generatingDocs}
+                    title={isSigned ? "Cannot re-generate a signed document" : ""}
                   >
-                    {hasDoc ? `✓ ${roundName}` : `Generate for ${roundName}`}
+                    {isSigned
+                      ? `✓ ${roundName} (Signed)`
+                      : existingSaft
+                        ? `↻ Re-generate ${roundName}`
+                        : `Generate for ${roundName}`}
                   </Button>
                 );
               })}

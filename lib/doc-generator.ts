@@ -15,20 +15,67 @@ import crypto from "crypto";
 export interface SaftVariables {
   investor_name: string;
   investor_email: string;
+  investor_address: string;
   investor_jurisdiction: string;
   investment_amount_usd: string;
   token_amount: string;
   token_price: string;
   round_name: string;
+  payment_method: string;
   date: string;
   [key: string]: string; // allow extra custom vars
+}
+
+/** Human-readable labels for standard placeholders */
+export const PLACEHOLDER_LABELS: Record<string, string> = {
+  investor_name: "Full Legal Name",
+  investor_email: "Email Address",
+  investor_address: "Mailing Address",
+  investor_jurisdiction: "Jurisdiction of Residence",
+  investment_amount_usd: "Investment Amount (USD)",
+  token_amount: "Token Amount",
+  token_price: "Token Price",
+  round_name: "Round Name",
+  payment_method: "Payment Method",
+  date: "Date",
+};
+
+/** A missing variable entry stored on the document record */
+export interface MissingVariable {
+  key: string;
+  label: string;
+}
+
+/**
+ * Detect which variables are still empty/blank after auto-fill.
+ * Returns array of { key, label } for each missing field.
+ */
+export function detectMissingVariables(
+  variables: SaftVariables,
+  templatePlaceholders: string[]
+): MissingVariable[] {
+  const missing: MissingVariable[] = [];
+
+  for (const key of templatePlaceholders) {
+    const value = variables[key];
+    // Consider a variable "missing" if it's empty, undefined, or our blank sentinel
+    if (!value || value === "" || value === "—" || value === "___") {
+      missing.push({
+        key,
+        label: PLACEHOLDER_LABELS[key] || key.replace(/_/g, " "),
+      });
+    }
+  }
+
+  return missing;
 }
 
 /**
  * Fill a .docx template with variables using docxtemplater.
  * Returns the filled docx as a Buffer.
  *
- * Template uses {{variable_name}} syntax.
+ * Template uses {variable_name} syntax.
+ * Missing variables (empty/"—") are rendered as "___" for visual clarity.
  */
 export function fillDocxTemplate(
   templateBuffer: Buffer,
@@ -36,13 +83,19 @@ export function fillDocxTemplate(
 ): Buffer {
   const zip = new PizZip(templateBuffer);
   const doc = new Docxtemplater(zip, {
-    // Don't throw on missing tags — replace with empty string
-    nullGetter: () => "",
+    // Replace missing tags with blank placeholder
+    nullGetter: () => "___",
     paragraphLoop: true,
     linebreaks: true,
   });
 
-  doc.render(variables);
+  // Replace "—" sentinels with blank so docxtemplater shows "___"
+  const cleanVars: Record<string, string> = {};
+  for (const [k, v] of Object.entries(variables)) {
+    cleanVars[k] = (!v || v === "—" || v === "___") ? "" : v;
+  }
+
+  doc.render(cleanVars);
 
   return Buffer.from(doc.getZip().generate({ type: "nodebuffer" }));
 }
@@ -73,12 +126,12 @@ export function extractPlaceholders(templateBuffer: Buffer): string[] {
 /**
  * Convert a filled .docx buffer to clean HTML using mammoth.
  * Returns styled HTML suitable for in-portal document viewing.
+ * Blank fields ("___") are highlighted for visibility.
  */
 export async function docxToHtml(docxBuffer: Buffer): Promise<string> {
   const result = await mammoth.convertToHtml(
     { buffer: docxBuffer },
     {
-      // Style mapping for clean output
       styleMap: [
         "p[style-name='Title'] => h1",
         "p[style-name='Heading 1'] => h2",
@@ -88,8 +141,13 @@ export async function docxToHtml(docxBuffer: Buffer): Promise<string> {
     }
   );
 
-  // Wrap in a document-style container with professional styling
-  return wrapDocumentHtml(result.value);
+  // Highlight blank placeholders so investors can see what needs filling
+  const highlighted = result.value.replace(
+    /___/g,
+    '<span class="blank-field">___</span>'
+  );
+
+  return wrapDocumentHtml(highlighted);
 }
 
 /**
@@ -162,6 +220,13 @@ function wrapDocumentHtml(bodyHtml: string): string {
     }
     .legal-document em {
       font-style: italic;
+    }
+    .legal-document .blank-field {
+      background: #fef3c7;
+      border-bottom: 2px solid #f59e0b;
+      padding: 0 4px;
+      color: #92400e;
+      font-weight: 600;
     }
   </style>
   ${bodyHtml}

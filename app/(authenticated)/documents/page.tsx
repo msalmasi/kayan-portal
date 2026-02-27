@@ -2,12 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import Link from "next/link";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { DOC_TYPE_LABELS, DOC_STATUS_LABELS } from "@/lib/types";
 
 // ─── Types ──────────────────────────────────────────────────
+
+interface MissingVar {
+  key: string;
+  label: string;
+}
 
 interface DocListItem {
   id: string;
@@ -31,6 +35,8 @@ interface DocDetail {
   download_url: string | null;
   docx_download_url: string | null;
   signed_pdf_url: string | null;
+  variables: Record<string, string> | null;
+  missing_variables: MissingVar[];
 }
 
 // ─── Status Badge ───────────────────────────────────────────
@@ -69,6 +75,15 @@ function DocIcon({ type }: { type: string }) {
   );
 }
 
+// ─── Payment Method Options ─────────────────────────────────
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "wire", label: "Bank Wire Transfer" },
+  { value: "usdt", label: "USDT (Tether)" },
+  { value: "usdc", label: "USDC" },
+  { value: "credit_card", label: "Credit Card" },
+];
+
 // ─── Main Page ──────────────────────────────────────────────
 
 export default function DocumentsPage() {
@@ -78,6 +93,10 @@ export default function DocumentsPage() {
   // Viewer state
   const [viewingDoc, setViewingDoc] = useState<DocDetail | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+
+  // Missing variable form state
+  const [filledValues, setFilledValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   // Signing state
   const [signing, setSigning] = useState(false);
@@ -97,7 +116,7 @@ export default function DocumentsPage() {
 
   // ── Open document ──
   const openDoc = async (doc: DocListItem) => {
-    // PPM and CIS — just open the PDF in a new tab
+    // PPM and CIS — open PDF in new tab
     if (doc.doc_type !== "saft") {
       setViewerLoading(true);
       const res = await fetch(`/api/investor/documents/${doc.id}`);
@@ -105,7 +124,6 @@ export default function DocumentsPage() {
       setViewerLoading(false);
       if (detail.download_url) {
         window.open(detail.download_url, "_blank");
-        // Mark as viewed
         fetch(`/api/investor/documents/${doc.id}`, { method: "PATCH" });
         setDocs((prev) =>
           prev.map((d) => (d.id === doc.id && d.status === "pending" ? { ...d, status: "viewed" } : d))
@@ -119,6 +137,7 @@ export default function DocumentsPage() {
     // SAFT — open in-portal viewer
     setViewerLoading(true);
     setHasScrolledToBottom(false);
+    setFilledValues({});
     const res = await fetch(`/api/investor/documents/${doc.id}`);
     if (res.ok) {
       const detail = await res.json();
@@ -135,15 +154,58 @@ export default function DocumentsPage() {
     setViewerLoading(false);
   };
 
-  // ── Track scroll position ──
+  // ── Track scroll ──
   const handleScroll = () => {
     if (!docViewerRef.current) return;
     const el = docViewerRef.current;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    if (atBottom) setHasScrolledToBottom(true);
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+      setHasScrolledToBottom(true);
+    }
   };
 
-  // ── Sign document ──
+  // ── Save filled variables → re-render document ──
+  const handleSaveVariables = async () => {
+    if (!viewingDoc) return;
+
+    // Validate all missing fields are filled
+    const stillEmpty = (viewingDoc.missing_variables || []).filter(
+      (m) => !filledValues[m.key]?.trim()
+    );
+    if (stillEmpty.length > 0) {
+      toast.error(`Please fill in: ${stillEmpty.map((m) => m.label).join(", ")}`);
+      return;
+    }
+
+    setSaving(true);
+    const res = await fetch(`/api/investor/documents/${viewingDoc.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filled_variables: filledValues }),
+    });
+    setSaving(false);
+
+    if (res.ok) {
+      const result = await res.json();
+      // Update the viewer with re-rendered content
+      setViewingDoc((prev) =>
+        prev
+          ? {
+              ...prev,
+              html_content: result.html_content || prev.html_content,
+              doc_hash: result.doc_hash || prev.doc_hash,
+              missing_variables: result.missing_variables || [],
+              variables: result.variables || prev.variables,
+            }
+          : null
+      );
+      toast.success("Document updated with your information");
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to save");
+    }
+  };
+
+  // ── Sign ──
   const handleSign = async () => {
     if (!viewingDoc || !signatureName.trim()) return;
 
@@ -153,7 +215,6 @@ export default function DocumentsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ signature_name: signatureName.trim() }),
     });
-
     setSigning(false);
     setShowSignModal(false);
 
@@ -178,7 +239,15 @@ export default function DocumentsPage() {
     setShowSignModal(false);
     setSignatureName("");
     setHasScrolledToBottom(false);
+    setFilledValues({});
   };
+
+  // ── Derived state ──
+  const hasMissing = viewingDoc && viewingDoc.missing_variables?.length > 0;
+  const allFilled = hasMissing
+    ? (viewingDoc.missing_variables || []).every((m) => filledValues[m.key]?.trim())
+    : true;
+  const canSign = viewingDoc?.status !== "signed" && !hasMissing && hasScrolledToBottom;
 
   // ── Group docs by round ──
   const roundGroups = docs.reduce<Record<string, DocListItem[]>>((acc, doc) => {
@@ -197,7 +266,7 @@ export default function DocumentsPage() {
     );
   }
 
-  // ── No documents yet ──
+  // ── No documents ──
   if (docs.length === 0) {
     return (
       <div className="space-y-6">
@@ -215,7 +284,7 @@ export default function DocumentsPage() {
             <h2 className="text-lg font-semibold text-gray-900">No documents yet</h2>
             <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
               Your subscription documents will appear here once they are prepared.
-              Please complete your KYC verification and Purchaser Questionnaire first.
+              Please complete your KYC verification first.
             </p>
           </div>
         </Card>
@@ -223,10 +292,11 @@ export default function DocumentsPage() {
     );
   }
 
-  // ─── SAFT VIEWER (full screen overlay) ────────────────────
+  // ─── SAFT VIEWER ──────────────────────────────────────────
 
   if (viewingDoc) {
     const isSigned = viewingDoc.status === "signed";
+
     return (
       <div className="fixed inset-0 z-50 bg-white flex flex-col">
         {/* ── Toolbar ── */}
@@ -249,34 +319,23 @@ export default function DocumentsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Download filled SAFT (docx) */}
             {viewingDoc.docx_download_url && (
-              <a
-                href={viewingDoc.docx_download_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-gray-500 hover:text-gray-700 underline"
-              >
+              <a href={viewingDoc.docx_download_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-gray-500 hover:text-gray-700 underline">
                 Download .docx
               </a>
             )}
-            {/* Download signed certificate */}
             {viewingDoc.signed_pdf_url && (
-              <a
-                href={viewingDoc.signed_pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-kayan-600 hover:text-kayan-800 underline font-medium"
-              >
+              <a href={viewingDoc.signed_pdf_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-kayan-600 hover:text-kayan-800 underline font-medium">
                 Download Certificate
               </a>
             )}
-            {/* Sign button */}
             {!isSigned && (
               <Button
                 onClick={() => setShowSignModal(true)}
-                disabled={!hasScrolledToBottom}
-                className={!hasScrolledToBottom ? "opacity-50" : ""}
+                disabled={!canSign}
+                className={!canSign ? "opacity-50" : ""}
                 size="sm"
               >
                 Sign Document
@@ -285,10 +344,67 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* ── Scroll prompt ── */}
-        {!isSigned && !hasScrolledToBottom && (
-          <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-center">
-            <p className="text-xs text-amber-700">
+        {/* ── Missing Variables Form ── */}
+        {!isSigned && hasMissing && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-4">
+            <h3 className="text-sm font-semibold text-amber-800 mb-3">
+              Please provide the following information to complete your SAFT
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+              {viewingDoc.missing_variables.map((m) => (
+                <div key={m.key}>
+                  <label className="block text-xs font-medium text-amber-700 mb-1">
+                    {m.label} <span className="text-red-500">*</span>
+                  </label>
+                  {m.key === "payment_method" ? (
+                    <select
+                      value={filledValues[m.key] || ""}
+                      onChange={(e) => setFilledValues((prev) => ({ ...prev, [m.key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">Select...</option>
+                      {PAYMENT_METHOD_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.label}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : m.key === "investor_address" ? (
+                    <textarea
+                      value={filledValues[m.key] || ""}
+                      onChange={(e) => setFilledValues((prev) => ({ ...prev, [m.key]: e.target.value }))}
+                      placeholder="Full mailing address"
+                      rows={2}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={filledValues[m.key] || ""}
+                      onChange={(e) => setFilledValues((prev) => ({ ...prev, [m.key]: e.target.value }))}
+                      placeholder={m.label}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <Button
+              onClick={handleSaveVariables}
+              loading={saving}
+              disabled={!allFilled}
+              size="sm"
+            >
+              Update Document
+            </Button>
+            <p className="text-xs text-amber-600 mt-2">
+              The document will re-render with your information. You can then review and sign.
+            </p>
+          </div>
+        )}
+
+        {/* ── Scroll prompt (only when no missing vars) ── */}
+        {!isSigned && !hasMissing && !hasScrolledToBottom && (
+          <div className="bg-blue-50 border-b border-blue-200 px-6 py-2 text-center">
+            <p className="text-xs text-blue-700">
               Please scroll to the bottom of the document to review the full agreement before signing.
             </p>
           </div>
@@ -321,7 +437,7 @@ export default function DocumentsPage() {
 
         {/* ── Signing Modal ── */}
         {showSignModal && (
-          <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-2">Sign SAFT Agreement</h3>
               <p className="text-sm text-gray-500 mb-6">
@@ -330,7 +446,6 @@ export default function DocumentsPage() {
                 as a handwritten signature.
               </p>
 
-              {/* Document hash for transparency */}
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
                 <p className="text-xs text-gray-400 mb-1">Document integrity hash (SHA-256)</p>
                 <p className="text-xs font-mono text-gray-500 break-all">{viewingDoc.doc_hash}</p>
@@ -396,10 +511,7 @@ export default function DocumentsPage() {
               const isSaft = doc.doc_type === "saft";
               const isSigned = doc.status === "signed";
               return (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
-                >
+                <div key={doc.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
                   <div className="flex items-center gap-4">
                     <DocIcon type={doc.doc_type} />
                     <div>
@@ -413,7 +525,6 @@ export default function DocumentsPage() {
                       </p>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-3">
                     <DocStatusBadge status={doc.status} />
                     <button
@@ -439,7 +550,6 @@ export default function DocumentsPage() {
         </Card>
       ))}
 
-      {/* Info box */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-xs text-gray-500 leading-relaxed">
           <strong>About electronic signatures:</strong> Your typed signature is captured along with
