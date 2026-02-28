@@ -57,7 +57,7 @@ export async function verifyEthereumTx(
 
   try {
     const apiKey = EXPLORER_KEYS.etherscan;
-    const receiptUrl = `https://api.etherscan.io/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}${
+    const receiptUrl = `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}${
       apiKey ? `&apikey=${apiKey}` : ""
     }`;
 
