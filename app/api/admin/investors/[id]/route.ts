@@ -68,10 +68,18 @@ export async function GET(
     })
   );
 
+  // Fetch payment claims
+  const { data: paymentClaims } = await auth.client
+    .from("payment_claims")
+    .select("*")
+    .eq("investor_id", params.id)
+    .order("created_at", { ascending: false });
+
   return NextResponse.json({
     ...investor,
     email_events: emails || [],
     investor_documents: docsWithUrls,
+    payment_claims: paymentClaims || [],
   });
 }
 

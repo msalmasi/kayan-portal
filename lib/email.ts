@@ -78,7 +78,7 @@ export function composeCapitalCallEmail(
       <table style="width:100%;font-size:14px;color:#374151;" cellpadding="0" cellspacing="0">
         <tr>
           <td style="padding:4px 0;font-weight:600;">Amount Due</td>
-          <td style="padding:4px 0;text-align:right;">${formatted}</td>
+          <td style="padding:4px 0;text-align:right;font-size:20px;font-weight:700;color:#111827;">${formatted}</td>
         </tr>
         <tr>
           <td style="padding:4px 0;font-weight:600;">Round</td>
@@ -86,20 +86,44 @@ export function composeCapitalCallEmail(
         </tr>
       </table>
     </div>
-    <p style="margin:0 0 8px;font-size:14px;color:#374151;font-weight:600;">Accepted Payment Methods</p>
-    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#6b7280;line-height:1.8;">
-      <li>USD Wire Transfer</li>
-      <li>USDT (Tether) — ERC-20 or TRC-20</li>
-      <li>USDC (USD Coin) — ERC-20</li>
-      <li>Credit Card</li>
-    </ul>
+
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;font-weight:600;">Payment Methods</p>
+    <table style="width:100%;font-size:13px;color:#6b7280;border-collapse:collapse;margin:0 0 16px;" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+          <strong style="color:#374151;">Crypto (Recommended)</strong>
+        </td>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+          USDC on Ethereum or Solana, USDT on Ethereum.<br/>
+          <span style="color:#059669;font-size:11px;">✓ Automatic on-chain verification — instant confirmation</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+          <strong style="color:#374151;">Wire Transfer (USD)</strong>
+        </td>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+          Bank wire instructions available in the portal.<br/>
+          <span style="font-size:11px;color:#9ca3af;">Manual verification — 2–5 business days</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;vertical-align:top;">
+          <strong style="color:#9ca3af;">Credit Card</strong>
+        </td>
+        <td style="padding:8px 0;">
+          <span style="font-size:11px;color:#9ca3af;">Coming soon</span>
+        </td>
+      </tr>
+    </table>
+
     <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.6;">
-      Payment instructions and wallet addresses will be provided by your
-      account representative. Please include your full name as a reference
-      on wire transfers.
+      Log in to your investor portal to select a payment method, view transfer
+      details, and submit your payment. Crypto payments are verified automatically
+      on-chain within minutes.
     </p>
-    <a href="${PORTAL_URL}" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
-      View Your Dashboard
+    <a href="${PORTAL_URL}/dashboard#payments" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      Make Payment →
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
     <p style="margin:0;font-size:11px;color:#9ca3af;">

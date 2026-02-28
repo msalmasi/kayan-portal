@@ -6,6 +6,7 @@ import { AllocationTable } from "@/components/dashboard/AllocationTable";
 import { VestingChart } from "@/components/dashboard/VestingChart";
 import { WalletSection } from "@/components/dashboard/Placeholders";
 import { SumsubKycWidget } from "@/components/dashboard/SumsubKycWidget";
+import { PaymentFlow } from "@/components/dashboard/PaymentFlow";
 
 /**
  * /dashboard — Main investor view
@@ -137,24 +138,27 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Amount Due Banner */}
+      {/* Amount Due Banner — links to payment section */}
       {amountDue > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+        <a href="#payments" className="block bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between hover:border-amber-300 transition-colors">
           <div>
             <p className="text-sm font-semibold text-amber-800">
               {hasPartials ? "Remaining Balance" : "Payment Due"}
             </p>
             <p className="text-xs text-amber-600 mt-0.5">
               {hasPartials
-                ? "A partial payment has been received. Your confirmed tokens are shown below. The remaining allocation will unlock once the balance is settled."
-                : "Please remit payment to complete your subscription. Your token allocation will appear once payment is confirmed."}
+                ? "A partial payment has been received. Complete payment below to unlock your full allocation."
+                : "Use the payment section below to remit payment and confirm your token allocation."}
             </p>
           </div>
           <p className="text-2xl font-bold text-amber-900 whitespace-nowrap ml-4">
             ${amountDue.toLocaleString()}
           </p>
-        </div>
+        </a>
       )}
+
+      {/* Payment Flow — interactive payment submission */}
+      <PaymentFlow />
 
       {/* Summary Stats */}
       <StatCards

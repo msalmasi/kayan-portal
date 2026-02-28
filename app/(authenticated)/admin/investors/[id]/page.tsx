@@ -892,6 +892,160 @@ export default function InvestorDetailPage() {
         );
       })()}
       {/* ── Emails ── */}
+
+      {/* ── Payment Claims — Investor-submitted payment evidence ── */}
+      {investor.payment_claims && investor.payment_claims.length > 0 && (
+        <Card>
+          <CardHeader
+            title="Payment Claims"
+            subtitle="Investor-submitted payment evidence — review and approve/reject"
+          />
+          <div className="space-y-3">
+            {investor.payment_claims.map((claim: any) => {
+              const METHOD_LABELS: Record<string, string> = {
+                wire: "Wire Transfer", usdc_eth: "USDC (Ethereum)",
+                usdc_sol: "USDC (Solana)", usdt_eth: "USDT (Ethereum)",
+              };
+              const STATUS_STYLES: Record<string, string> = {
+                pending:   "bg-amber-100 text-amber-700",
+                verifying: "bg-blue-100 text-blue-700",
+                verified:  "bg-emerald-100 text-emerald-700",
+                rejected:  "bg-red-100 text-red-700",
+              };
+              const STATUS_LABELS: Record<string, string> = {
+                pending: "Pending Review", verifying: "Verifying",
+                verified: "Verified ✓", rejected: "Rejected",
+              };
+              const isPending = claim.status === "pending" || claim.status === "verifying";
+              const explorerUrl = claim.tx_hash
+                ? (claim.chain === "solana"
+                  ? `https://solscan.io/tx/${claim.tx_hash}`
+                  : `https://etherscan.io/tx/${claim.tx_hash}`)
+                : null;
+
+              return (
+                <div
+                  key={claim.id}
+                  className={`border rounded-lg p-4 ${
+                    isPending ? "border-amber-200 bg-amber-50/30" : "border-gray-200 bg-gray-50/50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {METHOD_LABELS[claim.method] || claim.method}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[claim.status] || "bg-gray-100 text-gray-600"}`}>
+                          {STATUS_LABELS[claim.status] || claim.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Submitted {new Date(claim.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">
+                      ${Number(claim.amount_usd).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Reference details */}
+                  <div className="text-xs text-gray-500 space-y-1 mb-3">
+                    {claim.tx_hash && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-600">Tx Hash:</span>
+                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border text-gray-700 break-all">
+                          {claim.tx_hash}
+                        </code>
+                        {explorerUrl && (
+                          <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="text-kayan-600 hover:text-kayan-800 shrink-0">
+                            View ↗
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {claim.from_wallet && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-600">From:</span>
+                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border text-gray-700 break-all">
+                          {claim.from_wallet}
+                        </code>
+                      </div>
+                    )}
+                    {claim.wire_reference && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-600">Wire Ref:</span>
+                        <span className="text-gray-700">{claim.wire_reference}</span>
+                      </div>
+                    )}
+                    {claim.verified_by && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-600">
+                          {claim.status === "verified" ? "Verified by:" : "Reviewed by:"}
+                        </span>
+                        <span className="text-gray-700">
+                          {claim.verified_by === "auto" ? "Auto (on-chain)" : claim.verified_by}
+                        </span>
+                        {claim.verified_at && (
+                          <span className="text-gray-400">
+                            · {new Date(claim.verified_at).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {claim.rejection_reason && (
+                      <p className="text-red-600 mt-1">Reason: {claim.rejection_reason}</p>
+                    )}
+                    {/* Show chain_data hints for failed auto-verify */}
+                    {isPending && claim.chain_data?.error && (
+                      <p className="text-amber-600 mt-1">Auto-verify note: {claim.chain_data.error}</p>
+                    )}
+                  </div>
+
+                  {/* Approve / Reject buttons */}
+                  {isPending && canWrite && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          const res = await fetch("/api/admin/payments/claims", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ claim_id: claim.id, action: "approve" }),
+                          });
+                          if (res.ok) { toast.success("Payment claim approved — allocation updated"); fetchData(); }
+                          else { const d = await res.json(); toast.error(d.error || "Failed"); }
+                        }}
+                      >
+                        ✓ Approve Payment
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const reason = prompt("Rejection reason (optional):");
+                          const res = await fetch("/api/admin/payments/claims", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ claim_id: claim.id, action: "reject", rejection_reason: reason }),
+                          });
+                          if (res.ok) { toast.success("Payment claim rejected"); fetchData(); }
+                          else { const d = await res.json(); toast.error(d.error || "Failed"); }
+                        }}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        ✗ Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Emails (continued) ── */}
       <Card>
         <CardHeader title="Emails" subtitle="Sent emails and manual triggers" />
         <div className="flex gap-2 mb-4 flex-wrap">
