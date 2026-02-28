@@ -71,15 +71,17 @@ export async function verifyEthereumTx(
     const res = await fetch(receiptUrl);
     const data = await res.json();
 
-    if (!data.result || data.result === null) {
-      return { verified: false, reason: "not_found", detail: "Transaction not found on Ethereum", chainData: data };
+    if (!data.result || typeof data.result === "string") {
+      return { verified: false, reason: "not_found", detail: "Transaction not found on Ethereum — it may still be pending", chainData: data };
     }
 
     const receipt = data.result;
 
     // Check tx was successful
-    if (receipt.status !== "0x1") {
-      return { verified: false, reason: "error", detail: "Transaction reverted/failed", chainData: receipt };
+    // Etherscan returns status as hex string: "0x1", "0x01", etc.
+    const txSuccess = receipt.status && parseInt(receipt.status, 16) === 1;
+    if (!txSuccess) {
+      return { verified: false, reason: "error", detail: "Transaction reverted/failed on-chain", chainData: receipt };
     }
 
     // Parse ERC-20 Transfer events from logs

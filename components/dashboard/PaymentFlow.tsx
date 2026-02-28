@@ -100,6 +100,7 @@ export function PaymentFlow() {
   const [txHash, setTxHash] = useState("");
   const [fromWallet, setFromWallet] = useState("");
   const [wireRef, setWireRef] = useState("");
+  const [payAmount, setPayAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ verified: boolean; detail: string } | null>(null);
   const [copied, setCopied] = useState("");
@@ -130,7 +131,7 @@ export function PaymentFlow() {
 
   const resetFlow = () => {
     setStep("overview"); setSelectedRound(null); setSelectedMethod(null);
-    setTxHash(""); setFromWallet(""); setWireRef(""); setResult(null);
+    setTxHash(""); setFromWallet(""); setWireRef(""); setPayAmount(""); setResult(null);
   };
 
   // ── Submit ──
@@ -141,7 +142,11 @@ export function PaymentFlow() {
     const body: Record<string, any> = {
       round_id: selectedRound.round_id,
       method: selectedMethod,
-      amount_usd: selectedRound.balance_due,
+      // For crypto: use the amount the investor says they sent
+      // For wire: use the full balance (admin will confirm actual amount)
+      amount_usd: selectedMethod === "wire"
+        ? selectedRound.balance_due
+        : (parseFloat(payAmount) || selectedRound.balance_due),
     };
     if (selectedMethod === "wire") body.wire_reference = wireRef;
     else { body.tx_hash = txHash; if (fromWallet) body.from_wallet = fromWallet; }
@@ -289,7 +294,11 @@ export function PaymentFlow() {
               <button
                 key={m.id}
                 disabled={!m.enabled}
-                onClick={() => { setSelectedMethod(m.id); setStep("pay"); }}
+                onClick={() => {
+                  setSelectedMethod(m.id);
+                  setPayAmount(selectedRound?.balance_due?.toString() || "");
+                  setStep("pay");
+                }}
                 className={`w-full flex items-center gap-4 p-4 rounded-lg border text-left transition-colors ${
                   m.enabled
                     ? "border-gray-200 hover:border-kayan-400 hover:bg-kayan-50/30 cursor-pointer"
@@ -325,18 +334,36 @@ export function PaymentFlow() {
                 {METHOD_LABELS[selectedMethod]} on {CHAIN_LABELS[selectedMethod]}
               </p>
             </div>
-            <p className="text-xl font-bold text-gray-900">${selectedRound.balance_due.toLocaleString()}</p>
+            <div className="text-right">
+              <p className="text-xl font-bold text-gray-900">${selectedRound.balance_due.toLocaleString()}</p>
+              <p className="text-[10px] text-gray-400">balance due</p>
+            </div>
+          </div>
+
+          {/* Amount input */}
+          <div className="border border-gray-200 rounded-lg p-4 space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Amount you are sending (USD)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                className="w-full pl-7 pr-4 py-2.5 border border-gray-300 rounded-lg text-lg font-bold focus:outline-none focus:ring-2 focus:ring-kayan-500"
+              />
+            </div>
+            {parseFloat(payAmount) > 0 && parseFloat(payAmount) < selectedRound.balance_due && (
+              <p className="text-xs text-blue-600">
+                Partial payment — ${(selectedRound.balance_due - parseFloat(payAmount)).toLocaleString(undefined, { maximumFractionDigits: 2 })} will remain after this payment
+              </p>
+            )}
           </div>
 
           {/* Wallet + instructions */}
           <div className="border border-kayan-200 bg-kayan-50/30 rounded-lg p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-kayan-500" />
-              <p className="text-sm font-medium text-kayan-800">
-                Send exactly ${selectedRound.balance_due.toLocaleString()} in {METHOD_LABELS[selectedMethod]}
-              </p>
-            </div>
-
             <div>
               <label className="block text-xs text-gray-500 mb-1">
                 Send to this {CHAIN_LABELS[selectedMethod]} wallet:
@@ -360,8 +387,8 @@ export function PaymentFlow() {
               <p className="font-medium">⚠ Important</p>
               <ul className="list-disc list-inside space-y-0.5 text-amber-600">
                 <li>Send <strong>only {METHOD_LABELS[selectedMethod]}</strong> to this address</li>
-                <li>Sending on the wrong network or token will result in permanent loss of funds</li>
-                <li>The amount must be at least ${selectedRound.balance_due.toLocaleString()}</li>
+                <li>Sending the wrong token or network will result in permanent loss</li>
+                <li>Partial payments are accepted — you can pay in multiple transactions</li>
               </ul>
             </div>
           </div>
@@ -396,7 +423,7 @@ export function PaymentFlow() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button onClick={handleSubmit} disabled={!txHash || submitting} loading={submitting}>
+            <Button onClick={handleSubmit} disabled={!txHash || !payAmount || parseFloat(payAmount) <= 0 || submitting} loading={submitting}>
               {submitting ? "Verifying on-chain…" : "Submit & Verify"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setStep("method")}>← Back</Button>
@@ -479,7 +506,8 @@ export function PaymentFlow() {
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 space-y-1">
               <p className="font-medium">⚠ Important</p>
               <ul className="list-disc list-inside space-y-0.5 text-amber-600">
-                <li>Wire the <strong>exact amount</strong> of ${selectedRound.balance_due.toLocaleString()} USD</li>
+                <li>Balance due: <strong>${selectedRound.balance_due.toLocaleString()} USD</strong></li>
+                <li>Partial payments accepted — you can send multiple wires</li>
                 <li>Include your name and &quot;Kayan Token&quot; in the wire reference</li>
                 <li>Processing typically takes 2–5 business days</li>
               </ul>
