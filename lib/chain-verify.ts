@@ -56,14 +56,7 @@ export async function verifyEthereumTx(
   }
 
   try {
-    // Etherscan: get ERC-20 token transfers for this tx
     const apiKey = EXPLORER_KEYS.etherscan;
-    const url = `https://api.etherscan.io/api?module=account&action=tokentx&sort=desc&page=1&offset=100${
-      apiKey ? `&apikey=${apiKey}` : ""
-    }`;
-
-    // Etherscan doesn't have a direct "get by tx hash" for token transfers,
-    // so we fetch the tx receipt and parse token transfer logs instead.
     const receiptUrl = `https://api.etherscan.io/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}${
       apiKey ? `&apikey=${apiKey}` : ""
     }`;
@@ -71,7 +64,19 @@ export async function verifyEthereumTx(
     const res = await fetch(receiptUrl);
     const data = await res.json();
 
-    if (!data.result || typeof data.result === "string") {
+    // Etherscan proxy returns { jsonrpc, id, result: {...} } on success.
+    // On error (bad key, rate limit) it returns { status: "0", message: "NOTOK", result: "Error text" }.
+    if (typeof data.result === "string") {
+      // API-level error from Etherscan — surface the actual message
+      return {
+        verified: false,
+        reason: "error",
+        detail: `Etherscan API error: ${data.result}`,
+        chainData: data,
+      };
+    }
+
+    if (!data.result) {
       return { verified: false, reason: "not_found", detail: "Transaction not found on Ethereum — it may still be pending", chainData: data };
     }
 

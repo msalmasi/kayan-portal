@@ -1041,9 +1041,17 @@ export default function InvestorDetailPage() {
                         <p className="text-red-600 mt-1">Reason: {claim.rejection_reason}</p>
                       )}
                       {/* Chain data hints for failed auto-verify */}
-                      {isPending && claim.chain_data && (claim.chain_data as any).error && (
-                        <p className="text-amber-600 mt-1">Auto-verify note: {(claim.chain_data as any).error}</p>
-                      )}
+                      {isPending && claim.chain_data && (() => {
+                        const cd = claim.chain_data as any;
+                        // Surface any diagnostic info from the verification attempt
+                        const hint = cd.error
+                          || (typeof cd.result === "string" ? cd.result : null)
+                          || cd.message
+                          || cd.detail;
+                        return hint ? (
+                          <p className="text-amber-600 mt-1">Auto-verify note: {hint}</p>
+                        ) : null;
+                      })()}
                       {isPending && claim.chain_data && (claim.chain_data as any).amount != null && (
                         <p className="text-blue-600 mt-1">
                           On-chain amount detected: ${Number((claim.chain_data as any).amount).toLocaleString()}
