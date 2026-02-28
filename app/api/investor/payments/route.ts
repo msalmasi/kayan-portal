@@ -224,12 +224,12 @@ export async function POST(request: NextRequest) {
 
       if (isOnChainConfirmed && actualAmount > 0) {
         // ── Auto-apply whatever amount was actually transferred ──
-        const isPartial = !result.verified; // insufficient_amount = partial
 
         await adminClient
           .from("payment_claims")
           .update({
             status: "verified",
+            amount_usd: actualAmount,            // actual on-chain amount IS the claim
             amount_verified_usd: actualAmount,
             verified_at: new Date().toISOString(),
             verified_by: "auto",
@@ -247,16 +247,15 @@ export async function POST(request: NextRequest) {
           tx_hash
         );
 
-        const detail = isPartial
-          ? `Partial payment verified: $${actualAmount.toLocaleString()} of $${Number(amount_usd).toLocaleString()} received on-chain. ` +
-            `Submit another payment for the remaining balance.`
-          : result.detail;
-
         return NextResponse.json({
           ...claim,
           status: "verified",
+          amount_usd: actualAmount,
           amount_verified_usd: actualAmount,
-          verification: { verified: true, detail },
+          verification: {
+            verified: true,
+            detail: `Verified: $${actualAmount.toLocaleString()} received on-chain`,
+          },
         });
 
       } else {

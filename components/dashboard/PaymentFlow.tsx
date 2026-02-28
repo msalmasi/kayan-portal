@@ -227,7 +227,9 @@ export function PaymentFlow() {
                           {roundClaims.map((c) => (
                             <div key={c.id} className="flex items-center gap-2">
                               <span>
-                                {c.method === "wire" ? "Wire" : "Crypto"} payment of ${Number(c.amount_usd).toLocaleString()} submitted
+                                {c.method === "wire"
+                                  ? `Wire payment of $${Number(c.amount_usd).toLocaleString()} submitted`
+                                  : "Crypto payment submitted — awaiting verification"}
                               </span>
                               <ClaimStatusBadge status={c.status} />
                             </div>
@@ -259,7 +261,13 @@ export function PaymentFlow() {
                       <span className="text-xs text-gray-500 font-mono truncate max-w-[160px]">
                         {c.tx_hash ? `${c.tx_hash.slice(0, 10)}…${c.tx_hash.slice(-6)}` : c.wire_reference || "—"}
                       </span>
-                      <span className="text-xs text-gray-400">${c.amount_usd.toLocaleString()}</span>
+                      <span className="text-xs text-gray-400">
+                        {c.status === "verified"
+                          ? `$${Number((c as any).amount_verified_usd ?? c.amount_usd).toLocaleString()}`
+                          : c.method === "wire"
+                            ? `$${c.amount_usd.toLocaleString()}`
+                            : "pending"}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <ClaimStatusBadge status={c.status} />

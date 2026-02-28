@@ -71,6 +71,7 @@ export async function PATCH(request: NextRequest) {
         .from("payment_claims")
         .update({
           status: "verified",
+          amount_usd: actualAmount,            // on-chain amount IS the claim
           amount_verified_usd: actualAmount,
           verified_at: new Date().toISOString(),
           verified_by: "auto",

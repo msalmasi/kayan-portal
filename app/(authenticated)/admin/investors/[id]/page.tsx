@@ -948,6 +948,8 @@ export default function InvestorDetailPage() {
                 const verifiedAmt = (claim as any).amount_verified_usd;
                 const isPartialVerify = verifiedAmt != null && verifiedAmt < Number(claim.amount_usd);
 
+                const isCrypto = !isWire && claim.method !== "credit_card";
+
                 return (
                   <div
                     key={claim.id}
@@ -971,8 +973,17 @@ export default function InvestorDetailPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        {/* Show claimed amount, plus verified amount if different */}
-                        {isPartialVerify ? (
+                        {isCrypto ? (
+                          // Crypto: pending shows "awaiting", verified shows on-chain amount
+                          isPending ? (
+                            <p className="text-sm text-amber-600 font-medium">Awaiting verification</p>
+                          ) : (
+                            <p className="text-lg font-bold text-emerald-700">
+                              ${Number(verifiedAmt ?? claim.amount_usd).toLocaleString()}
+                            </p>
+                          )
+                        ) : isPartialVerify ? (
+                          // Wire: partial approval — show claimed strikethrough + verified
                           <>
                             <p className="text-sm text-gray-400 line-through">
                               ${Number(claim.amount_usd).toLocaleString()} claimed
@@ -986,6 +997,7 @@ export default function InvestorDetailPage() {
                             ${Number(verifiedAmt).toLocaleString()}
                           </p>
                         ) : (
+                          // Wire pending: show claimed amount
                           <p className="text-lg font-bold text-gray-900">
                             ${Number(claim.amount_usd).toLocaleString()}
                           </p>
