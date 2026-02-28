@@ -8,7 +8,7 @@ import { getAdminAuth } from "@/lib/admin-auth";
  * Body: {
  *   claim_id: string,
  *   action: "approve" | "reject",
- *   approved_amount?: number,      — for partial wire approvals (defaults to claim.amount_usd)
+ *   approved_amount?: number,      — amount to apply (required for manual approval)
  *   rejection_reason?: string,
  * }
  *
@@ -131,15 +131,20 @@ export async function PATCH(request: NextRequest) {
   }
 
   // ── APPROVE ──
-  // Use approved_amount if provided (partial wire), otherwise full claim amount
+  // approved_amount is always provided by the admin UI
   const amountToApply = approved_amount
-    ? Math.min(Number(approved_amount), Number(claim.amount_usd))
+    ? Number(approved_amount)
     : Number(claim.amount_usd);
+
+  const isWire = claim.method === "wire";
 
   await auth.client
     .from("payment_claims")
     .update({
       status: "verified",
+      // For crypto: set amount_usd to the approved amount (no investor claim)
+      // For wire: keep original amount_usd (investor's stated amount)
+      ...(!isWire ? { amount_usd: amountToApply } : {}),
       amount_verified_usd: amountToApply,
       verified_at: now,
       verified_by: auth.email,

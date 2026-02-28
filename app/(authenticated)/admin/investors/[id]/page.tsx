@@ -1073,35 +1073,29 @@ export default function InvestorDetailPage() {
                       )}
                     </div>
 
-                    {/* Approve / Reject buttons with amount input for wire */}
+                    {/* Approve / Reject buttons with amount input */}
                     {isPending && canWrite && (() => {
-                      // Wire approval needs an amount input field
                       const claimApproveId = `approve-amt-${claim.id}`;
+                      // Pre-fill: use on-chain detected amount if available, otherwise claimed
+                      const detectedAmount = (claim.chain_data as any)?.amount;
+                      const defaultAmount = detectedAmount ?? Number(claim.amount_usd);
 
                       const handleApprove = async () => {
-                        // For wire: read amount from input; for crypto: use full claimed amount
-                        let approvedAmount: number | undefined;
-                        if (isWire) {
-                          const input = document.getElementById(claimApproveId) as HTMLInputElement;
-                          const val = parseFloat(input?.value || "");
-                          if (!val || val <= 0) {
-                            toast.error("Enter the wire amount received");
-                            return;
-                          }
-                          approvedAmount = val;
+                        const input = document.getElementById(claimApproveId) as HTMLInputElement;
+                        const val = parseFloat(input?.value || "");
+                        if (!val || val <= 0) {
+                          toast.error("Enter the payment amount to approve");
+                          return;
                         }
-
-                        const payload: Record<string, any> = { claim_id: claim.id, action: "approve" };
-                        if (approvedAmount != null) payload.approved_amount = approvedAmount;
 
                         const res = await fetch("/api/admin/payments/claims", {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify(payload),
+                          body: JSON.stringify({ claim_id: claim.id, action: "approve", approved_amount: val }),
                         });
                         if (res.ok) {
                           const d = await res.json();
-                          toast.success(`Payment approved — $${(d.amount_applied || approvedAmount || claim.amount_usd).toLocaleString()} applied`);
+                          toast.success(`Payment approved — $${(d.amount_applied || val).toLocaleString()} applied`);
                           fetchData();
                         } else {
                           const d = await res.json();
@@ -1111,22 +1105,24 @@ export default function InvestorDetailPage() {
 
                       return (
                         <div className="pt-2 border-t border-gray-200 space-y-2">
-                          {isWire && (
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs text-gray-500 shrink-0">Amount received:</label>
-                              <div className="relative flex-1 max-w-[180px]">
-                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                                <input
-                                  id={claimApproveId}
-                                  type="number"
-                                  step="0.01"
-                                  defaultValue={Number(claim.amount_usd)}
-                                  className="w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
-                                />
-                              </div>
-                              <span className="text-[10px] text-gray-400">of ${Number(claim.amount_usd).toLocaleString()} claimed</span>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500 shrink-0">
+                              {isWire ? "Amount received:" : "Amount to approve:"}
+                            </label>
+                            <div className="relative flex-1 max-w-[180px]">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                              <input
+                                id={claimApproveId}
+                                type="number"
+                                step="0.01"
+                                defaultValue={defaultAmount}
+                                className="w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                              />
                             </div>
-                          )}
+                            {isWire && (
+                              <span className="text-[10px] text-gray-400">of ${Number(claim.amount_usd).toLocaleString()} claimed</span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <Button size="sm" onClick={handleApprove}>
                               ✓ {isWire ? "Approve Wire" : "Approve Payment"}
