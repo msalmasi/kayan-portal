@@ -31,6 +31,25 @@ interface InvestorFull extends InvestorWithAllocations {
   pq_data: PqFormData | null;
   pq_review: PqReviewData | null;
   investor_documents: InvestorDocItem[];
+  payment_claims: PaymentClaimItem[];
+}
+
+interface PaymentClaimItem {
+  id: string;
+  round_id: string;
+  method: string;
+  amount_usd: number;
+  status: string;
+  tx_hash: string | null;
+  wire_reference: string | null;
+  from_wallet: string | null;
+  chain: string | null;
+  token: string | null;
+  chain_data: Record<string, any>;
+  verified_at: string | null;
+  verified_by: string | null;
+  rejection_reason: string | null;
+  created_at: string;
 }
 
 interface InvestorDocItem {
