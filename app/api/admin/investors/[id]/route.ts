@@ -210,6 +210,11 @@ export async function PATCH(
   // ── Check capital call readiness on PQ approval ──
   // Uses shared helper that checks all 3 gates: PQ approved + allocation + SAFT signed
   let capitalCallResult: any = null;
+  if (updates.pq_status === "approved" || updates.pq_status === "rejected") {
+    // Resolve any pending pq_submitted notifications
+    const { resolveNotifications } = await import("@/lib/admin-notify");
+    await resolveNotifications(auth.client, params.id, "pq_submitted", auth.email);
+  }
   if (updates.pq_status === "approved") {
     const { checkAndSendCapitalCall } = await import("@/lib/capital-call");
     capitalCallResult = await checkAndSendCapitalCall(

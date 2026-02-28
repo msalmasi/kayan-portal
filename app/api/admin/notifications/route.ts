@@ -6,10 +6,11 @@ import { getAdminAuth } from "@/lib/admin-auth";
  * Returns notifications for the admin feed.
  *
  * Query params:
- *   ?unread_only=true  — only unread
- *   ?limit=20          — page size
- *   ?offset=0          — pagination offset
- *   ?count_only=true   — return just the unread count (for badge)
+ *   ?unread_only=true       — only unread notifications
+ *   ?action_required=true   — unresolved action_required items (ignores read status)
+ *   ?limit=30               — page size
+ *   ?offset=0               — pagination offset
+ *   ?count_only=true        — return just the unread count (for sidebar badge)
  */
 export async function GET(request: NextRequest) {
   const auth = await getAdminAuth();
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const countOnly = searchParams.get("count_only") === "true";
   const unreadOnly = searchParams.get("unread_only") === "true";
-  const limit = parseInt(searchParams.get("limit") || "30");
+  const actionRequired = searchParams.get("action_required") === "true";
+  const limit = parseInt(searchParams.get("limit") || "50");
   const offset = parseInt(searchParams.get("offset") || "0");
 
   // Quick count for sidebar badge
@@ -31,14 +33,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ unread_count: count || 0 });
   }
 
-  // Full list
+  // Build query
   let query = auth.client
     .from("admin_notifications")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (unreadOnly) {
+  if (actionRequired) {
+    // Show all unresolved action items regardless of read status
+    query = query.eq("priority", "action_required").eq("is_resolved", false);
+  } else if (unreadOnly) {
     query = query.eq("is_read", false);
   }
 

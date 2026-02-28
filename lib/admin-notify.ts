@@ -99,6 +99,34 @@ async function emailSubscribedAdmins(
 
 // ─── Convenience wrappers for common events ─────────────────
 
+/**
+ * Resolve all unresolved action_required notifications for an investor + event type.
+ * Called when the underlying action is completed (e.g. PQ reviewed, allocation approved).
+ */
+export async function resolveNotifications(
+  supabase: SupabaseClient,
+  investorId: string,
+  eventType: string,
+  resolvedBy: string
+): Promise<void> {
+  try {
+    await supabase
+      .from("admin_notifications")
+      .update({
+        is_resolved: true,
+        resolved_at: new Date().toISOString(),
+        resolved_by: resolvedBy,
+      })
+      .eq("investor_id", investorId)
+      .eq("event_type", eventType)
+      .eq("is_resolved", false);
+  } catch (err: any) {
+    console.error("[NOTIFY] Failed to resolve notifications:", err.message);
+  }
+}
+
+// ─── Convenience wrappers for common events (continued) ─────
+
 /** KYC approved via Sumsub or manual admin toggle */
 export function notifyKycVerified(
   supabase: SupabaseClient,

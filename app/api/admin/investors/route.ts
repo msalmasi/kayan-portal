@@ -38,32 +38,47 @@ export async function GET(request: NextRequest) {
   const actionFilter = searchParams.get("action") === "true";
   const isExport = searchParams.get("export") === "csv";
 
-  // ── Fetch all matching investors with allocations + documents ──
-  // We fetch everything and do aggregation/sort/paginate in JS because
-  // payment, tokens, docs, and action status are all computed fields.
-  let query = auth.client
-    .from("investors")
-    .select(
-      "id, email, full_name, kyc_status, pq_status, created_at, " +
-      "allocations(token_amount, payment_status, approval_status), " +
-      "investor_documents(doc_type, status, round_id)"
-    );
+  // ── Fetch ALL matching investors in batches ──
+  // Supabase PostgREST caps at 1000 rows per request.
+  // We page through in batches of 1000, then aggregate/sort/paginate in JS.
+  const BATCH_SIZE = 1000;
+  let allData: any[] = [];
+  let batchOffset = 0;
+  let hasMore = true;
 
-  // DB-level filters (fast)
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+  while (hasMore) {
+    let query = auth.client
+      .from("investors")
+      .select(
+        "id, email, full_name, kyc_status, pq_status, created_at, " +
+        "allocations(token_amount, payment_status, approval_status), " +
+        "investor_documents(doc_type, status, round_id)"
+      )
+      .order("created_at", { ascending: false })
+      .range(batchOffset, batchOffset + BATCH_SIZE - 1);
+
+    // DB-level filters (applied to every batch)
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+    if (kycFilter) query = query.eq("kyc_status", kycFilter);
+    if (pqFilter) query = query.eq("pq_status", pqFilter);
+
+    const { data: batch, error: batchError } = await query;
+
+    if (batchError) {
+      return NextResponse.json({ error: batchError.message }, { status: 500 });
+    }
+
+    const rows = batch || [];
+    allData = allData.concat(rows);
+
+    // If we got fewer rows than batch size, we've reached the end
+    hasMore = rows.length === BATCH_SIZE;
+    batchOffset += BATCH_SIZE;
   }
-  if (kycFilter) query = query.eq("kyc_status", kycFilter);
-  if (pqFilter) query = query.eq("pq_status", pqFilter);
 
-  // Default DB sort for stable ordering
-  query = query.order("created_at", { ascending: false });
-
-  const { data, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const data = allData;
 
   // ── Transform rows — compute all aggregated fields ──
   let investors = (data || []).map((inv: any) => {

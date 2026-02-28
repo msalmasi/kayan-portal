@@ -19,8 +19,11 @@ interface Notification {
   title: string;
   detail: string | null;
   is_read: boolean;
+  is_resolved: boolean;
   read_by: string | null;
   read_at: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
   metadata: Record<string, any>;
   created_at: string;
 }
@@ -53,28 +56,31 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+// ─── Filter tabs ────────────────────────────────────────────
+
+type FilterTab = "all" | "action" | "unread";
+
 // ─── Main Page ──────────────────────────────────────────────
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "unread" | "action">("all");
-  const { decrement, clearAll } = useNotifications();
+  const [filter, setFilter] = useState<FilterTab>("all");
+  const { decrement, clearAll, refresh: refreshBadge } = useNotifications();
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ limit: "50" });
+
+    // Each tab uses a different server-side filter
+    if (filter === "action") params.set("action_required", "true");
     if (filter === "unread") params.set("unread_only", "true");
 
     const res = await fetch(`/api/admin/notifications?${params}`);
     if (res.ok) {
       const data = await res.json();
-      let items = data.notifications || [];
-      if (filter === "action") {
-        items = items.filter((n: Notification) => n.priority === "action_required" && !n.is_read);
-      }
-      setNotifications(items);
+      setNotifications(data.notifications || []);
       setTotal(data.total || 0);
     }
     setLoading(false);
@@ -94,7 +100,6 @@ export default function NotificationsPage() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    // Instantly update the sidebar badge
     decrement(1);
   };
 
@@ -106,13 +111,14 @@ export default function NotificationsPage() {
       body: JSON.stringify({ mark_all_read: true }),
     });
     toast.success("All notifications marked as read");
-    // Instantly zero out the sidebar badge
     clearAll();
     fetchNotifications();
   };
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
-  const actionCount = notifications.filter((n) => n.priority === "action_required" && !n.is_read).length;
+  const actionCount = notifications.filter(
+    (n) => n.priority === "action_required" && !n.is_resolved
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -121,11 +127,14 @@ export default function NotificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-            {actionCount > 0 && ` · ${actionCount} need${actionCount === 1 ? "s" : ""} action`}
+            {filter === "action"
+              ? `${total} pending action${total !== 1 ? "s" : ""}`
+              : unreadCount > 0
+                ? `${unreadCount} unread`
+                : "All caught up"}
           </p>
         </div>
-        {unreadCount > 0 && (
+        {filter !== "action" && unreadCount > 0 && (
           <Button variant="ghost" size="sm" onClick={markAllRead}>
             Mark all read
           </Button>
@@ -158,7 +167,7 @@ export default function NotificationsPage() {
         ))}
       </div>
 
-      {/* Notification list */}
+      {/* Empty state */}
       {loading ? (
         <p className="text-gray-400 text-center py-12">Loading...</p>
       ) : notifications.length === 0 ? (
@@ -183,15 +192,21 @@ export default function NotificationsPage() {
               label: n.event_type,
             };
 
+            // On the Action Required tab, dim read items but still show them
+            const isActionTab = filter === "action";
+            const isDimmed = isActionTab && n.is_read;
+
             return (
               <div
                 key={n.id}
                 className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
-                  n.is_read
-                    ? "bg-white border-gray-100"
-                    : n.priority === "action_required"
-                      ? "bg-amber-50/50 border-amber-200"
-                      : "bg-blue-50/30 border-blue-100"
+                  isDimmed
+                    ? "bg-white border-gray-100 opacity-70"
+                    : n.is_read
+                      ? "bg-white border-gray-100"
+                      : n.priority === "action_required"
+                        ? "bg-amber-50/50 border-amber-200"
+                        : "bg-blue-50/30 border-blue-100"
                 }`}
               >
                 {/* Event icon */}
@@ -227,10 +242,13 @@ export default function NotificationsPage() {
                     >
                       View Investor →
                     </Link>
-                    {n.priority === "action_required" && !n.is_read && (
+                    {n.priority === "action_required" && !n.is_resolved && (
                       <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
                         Action Required
                       </span>
+                    )}
+                    {isActionTab && n.is_read && (
+                      <span className="text-[10px] text-gray-400">Seen</span>
                     )}
                     {!n.is_read && (
                       <button

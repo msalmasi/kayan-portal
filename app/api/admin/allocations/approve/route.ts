@@ -81,7 +81,7 @@ export async function PATCH(request: NextRequest) {
 
     // Notify
     if (investor) {
-      const { notifyAllocationApproved } = await import("@/lib/admin-notify");
+      const { notifyAllocationApproved, resolveNotifications } = await import("@/lib/admin-notify");
       await notifyAllocationApproved(
         auth.client,
         investor,
@@ -89,6 +89,8 @@ export async function PATCH(request: NextRequest) {
         Number(alloc.token_amount),
         auth.email
       );
+      // Resolve the pending allocation_proposed notification
+      await resolveNotifications(auth.client, investor.id, "allocation_proposed", auth.email);
     }
 
     // Check if this approval triggers doc generation
@@ -160,7 +162,7 @@ export async function PATCH(request: NextRequest) {
 
   // Notify
   if (investor) {
-    const { notifyAllocationRejected } = await import("@/lib/admin-notify");
+    const { notifyAllocationRejected, resolveNotifications } = await import("@/lib/admin-notify");
     await notifyAllocationRejected(
       auth.client,
       investor,
@@ -169,6 +171,8 @@ export async function PATCH(request: NextRequest) {
       auth.email,
       reason || ""
     );
+    // Resolve the pending allocation_proposed notification
+    await resolveNotifications(auth.client, investor.id, "allocation_proposed", auth.email);
   }
 
   return NextResponse.json({
