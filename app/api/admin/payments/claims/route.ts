@@ -8,12 +8,13 @@ import { getAdminAuth } from "@/lib/admin-auth";
  * Body: {
  *   claim_id: string,
  *   action: "approve" | "reject",
+ *   approved_amount?: number,      — for partial wire approvals (defaults to claim.amount_usd)
  *   rejection_reason?: string,
  * }
  *
  * On approve:
  *   - Marks claim as "verified"
- *   - Applies payment to outstanding allocations for that round
+ *   - Applies approved_amount (or full claim amount) to outstanding allocations
  *   - Sends confirmation email if round is fully paid
  */
 export async function PATCH(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { claim_id, action, rejection_reason } = body;
+  const { claim_id, action, approved_amount, rejection_reason } = body;
 
   if (!claim_id || !["approve", "reject"].includes(action)) {
     return NextResponse.json({ error: "claim_id and action (approve|reject) required" }, { status: 400 });
@@ -64,26 +65,36 @@ export async function PATCH(request: NextRequest) {
   }
 
   // ── APPROVE ──
+  // Use approved_amount if provided (partial wire), otherwise full claim amount
+  const amountToApply = approved_amount
+    ? Math.min(Number(approved_amount), Number(claim.amount_usd))
+    : Number(claim.amount_usd);
+
   await auth.client
     .from("payment_claims")
     .update({
       status: "verified",
+      amount_verified_usd: amountToApply,
       verified_at: now,
       verified_by: auth.email,
     })
     .eq("id", claim_id);
 
-  // Apply payment to allocations
+  // Apply the approved amount to allocations
   await applyPayment(
     auth.client,
     investor,
     claim.round_id,
-    Number(claim.amount_usd),
+    amountToApply,
     claim.method,
     claim.tx_hash || claim.wire_reference || `claim-${claim_id}`
   );
 
-  return NextResponse.json({ success: true, action: "approved" });
+  return NextResponse.json({
+    success: true,
+    action: "approved",
+    amount_applied: amountToApply,
+  });
 }
 
 // ─── Apply payment to allocations ───────────────────────────

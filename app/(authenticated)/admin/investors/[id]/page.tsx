@@ -39,6 +39,7 @@ interface PaymentClaimItem {
   round_id: string;
   method: string;
   amount_usd: number;
+  amount_verified_usd: number | null;
   status: string;
   tx_hash: string | null;
   wire_reference: string | null;
@@ -913,156 +914,229 @@ export default function InvestorDetailPage() {
       {/* ── Emails ── */}
 
       {/* ── Payment Claims — Investor-submitted payment evidence ── */}
-      {investor.payment_claims && investor.payment_claims.length > 0 && (
-        <Card>
-          <CardHeader
-            title="Payment Claims"
-            subtitle="Investor-submitted payment evidence — review and approve/reject"
-          />
-          <div className="space-y-3">
-            {investor.payment_claims.map((claim: any) => {
-              const METHOD_LABELS: Record<string, string> = {
-                wire: "Wire Transfer", usdc_eth: "USDC (Ethereum)",
-                usdc_sol: "USDC (Solana)", usdt_eth: "USDT (Ethereum)",
-              };
-              const STATUS_STYLES: Record<string, string> = {
-                pending:   "bg-amber-100 text-amber-700",
-                verifying: "bg-blue-100 text-blue-700",
-                verified:  "bg-emerald-100 text-emerald-700",
-                rejected:  "bg-red-100 text-red-700",
-              };
-              const STATUS_LABELS: Record<string, string> = {
-                pending: "Pending Review", verifying: "Verifying",
-                verified: "Verified ✓", rejected: "Rejected",
-              };
-              const isPending = claim.status === "pending" || claim.status === "verifying";
-              const explorerUrl = claim.tx_hash
-                ? (claim.chain === "solana"
-                  ? `https://solscan.io/tx/${claim.tx_hash}`
-                  : `https://etherscan.io/tx/${claim.tx_hash}`)
-                : null;
+      {investor.payment_claims && investor.payment_claims.length > 0 && (() => {
+        const CLAIM_METHOD_LABELS: Record<string, string> = {
+          wire: "Wire Transfer", usdc_eth: "USDC (Ethereum)",
+          usdc_sol: "USDC (Solana)", usdt_eth: "USDT (Ethereum)",
+        };
+        const CLAIM_STATUS_STYLES: Record<string, string> = {
+          pending:   "bg-amber-100 text-amber-700",
+          verifying: "bg-blue-100 text-blue-700",
+          verified:  "bg-emerald-100 text-emerald-700",
+          rejected:  "bg-red-100 text-red-700",
+        };
+        const CLAIM_STATUS_LABELS: Record<string, string> = {
+          pending: "Pending Review", verifying: "Verifying",
+          verified: "Verified ✓", rejected: "Rejected",
+        };
 
-              return (
-                <div
-                  key={claim.id}
-                  className={`border rounded-lg p-4 ${
-                    isPending ? "border-amber-200 bg-amber-50/30" : "border-gray-200 bg-gray-50/50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">
-                          {METHOD_LABELS[claim.method] || claim.method}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[claim.status] || "bg-gray-100 text-gray-600"}`}>
-                          {STATUS_LABELS[claim.status] || claim.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Submitted {new Date(claim.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <p className="text-lg font-bold text-gray-900">
-                      ${Number(claim.amount_usd).toLocaleString()}
-                    </p>
-                  </div>
+        return (
+          <Card>
+            <CardHeader
+              title="Payment Claims"
+              subtitle="Investor-submitted payment evidence — review and approve/reject"
+            />
+            <div className="space-y-3">
+              {investor.payment_claims.map((claim: PaymentClaimItem) => {
+                const isPending = claim.status === "pending" || claim.status === "verifying";
+                const isWire = claim.method === "wire";
+                const explorerUrl = claim.tx_hash
+                  ? (claim.chain === "solana"
+                    ? `https://solscan.io/tx/${claim.tx_hash}`
+                    : `https://etherscan.io/tx/${claim.tx_hash}`)
+                  : null;
+                const verifiedAmt = (claim as any).amount_verified_usd;
+                const isPartialVerify = verifiedAmt != null && verifiedAmt < Number(claim.amount_usd);
 
-                  {/* Reference details */}
-                  <div className="text-xs text-gray-500 space-y-1 mb-3">
-                    {claim.tx_hash && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-600">Tx Hash:</span>
-                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border text-gray-700 break-all">
-                          {claim.tx_hash}
-                        </code>
-                        {explorerUrl && (
-                          <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="text-kayan-600 hover:text-kayan-800 shrink-0">
-                            View ↗
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {claim.from_wallet && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-600">From:</span>
-                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border text-gray-700 break-all">
-                          {claim.from_wallet}
-                        </code>
-                      </div>
-                    )}
-                    {claim.wire_reference && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-600">Wire Ref:</span>
-                        <span className="text-gray-700">{claim.wire_reference}</span>
-                      </div>
-                    )}
-                    {claim.verified_by && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-600">
-                          {claim.status === "verified" ? "Verified by:" : "Reviewed by:"}
-                        </span>
-                        <span className="text-gray-700">
-                          {claim.verified_by === "auto" ? "Auto (on-chain)" : claim.verified_by}
-                        </span>
-                        {claim.verified_at && (
-                          <span className="text-gray-400">
-                            · {new Date(claim.verified_at).toLocaleString()}
+                return (
+                  <div
+                    key={claim.id}
+                    className={`border rounded-lg p-4 ${
+                      isPending ? "border-amber-200 bg-amber-50/30" : "border-gray-200 bg-gray-50/50"
+                    }`}
+                  >
+                    {/* Header row: method, status, amounts */}
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {CLAIM_METHOD_LABELS[claim.method] || claim.method}
                           </span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${CLAIM_STATUS_STYLES[claim.status] || "bg-gray-100 text-gray-600"}`}>
+                            {CLAIM_STATUS_LABELS[claim.status] || claim.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Submitted {new Date(claim.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {/* Show claimed amount, plus verified amount if different */}
+                        {isPartialVerify ? (
+                          <>
+                            <p className="text-sm text-gray-400 line-through">
+                              ${Number(claim.amount_usd).toLocaleString()} claimed
+                            </p>
+                            <p className="text-lg font-bold text-emerald-700">
+                              ${Number(verifiedAmt).toLocaleString()} verified
+                            </p>
+                          </>
+                        ) : verifiedAmt != null ? (
+                          <p className="text-lg font-bold text-emerald-700">
+                            ${Number(verifiedAmt).toLocaleString()}
+                          </p>
+                        ) : (
+                          <p className="text-lg font-bold text-gray-900">
+                            ${Number(claim.amount_usd).toLocaleString()}
+                          </p>
                         )}
                       </div>
-                    )}
-                    {claim.rejection_reason && (
-                      <p className="text-red-600 mt-1">Reason: {claim.rejection_reason}</p>
-                    )}
-                    {/* Show chain_data hints for failed auto-verify */}
-                    {isPending && claim.chain_data?.error && (
-                      <p className="text-amber-600 mt-1">Auto-verify note: {claim.chain_data.error}</p>
-                    )}
-                  </div>
-
-                  {/* Approve / Reject buttons */}
-                  {isPending && canWrite && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          const res = await fetch("/api/admin/payments/claims", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ claim_id: claim.id, action: "approve" }),
-                          });
-                          if (res.ok) { toast.success("Payment claim approved — allocation updated"); fetchData(); }
-                          else { const d = await res.json(); toast.error(d.error || "Failed"); }
-                        }}
-                      >
-                        ✓ Approve Payment
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          const reason = prompt("Rejection reason (optional):");
-                          const res = await fetch("/api/admin/payments/claims", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ claim_id: claim.id, action: "reject", rejection_reason: reason }),
-                          });
-                          if (res.ok) { toast.success("Payment claim rejected"); fetchData(); }
-                          else { const d = await res.json(); toast.error(d.error || "Failed"); }
-                        }}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        ✗ Reject
-                      </Button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
+
+                    {/* Reference details */}
+                    <div className="text-xs text-gray-500 space-y-1 mb-3">
+                      {claim.tx_hash && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-600">Tx Hash:</span>
+                          <code className="font-mono bg-white px-1.5 py-0.5 rounded border text-gray-700 break-all">
+                            {claim.tx_hash}
+                          </code>
+                          {explorerUrl && (
+                            <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="text-kayan-600 hover:text-kayan-800 shrink-0">
+                              View ↗
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {claim.from_wallet && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-600">From:</span>
+                          <code className="font-mono bg-white px-1.5 py-0.5 rounded border text-gray-700 break-all">
+                            {claim.from_wallet}
+                          </code>
+                        </div>
+                      )}
+                      {claim.wire_reference && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-600">Wire Ref:</span>
+                          <span className="text-gray-700">{claim.wire_reference}</span>
+                        </div>
+                      )}
+                      {claim.verified_by && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-600">
+                            {claim.status === "verified" ? "Verified by:" : "Reviewed by:"}
+                          </span>
+                          <span className="text-gray-700">
+                            {claim.verified_by === "auto" ? "Auto (on-chain)" : claim.verified_by}
+                          </span>
+                          {claim.verified_at && (
+                            <span className="text-gray-400">
+                              · {new Date(claim.verified_at).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {claim.rejection_reason && (
+                        <p className="text-red-600 mt-1">Reason: {claim.rejection_reason}</p>
+                      )}
+                      {/* Chain data hints for failed auto-verify */}
+                      {isPending && claim.chain_data && (claim.chain_data as any).error && (
+                        <p className="text-amber-600 mt-1">Auto-verify note: {(claim.chain_data as any).error}</p>
+                      )}
+                      {isPending && claim.chain_data && (claim.chain_data as any).amount != null && (
+                        <p className="text-blue-600 mt-1">
+                          On-chain amount detected: ${Number((claim.chain_data as any).amount).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Approve / Reject buttons with amount input for wire */}
+                    {isPending && canWrite && (() => {
+                      // Wire approval needs an amount input field
+                      const claimApproveId = `approve-amt-${claim.id}`;
+
+                      const handleApprove = async () => {
+                        // For wire: read amount from input; for crypto: use full claimed amount
+                        let approvedAmount: number | undefined;
+                        if (isWire) {
+                          const input = document.getElementById(claimApproveId) as HTMLInputElement;
+                          const val = parseFloat(input?.value || "");
+                          if (!val || val <= 0) {
+                            toast.error("Enter the wire amount received");
+                            return;
+                          }
+                          approvedAmount = val;
+                        }
+
+                        const payload: Record<string, any> = { claim_id: claim.id, action: "approve" };
+                        if (approvedAmount != null) payload.approved_amount = approvedAmount;
+
+                        const res = await fetch("/api/admin/payments/claims", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(payload),
+                        });
+                        if (res.ok) {
+                          const d = await res.json();
+                          toast.success(`Payment approved — $${(d.amount_applied || approvedAmount || claim.amount_usd).toLocaleString()} applied`);
+                          fetchData();
+                        } else {
+                          const d = await res.json();
+                          toast.error(d.error || "Failed");
+                        }
+                      };
+
+                      return (
+                        <div className="pt-2 border-t border-gray-200 space-y-2">
+                          {isWire && (
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-gray-500 shrink-0">Amount received:</label>
+                              <div className="relative flex-1 max-w-[180px]">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                <input
+                                  id={claimApproveId}
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={Number(claim.amount_usd)}
+                                  className="w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                                />
+                              </div>
+                              <span className="text-[10px] text-gray-400">of ${Number(claim.amount_usd).toLocaleString()} claimed</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={handleApprove}>
+                              ✓ {isWire ? "Approve Wire" : "Approve Payment"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const reason = prompt("Rejection reason (optional):");
+                                const res = await fetch("/api/admin/payments/claims", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ claim_id: claim.id, action: "reject", rejection_reason: reason }),
+                                });
+                                if (res.ok) { toast.success("Payment claim rejected"); fetchData(); }
+                                else { const d = await res.json(); toast.error(d.error || "Failed"); }
+                              }}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              ✗ Reject
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* ── Emails (continued) ── */}
       <Card>

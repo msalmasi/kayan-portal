@@ -205,39 +205,54 @@ export async function POST(request: NextRequest) {
       const { verifyOnChain } = await import("@/lib/chain-verify");
       const result = await verifyOnChain(method, tx_hash, Number(amount_usd));
 
-      if (result.verified) {
-        // ── Mark claim as verified ──
+      // Determine if any real transfer was found on-chain
+      // "verified" = full amount, "insufficient_amount" = partial but real transfer
+      const isOnChainConfirmed = result.verified || result.reason === "insufficient_amount";
+      const actualAmount = result.amountTransferred || 0;
+
+      if (isOnChainConfirmed && actualAmount > 0) {
+        // ── Auto-apply whatever amount was actually transferred ──
+        const isPartial = !result.verified; // insufficient_amount = partial
+
         await adminClient
           .from("payment_claims")
           .update({
             status: "verified",
+            amount_verified_usd: actualAmount,
             verified_at: new Date().toISOString(),
             verified_by: "auto",
             chain_data: result.chainData,
           })
           .eq("id", claim.id);
 
-        // ── Update allocation payment status ──
+        // Apply the actual transferred amount to allocations
         await applyPayment(
           adminClient,
           investor,
           round_id,
-          result.amountTransferred || Number(amount_usd),
+          actualAmount,
           method,
           tx_hash
         );
 
+        const detail = isPartial
+          ? `Partial payment verified: $${actualAmount.toLocaleString()} of $${Number(amount_usd).toLocaleString()} received on-chain. ` +
+            `Submit another payment for the remaining balance.`
+          : result.detail;
+
         return NextResponse.json({
           ...claim,
           status: "verified",
-          verification: { verified: true, detail: result.detail },
+          amount_verified_usd: actualAmount,
+          verification: { verified: true, detail },
         });
+
       } else {
-        // Verification failed — fall back to pending for manual review
+        // Genuinely unverifiable — wrong token, wrong recipient, not found, error
         await adminClient
           .from("payment_claims")
           .update({
-            status: result.reason === "not_found" ? "pending" : "pending",
+            status: "pending",
             chain_data: result.chainData,
           })
           .eq("id", claim.id);

@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS payment_claims (
 
   -- Payment details
   method        text NOT NULL CHECK (method IN ('wire', 'usdc_eth', 'usdc_sol', 'usdt_eth', 'credit_card')),
-  amount_usd    numeric(18,2) NOT NULL,
+  amount_usd    numeric(18,2) NOT NULL,          -- claimed/expected amount
+  amount_verified_usd numeric(18,2),             -- actual amount verified (on-chain or admin-approved)
 
   -- Wire-specific
   wire_reference text,

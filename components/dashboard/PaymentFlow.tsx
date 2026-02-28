@@ -195,9 +195,6 @@ export function PaymentFlow() {
       {step === "overview" && (
         <div className="space-y-4">
           {rounds.map((r) => {
-            const pendingClaim = claims.find(
-              (c) => c.round_id === r.round_id && (c.status === "pending" || c.status === "verifying")
-            );
             return (
               <div key={r.round_id} className="border border-amber-200 bg-amber-50/50 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -222,16 +219,31 @@ export function PaymentFlow() {
                   </div>
                 )}
 
-                {pendingClaim ? (
-                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-100 rounded-lg px-3 py-2">
-                    <span>Payment submitted — awaiting verification</span>
-                    <ClaimStatusBadge status={pendingClaim.status} />
-                  </div>
-                ) : (
-                  <Button size="sm" onClick={() => { setSelectedRound(r); setStep("method"); }}>
-                    Make Payment
-                  </Button>
-                )}
+                {/* Show pending claims as info, but always allow new payments */}
+                {(() => {
+                  const roundClaims = claims.filter(
+                    (c) => c.round_id === r.round_id && (c.status === "pending" || c.status === "verifying")
+                  );
+                  return (
+                    <div className="space-y-2">
+                      {roundClaims.length > 0 && (
+                        <div className="text-xs text-amber-700 bg-amber-100 rounded-lg px-3 py-2 space-y-1">
+                          {roundClaims.map((c) => (
+                            <div key={c.id} className="flex items-center gap-2">
+                              <span>
+                                {c.method === "wire" ? "Wire" : "Crypto"} payment of ${Number(c.amount_usd).toLocaleString()} submitted
+                              </span>
+                              <ClaimStatusBadge status={c.status} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Button size="sm" onClick={() => { setSelectedRound(r); setStep("method"); }}>
+                        {roundClaims.length > 0 ? "Make Another Payment" : "Make Payment"}
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
