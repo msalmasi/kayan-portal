@@ -1043,11 +1043,13 @@ export default function InvestorDetailPage() {
                       {/* Chain data hints for failed auto-verify */}
                       {isPending && claim.chain_data && (() => {
                         const cd = claim.chain_data as any;
-                        // Surface any diagnostic info from the verification attempt
-                        const hint = cd.error
+                        // Surface any diagnostic info — ensure it's a string
+                        const raw = cd.error
                           || (typeof cd.result === "string" ? cd.result : null)
-                          || cd.message
-                          || cd.detail;
+                          || (typeof cd.message === "string" ? cd.message : null)
+                          || (typeof cd.detail === "string" ? cd.detail : null);
+                        const hint = typeof raw === "string" ? raw
+                          : raw ? JSON.stringify(raw) : null;
                         return hint ? (
                           <p className="text-amber-600 mt-1">Auto-verify note: {hint}</p>
                         ) : null;
