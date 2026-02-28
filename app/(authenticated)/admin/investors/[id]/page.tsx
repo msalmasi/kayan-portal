@@ -1109,6 +1109,29 @@ export default function InvestorDetailPage() {
                             <Button size="sm" onClick={handleApprove}>
                               ✓ {isWire ? "Approve Wire" : "Approve Payment"}
                             </Button>
+                            {/* Re-check: re-run on-chain verification for crypto claims */}
+                            {claim.tx_hash && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={async () => {
+                                  const res = await fetch("/api/admin/payments/claims", {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ claim_id: claim.id, action: "recheck" }),
+                                  });
+                                  const d = await res.json();
+                                  if (d.verified) {
+                                    toast.success(`Verified! $${(d.amount_applied || 0).toLocaleString()} applied`);
+                                  } else {
+                                    toast.info(d.detail || "Still not confirmed on-chain");
+                                  }
+                                  fetchData();
+                                }}
+                              >
+                                ↻ Re-check
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"

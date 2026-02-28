@@ -27,8 +27,8 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json();
   const { claim_id, action, approved_amount, rejection_reason } = body;
 
-  if (!claim_id || !["approve", "reject"].includes(action)) {
-    return NextResponse.json({ error: "claim_id and action (approve|reject) required" }, { status: 400 });
+  if (!claim_id || !["approve", "reject", "recheck"].includes(action)) {
+    return NextResponse.json({ error: "claim_id and action (approve|reject|recheck) required" }, { status: 400 });
   }
 
   // Fetch the claim
@@ -40,6 +40,71 @@ export async function PATCH(request: NextRequest) {
 
   if (fetchErr || !claim) {
     return NextResponse.json({ error: "Claim not found" }, { status: 404 });
+  }
+
+  // ── RECHECK — re-run on-chain verification for pending crypto claims ──
+  if (action === "recheck") {
+    if (!claim.tx_hash) {
+      return NextResponse.json({ error: "No transaction hash — cannot re-verify wire claims" }, { status: 400 });
+    }
+    if (claim.status === "verified") {
+      return NextResponse.json({ error: "Claim already verified" }, { status: 400 });
+    }
+
+    const investor = claim.investors as any;
+
+    // Load wallet from DB settings
+    const { loadPaymentSettings, getWalletForMethod } = await import("@/lib/payment-config");
+    const settings = await loadPaymentSettings(auth.client);
+    const receivingWallet = getWalletForMethod(claim.method, settings.wallets);
+
+    const { verifyOnChain } = await import("@/lib/chain-verify");
+    const result = await verifyOnChain(claim.method, claim.tx_hash, Number(claim.amount_usd), receivingWallet);
+
+    // Determine if a real transfer was found
+    const isOnChainConfirmed = result.verified || result.reason === "insufficient_amount";
+    const actualAmount = result.amountTransferred || 0;
+
+    if (isOnChainConfirmed && actualAmount > 0) {
+      // Auto-apply the verified amount
+      await auth.client
+        .from("payment_claims")
+        .update({
+          status: "verified",
+          amount_verified_usd: actualAmount,
+          verified_at: new Date().toISOString(),
+          verified_by: "auto",
+          chain_data: result.chainData,
+        })
+        .eq("id", claim_id);
+
+      await applyPayment(
+        auth.client, investor, claim.round_id,
+        actualAmount, claim.method,
+        claim.tx_hash
+      );
+
+      return NextResponse.json({
+        success: true,
+        action: "recheck",
+        verified: true,
+        amount_applied: actualAmount,
+        detail: result.detail,
+      });
+    }
+
+    // Still not verifiable — update chain_data with latest attempt
+    await auth.client
+      .from("payment_claims")
+      .update({ chain_data: result.chainData || { error: result.detail } })
+      .eq("id", claim_id);
+
+    return NextResponse.json({
+      success: true,
+      action: "recheck",
+      verified: false,
+      detail: result.detail || "Transaction still not confirmed on-chain",
+    });
   }
 
   if (claim.status === "verified") {
