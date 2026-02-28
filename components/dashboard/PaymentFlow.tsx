@@ -100,7 +100,6 @@ export function PaymentFlow() {
   const [txHash, setTxHash] = useState("");
   const [fromWallet, setFromWallet] = useState("");
   const [wireRef, setWireRef] = useState("");
-  const [payAmount, setPayAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ verified: boolean; detail: string } | null>(null);
   const [copied, setCopied] = useState("");
@@ -131,7 +130,7 @@ export function PaymentFlow() {
 
   const resetFlow = () => {
     setStep("overview"); setSelectedRound(null); setSelectedMethod(null);
-    setTxHash(""); setFromWallet(""); setWireRef(""); setPayAmount(""); setResult(null);
+    setTxHash(""); setFromWallet(""); setWireRef(""); setResult(null);
   };
 
   // ── Submit ──
@@ -142,11 +141,9 @@ export function PaymentFlow() {
     const body: Record<string, any> = {
       round_id: selectedRound.round_id,
       method: selectedMethod,
-      // For crypto: use the amount the investor says they sent
-      // For wire: use the full balance (admin will confirm actual amount)
-      amount_usd: selectedMethod === "wire"
-        ? selectedRound.balance_due
-        : (parseFloat(payAmount) || selectedRound.balance_due),
+      // Crypto: balance_due as reference — backend uses actual on-chain amount
+      // Wire: balance_due as claimed — admin confirms actual amount received
+      amount_usd: selectedRound.balance_due,
     };
     if (selectedMethod === "wire") body.wire_reference = wireRef;
     else { body.tx_hash = txHash; if (fromWallet) body.from_wallet = fromWallet; }
@@ -296,7 +293,6 @@ export function PaymentFlow() {
                 disabled={!m.enabled}
                 onClick={() => {
                   setSelectedMethod(m.id);
-                  setPayAmount(selectedRound?.balance_due?.toString() || "");
                   setStep("pay");
                 }}
                 className={`w-full flex items-center gap-4 p-4 rounded-lg border text-left transition-colors ${
@@ -338,28 +334,6 @@ export function PaymentFlow() {
               <p className="text-xl font-bold text-gray-900">${selectedRound.balance_due.toLocaleString()}</p>
               <p className="text-[10px] text-gray-400">balance due</p>
             </div>
-          </div>
-
-          {/* Amount input */}
-          <div className="border border-gray-200 rounded-lg p-4 space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Amount you are sending (USD)
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-              <input
-                type="number"
-                step="0.01"
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-                className="w-full pl-7 pr-4 py-2.5 border border-gray-300 rounded-lg text-lg font-bold focus:outline-none focus:ring-2 focus:ring-kayan-500"
-              />
-            </div>
-            {parseFloat(payAmount) > 0 && parseFloat(payAmount) < selectedRound.balance_due && (
-              <p className="text-xs text-blue-600">
-                Partial payment — ${(selectedRound.balance_due - parseFloat(payAmount)).toLocaleString(undefined, { maximumFractionDigits: 2 })} will remain after this payment
-              </p>
-            )}
           </div>
 
           {/* Wallet + instructions */}
@@ -423,7 +397,7 @@ export function PaymentFlow() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button onClick={handleSubmit} disabled={!txHash || !payAmount || parseFloat(payAmount) <= 0 || submitting} loading={submitting}>
+            <Button onClick={handleSubmit} disabled={!txHash || submitting} loading={submitting}>
               {submitting ? "Verifying on-chain…" : "Submit & Verify"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setStep("method")}>← Back</Button>
