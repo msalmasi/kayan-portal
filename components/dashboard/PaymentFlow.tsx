@@ -28,7 +28,7 @@ interface PaymentClaim {
   created_at: string;
 }
 
-// ─── Payment method config ──────────────────────────────────
+// ─── Payment method config (loaded from API) ───────────────
 
 interface MethodOption {
   id: string;
@@ -37,14 +37,6 @@ interface MethodOption {
   enabled: boolean;
   icon: string;
 }
-
-const METHODS: MethodOption[] = [
-  { id: "wire",        label: "Wire Transfer (USD)",  sublabel: "Manual verification",       enabled: true,  icon: "🏦" },
-  { id: "usdc_eth",    label: "USDC on Ethereum",     sublabel: "ERC-20 · auto-verified",    enabled: true,  icon: "Ξ"  },
-  { id: "usdc_sol",    label: "USDC on Solana",       sublabel: "SPL token · auto-verified", enabled: true,  icon: "◎"  },
-  { id: "usdt_eth",    label: "USDT on Ethereum",     sublabel: "ERC-20 · auto-verified",    enabled: true,  icon: "Ξ"  },
-  { id: "credit_card", label: "Credit Card",          sublabel: "Coming soon",               enabled: false, icon: "💳" },
-];
 
 type Step = "overview" | "method" | "pay" | "submitted";
 
@@ -82,15 +74,6 @@ const CHAIN_LABELS: Record<string, string> = {
   usdc_eth: "Ethereum", usdt_eth: "Ethereum", usdc_sol: "Solana",
 };
 
-/** Wallet addresses are exposed via public env vars for client-side display */
-function getWalletAddress(method: string): string {
-  if (method === "usdc_eth" || method === "usdt_eth")
-    return process.env.NEXT_PUBLIC_RECEIVING_WALLET_ETH || "";
-  if (method === "usdc_sol")
-    return process.env.NEXT_PUBLIC_RECEIVING_WALLET_SOL || "";
-  return "";
-}
-
 function getExplorerUrl(method: string, hash: string): string {
   if (method === "usdc_eth" || method === "usdt_eth")
     return `https://etherscan.io/tx/${hash}`;
@@ -104,6 +87,8 @@ export function PaymentFlow() {
   const [loading, setLoading] = useState(true);
   const [rounds, setRounds] = useState<RoundBalance[]>([]);
   const [claims, setClaims] = useState<PaymentClaim[]>([]);
+  const [methods, setMethods] = useState<MethodOption[]>([]);
+  const [wallets, setWallets] = useState<{ ethereum: string; solana: string }>({ ethereum: "", solana: "" });
   const [wireInstructions, setWireInstructions] = useState<Record<string, string> | null>(null);
 
   // Flow state
@@ -119,6 +104,13 @@ export function PaymentFlow() {
   const [result, setResult] = useState<{ verified: boolean; detail: string } | null>(null);
   const [copied, setCopied] = useState("");
 
+  // ── Helper: get wallet address for a method from loaded state ──
+  const getWalletAddress = (method: string): string => {
+    if (method === "usdc_eth" || method === "usdt_eth") return wallets.ethereum;
+    if (method === "usdc_sol") return wallets.solana;
+    return "";
+  };
+
   // ── Fetch ──
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -127,6 +119,8 @@ export function PaymentFlow() {
       const data = await res.json();
       setRounds(data.rounds || []);
       setClaims(data.claims || []);
+      if (data.methods) setMethods(data.methods);
+      if (data.wallets) setWallets(data.wallets);
       if (data.wire_instructions) setWireInstructions(data.wire_instructions);
     }
     setLoading(false);
@@ -291,7 +285,7 @@ export function PaymentFlow() {
 
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700">Select payment method</p>
-            {METHODS.map((m) => (
+            {methods.map((m) => (
               <button
                 key={m.id}
                 disabled={!m.enabled}

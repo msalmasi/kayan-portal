@@ -11,7 +11,6 @@
  */
 
 import {
-  WALLETS,
   TOKEN_CONTRACTS,
   TOKEN_DECIMALS,
   EXPLORER_KEYS,
@@ -39,16 +38,17 @@ const AMOUNT_TOLERANCE = 0.005;
 
 /**
  * Verify an ERC-20 token transfer on Ethereum.
- * Uses Etherscan's "Get Token Transfer Events by Tx Hash" endpoint.
+ * Uses Etherscan's transaction receipt endpoint to parse Transfer logs.
  */
 export async function verifyEthereumTx(
   txHash: string,
   expectedToken: "usdc" | "usdt",
-  expectedAmountUsd: number
+  expectedAmountUsd: number,
+  receivingWalletOverride?: string
 ): Promise<VerifyResult> {
   const contractKey = expectedToken === "usdc" ? "usdc_eth" : "usdt_eth";
   const contractAddr = TOKEN_CONTRACTS[contractKey].toLowerCase();
-  const receivingWallet = WALLETS.ethereum.toLowerCase();
+  const receivingWallet = (receivingWalletOverride || "").toLowerCase();
   const decimals = TOKEN_DECIMALS[contractKey];
 
   if (!receivingWallet) {
@@ -150,9 +150,10 @@ export async function verifyEthereumTx(
  */
 export async function verifySolanaTx(
   txSignature: string,
-  expectedAmountUsd: number
+  expectedAmountUsd: number,
+  receivingWalletOverride?: string
 ): Promise<VerifyResult> {
-  const receivingWallet = WALLETS.solana;
+  const receivingWallet = receivingWalletOverride || "";
   const usdcMint = TOKEN_CONTRACTS.usdc_sol;
   const decimals = TOKEN_DECIMALS.usdc_sol;
 
@@ -276,19 +277,22 @@ export async function verifySolanaTx(
 /**
  * Verify a payment claim based on method.
  * Routes to the correct chain verifier.
+ *
+ * @param receivingWallet — wallet address loaded from DB payment_settings
  */
 export async function verifyOnChain(
   method: string,
   txHash: string,
-  expectedAmountUsd: number
+  expectedAmountUsd: number,
+  receivingWallet?: string
 ): Promise<VerifyResult> {
   switch (method) {
     case "usdc_eth":
-      return verifyEthereumTx(txHash, "usdc", expectedAmountUsd);
+      return verifyEthereumTx(txHash, "usdc", expectedAmountUsd, receivingWallet);
     case "usdt_eth":
-      return verifyEthereumTx(txHash, "usdt", expectedAmountUsd);
+      return verifyEthereumTx(txHash, "usdt", expectedAmountUsd, receivingWallet);
     case "usdc_sol":
-      return verifySolanaTx(txHash, expectedAmountUsd);
+      return verifySolanaTx(txHash, expectedAmountUsd, receivingWallet);
     default:
       return { verified: false, reason: "error", detail: `Unsupported method: ${method}`, chainData: {} };
   }

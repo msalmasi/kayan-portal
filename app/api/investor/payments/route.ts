@@ -43,6 +43,10 @@ export async function GET() {
 
   const { investor, adminClient } = ctx;
 
+  // Load payment settings from database
+  const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
+  const settings = await loadPaymentSettings(adminClient);
+
   // Fetch outstanding allocations (invoiced or partial, approved only)
   const { data: allocations } = await adminClient
     .from("allocations")
@@ -86,18 +90,21 @@ export async function GET() {
     balance_due: r.total_due - r.total_received,
   }));
 
+  // Personalize wire reference note
+  const wireInstructions = {
+    ...settings.wire_instructions,
+    reference_note: settings.wire_instructions.reference_note ||
+      `Include "${investor.full_name} — Kayan Token" as wire reference`,
+  };
+
   return NextResponse.json({
     rounds,
     claims: claims || [],
     investor_name: investor.full_name,
-    wire_instructions: {
-      bank_name: process.env.WIRE_BANK_NAME || "",
-      account_name: process.env.WIRE_ACCOUNT_NAME || "",
-      account_number: process.env.WIRE_ACCOUNT_NUMBER || "",
-      routing_number: process.env.WIRE_ROUTING_NUMBER || "",
-      swift_code: process.env.WIRE_SWIFT_CODE || "",
-      reference_note: `Include "${investor.full_name} — Kayan Token" as wire reference`,
-    },
+    // Dynamic settings from DB
+    methods: getMethodList(settings.methods),
+    wallets: settings.wallets,
+    wire_instructions: wireInstructions,
   });
 }
 
@@ -202,8 +209,13 @@ export async function POST(request: NextRequest) {
   // ── Auto-verify crypto on-chain ──
   if (method !== "wire" && tx_hash) {
     try {
+      // Load receiving wallet from DB settings
+      const { loadPaymentSettings, getWalletForMethod } = await import("@/lib/payment-config");
+      const settings = await loadPaymentSettings(adminClient);
+      const receivingWallet = getWalletForMethod(method, settings.wallets);
+
       const { verifyOnChain } = await import("@/lib/chain-verify");
-      const result = await verifyOnChain(method, tx_hash, Number(amount_usd));
+      const result = await verifyOnChain(method, tx_hash, Number(amount_usd), receivingWallet);
 
       // Determine if any real transfer was found on-chain
       // "verified" = full amount, "insufficient_amount" = partial but real transfer
