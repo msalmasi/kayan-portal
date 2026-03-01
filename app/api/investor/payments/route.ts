@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Invalid method: ${method}` }, { status: 400 });
   }
 
-  // Crypto requires tx_hash
+  // Crypto requires tx_hash; from_wallet is optional but logged for audit
   if (method !== "wire" && !tx_hash) {
     return NextResponse.json({ error: "tx_hash is required for crypto payments" }, { status: 400 });
   }
@@ -222,6 +222,14 @@ export async function POST(request: NextRequest) {
       const isOnChainConfirmed = result.verified || result.reason === "insufficient_amount";
       const actualAmount = result.amountTransferred || 0;
 
+      // ── Wallet ownership note ──
+      // If from_wallet was provided, cross-check against on-chain sender
+      // and log the result. Does not block approval — logged for audit only.
+      const claimedWallet = (from_wallet || "").toLowerCase().trim();
+      const onChainSender = (result.senderAddress || "").toLowerCase().trim();
+      const walletMismatch = claimedWallet && onChainSender &&
+        claimedWallet !== onChainSender;
+
       if (isOnChainConfirmed && actualAmount > 0) {
         // ── Auto-apply whatever amount was actually transferred ──
 
@@ -229,11 +237,17 @@ export async function POST(request: NextRequest) {
           .from("payment_claims")
           .update({
             status: "verified",
-            amount_usd: actualAmount,            // actual on-chain amount IS the claim
+            amount_usd: actualAmount,
             amount_verified_usd: actualAmount,
             verified_at: new Date().toISOString(),
             verified_by: "auto",
-            chain_data: result.chainData,
+            chain_data: {
+              ...result.chainData,
+              // Audit: record wallet ownership check result
+              ...(onChainSender ? { actual_sender: onChainSender } : {}),
+              ...(claimedWallet ? { claimed_wallet: claimedWallet } : {}),
+              ...(walletMismatch ? { wallet_mismatch: true } : {}),
+            },
           })
           .eq("id", claim.id);
 

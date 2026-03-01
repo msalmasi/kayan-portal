@@ -28,6 +28,8 @@ export interface VerifyResult {
   chainData: Record<string, any>;
   /** Actual amount transferred (USD) */
   amountTransferred?: number;
+  /** Sender wallet address from the on-chain transaction */
+  senderAddress?: string;
 }
 
 // ─── Amount tolerance: 0.5% to account for rounding ─────────
@@ -117,6 +119,9 @@ export async function verifyEthereumTx(
     const rawAmount = BigInt(matchingTransfer.data);
     const amount = Number(rawAmount) / Math.pow(10, decimals);
 
+    // Extract sender from the Transfer event (topics[1] = 'from' address)
+    const sender = "0x" + (matchingTransfer.topics[1] || "").slice(26).toLowerCase();
+
     // For stablecoins, amount ≈ USD value
     const minExpected = expectedAmountUsd * (1 - AMOUNT_TOLERANCE);
 
@@ -127,6 +132,7 @@ export async function verifyEthereumTx(
         detail: `Transferred $${amount.toFixed(2)} but $${expectedAmountUsd.toFixed(2)} expected`,
         chainData: { receipt, amount, expected: expectedAmountUsd },
         amountTransferred: amount,
+        senderAddress: sender,
       };
     }
 
@@ -136,13 +142,14 @@ export async function verifyEthereumTx(
       detail: `Verified: $${amount.toFixed(2)} ${expectedToken.toUpperCase()} received`,
       chainData: {
         block: parseInt(receipt.blockNumber, 16),
-        from: "0x" + (matchingTransfer.topics[1] || "").slice(26),
+        from: sender,
         to: receivingWallet,
         amount,
         token: expectedToken,
         txHash,
       },
       amountTransferred: amount,
+      senderAddress: sender,
     };
   } catch (err: any) {
     return { verified: false, reason: "error", detail: `Verification error: ${err.message}`, chainData: { error: err.message } };
@@ -249,6 +256,10 @@ export async function verifySolanaTx(
       return { verified: false, reason: "wrong_recipient", detail: "No USDC transfer to our wallet found in this transaction", chainData: { tx: tx.transaction?.message, meta: tx.meta } };
     }
 
+    // Extract sender — first signer in the transaction
+    const accountKeys = tx.transaction?.message?.accountKeys || [];
+    const solSender = (accountKeys[0]?.pubkey || accountKeys[0] || "").toString().toLowerCase();
+
     const minExpected = expectedAmountUsd * (1 - AMOUNT_TOLERANCE);
     if (amountReceived < minExpected) {
       return {
@@ -257,6 +268,7 @@ export async function verifySolanaTx(
         detail: `Transferred $${amountReceived.toFixed(2)} but $${expectedAmountUsd.toFixed(2)} expected`,
         chainData: { amountReceived, expected: expectedAmountUsd },
         amountTransferred: amountReceived,
+        senderAddress: solSender,
       };
     }
 
@@ -273,6 +285,7 @@ export async function verifySolanaTx(
         signature: txSignature,
       },
       amountTransferred: amountReceived,
+      senderAddress: solSender,
     };
   } catch (err: any) {
     return { verified: false, reason: "error", detail: `Verification error: ${err.message}`, chainData: { error: err.message } };

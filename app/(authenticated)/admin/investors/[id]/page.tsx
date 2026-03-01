@@ -1071,6 +1071,17 @@ export default function InvestorDetailPage() {
                           On-chain amount detected: ${Number((claim.chain_data as any).amount).toLocaleString()}
                         </p>
                       )}
+                      {isPending && claim.chain_data && (claim.chain_data as any).wallet_mismatch && (
+                        <div className="mt-1.5 bg-red-50 border border-red-200 rounded px-2.5 py-1.5 text-xs">
+                          <p className="font-medium text-red-700">⚠ Wallet mismatch</p>
+                          <p className="text-red-600 mt-0.5">
+                            Claimed: <code className="font-mono">{(claim.chain_data as any).claimed_wallet}</code>
+                          </p>
+                          <p className="text-red-600">
+                            On-chain sender: <code className="font-mono">{(claim.chain_data as any).actual_sender}</code>
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Approve / Reject buttons with amount input */}
