@@ -67,7 +67,7 @@ export default function NotificationsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
-  const { decrement, clearAll, refresh: refreshBadge } = useNotifications();
+  const { refresh: refreshBadge } = useNotifications();
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -88,6 +88,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     fetchNotifications();
+    refreshBadge();
   }, [fetchNotifications]);
 
   // Mark single notification as read
@@ -100,7 +101,6 @@ export default function NotificationsPage() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
-    decrement(1);
   };
 
   // Mark all as read
@@ -111,7 +111,6 @@ export default function NotificationsPage() {
       body: JSON.stringify({ mark_all_read: true }),
     });
     toast.success("All notifications marked as read");
-    clearAll();
     fetchNotifications();
   };
 

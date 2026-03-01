@@ -23,12 +23,13 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "50");
   const offset = parseInt(searchParams.get("offset") || "0");
 
-  // Quick count for sidebar badge
+  // Quick count for sidebar badge — unresolved action items (what admins care about)
   if (countOnly) {
     const { count } = await auth.client
       .from("admin_notifications")
       .select("id", { count: "exact", head: true })
-      .eq("is_read", false);
+      .eq("priority", "action_required")
+      .eq("is_resolved", false);
 
     return NextResponse.json({ unread_count: count || 0 });
   }
