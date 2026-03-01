@@ -272,7 +272,30 @@ export default function RoundsPage() {
                       {round.vesting_months}mo
                     </td>
                     <td className="py-3 px-2 text-right text-gray-700">
-                      {round.deadline ? (
+                      {canWrite ? (
+                        <input
+                          type="date"
+                          value={round.deadline ? new Date(round.deadline).toISOString().split("T")[0] : ""}
+                          onChange={async (e) => {
+                            const val = e.target.value;
+                            const newDeadline = val ? new Date(val).toISOString() : null;
+                            // Optimistic update
+                            setRounds((prev) => prev.map((r) => r.id === round.id ? { ...r, deadline: newDeadline } : r));
+                            const res = await fetch("/api/admin/rounds", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ id: round.id, deadline: newDeadline }),
+                            });
+                            if (res.ok) {
+                              toast.success(newDeadline ? `Deadline set for ${round.name}` : `Deadline removed for ${round.name}`);
+                            } else {
+                              toast.error("Failed to update deadline");
+                              fetchRounds();
+                            }
+                          }}
+                          className="w-32 px-2 py-1 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                        />
+                      ) : round.deadline ? (
                         (() => {
                           const d = new Date(round.deadline);
                           const expired = d < new Date();
