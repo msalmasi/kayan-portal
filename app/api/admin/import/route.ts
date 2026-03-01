@@ -117,5 +117,37 @@ export async function POST(request: NextRequest) {
     results.created_allocations++;
   }
 
+  // Prompt investors with approved PQs to update
+  try {
+    const investorIds = [...new Set(
+      Array.from(investorMap.values()).map((inv: any) => inv.id)
+    )];
+
+    if (investorIds.length > 0) {
+      const { data: approvedInvestors } = await auth.client
+        .from("investors")
+        .select("id, full_name, email, pq_status")
+        .in("id", investorIds)
+        .eq("pq_status", "approved");
+
+      if (approvedInvestors?.length) {
+        const { sendEmail, composePqUpdatePromptEmail } = await import("@/lib/email");
+        const roundName = round.name || "a new round";
+
+        for (const inv of approvedInvestors) {
+          const { subject, html } = composePqUpdatePromptEmail(inv.full_name, roundName);
+          await sendEmail(inv.email, subject, html).catch(() => {});
+        }
+
+        await auth.client
+          .from("investors")
+          .update({ pq_update_prompted_at: new Date().toISOString() })
+          .in("id", approvedInvestors.map(i => i.id));
+      }
+    }
+  } catch (err: any) {
+    console.error("[IMPORT] PQ update prompt failed:", err.message);
+  }
+
   return NextResponse.json(results);
 }

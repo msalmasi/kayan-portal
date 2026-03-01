@@ -54,6 +54,7 @@ export default function PurchaserQuestionnairePage() {
   const [investorName, setInvestorName] = useState("");
   const [investorEmail, setInvestorEmail] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [pqUpdatePrompted, setPqUpdatePrompted] = useState(false);
   const [existingData, setExistingData] = useState<PqFormData | null>(null);
 
   // ── Form state (each section) ──
@@ -108,6 +109,7 @@ export default function PurchaserQuestionnairePage() {
         setInvestorName(data.full_name || "");
         setInvestorEmail(data.email || "");
         setReviewNotes(data.pq_notes || "");
+        setPqUpdatePrompted(!!data.pq_update_prompted_at);
 
         // Pre-fill form if data exists (resubmission after rejection)
         if (data.pq_data) {
@@ -258,6 +260,24 @@ export default function PurchaserQuestionnairePage() {
             className="text-xs font-medium text-kayan-600 hover:text-kayan-800 underline underline-offset-2"
           >
             Update for re-approval →
+          </button>
+        </div>
+      )}
+      {pqStatus === "approved" && !editingApproved && pqUpdatePrompted && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-800 flex items-center gap-3">
+          <span className="text-lg">📋</span>
+          <div className="flex-1">
+            <p className="font-medium">New allocation added — please update your questionnaire</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              A new allocation has been added to your account. Please review and resubmit your
+              Purchaser Questionnaire so our compliance team can re-approve it.
+            </p>
+          </div>
+          <button
+            onClick={() => setEditingApproved(true)}
+            className="shrink-0 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            Update Now
           </button>
         </div>
       )}

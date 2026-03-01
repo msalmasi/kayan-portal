@@ -91,6 +91,35 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Prompt investor to update PQ if they have an approved one
+  try {
+    const { data: investor } = await auth.client
+      .from("investors")
+      .select("id, full_name, email, pq_status, pq_submitted_at")
+      .eq("id", body.investor_id)
+      .single();
+
+    if (investor?.pq_status === "approved") {
+      // Send email prompting PQ update
+      const { sendEmail, composePqUpdatePromptEmail } = await import("@/lib/email");
+      const roundName = data.saft_rounds?.name || "a new round";
+      const { subject, html } = composePqUpdatePromptEmail(
+        investor.full_name,
+        roundName,
+        body.token_amount
+      );
+      await sendEmail(investor.email, subject, html);
+
+      // Mark the timestamp so dashboard can show a banner
+      await auth.client
+        .from("investors")
+        .update({ pq_update_prompted_at: new Date().toISOString() })
+        .eq("id", investor.id);
+    }
+  } catch (err: any) {
+    console.error("[ALLOC] PQ update prompt failed:", err.message);
+  }
+
   return NextResponse.json({
     ...data,
     _approval_status: approvalStatus,

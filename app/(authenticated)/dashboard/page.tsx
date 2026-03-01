@@ -157,6 +157,20 @@ export default async function DashboardPage() {
         </a>
       )}
 
+      {/* PQ Update Prompt — shown when new allocation added after PQ approval */}
+      {typedInvestor.pq_status === "approved" && typedInvestor.pq_update_prompted_at && (
+        <a href="/pq" className="block bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-center gap-3 hover:border-amber-400 transition-colors">
+          <span className="text-lg">📋</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">Questionnaire update requested</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              A new allocation has been added. Please review and resubmit your Purchaser Questionnaire for re-approval.
+            </p>
+          </div>
+          <span className="text-amber-600 text-sm font-medium">Update →</span>
+        </a>
+      )}
+
       {/* Payment Flow — interactive payment submission */}
       <PaymentFlow />
 

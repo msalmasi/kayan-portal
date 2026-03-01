@@ -227,6 +227,44 @@ export function composePqResultEmail(
   return { subject, html };
 }
 
+/** Compose "PQ update prompt" email — sent when a new allocation is added to an investor with an approved PQ */
+export function composePqUpdatePromptEmail(
+  investorName: string,
+  roundName: string,
+  tokenAmount?: number
+) {
+  const subject = `Kayan Token — Please Review Your Purchaser Questionnaire`;
+  const tokenLine = tokenAmount
+    ? ` for <strong>${Number(tokenAmount).toLocaleString()} tokens</strong>`
+    : "";
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">New Allocation Added</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      Dear ${investorName}, a new allocation has been added to your account
+      in the <strong>${roundName}</strong> round${tokenLine}.
+    </p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:0 0 16px;">
+      <p style="margin:0;font-size:14px;color:#92400e;line-height:1.5;">
+        <strong>Action requested:</strong> Please review and update your Purchaser Questionnaire
+        to reflect this new allocation. Your updated questionnaire will need to be re-approved
+        by our compliance team.
+      </p>
+    </div>
+    <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.6;">
+      If your investment details (amount, payment method, source of funds) have not changed,
+      you may re-submit the questionnaire as-is for re-approval.
+    </p>
+    <a href="${PORTAL_URL}/pq" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+      Update Questionnaire →
+    </a>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      This email was sent by the Kayan Token administration team.
+    </p>
+  `);
+  return { subject, html };
+}
+
 /** Compose "documents ready" email — sent when SAFT is generated and ready to sign */
 export function composeDocumentsReadyEmail(investorName: string, roundName: string) {
   const subject = `Kayan Token — ${roundName} Documents Ready for Signing`;

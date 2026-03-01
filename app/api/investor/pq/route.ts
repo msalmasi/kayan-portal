@@ -54,6 +54,7 @@ export async function GET() {
     pq_submitted_at: ctx.investor.pq_submitted_at,
     pq_notes: ctx.investor.pq_notes,
     pq_reviewed_at: ctx.investor.pq_reviewed_at,
+    pq_update_prompted_at: ctx.investor.pq_update_prompted_at,
     kyc_status: ctx.investor.kyc_status,
     full_name: ctx.investor.full_name,
     email: ctx.investor.email,
@@ -129,6 +130,7 @@ export async function POST(request: NextRequest) {
       pq_notes: null,
       pq_reviewed_at: null,
       pq_reviewed_by: null,
+      pq_update_prompted_at: null,
     })
     .eq("id", ctx.investor.id);
 

@@ -19,6 +19,7 @@ export interface Investor {
   pq_reviewed_by: string | null;
   pq_reviewed_at: string | null;
   pq_notes: string | null;
+  pq_update_prompted_at: string | null;
   docs_sent_at: string | null;
   created_at: string;
 }
