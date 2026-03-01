@@ -176,8 +176,8 @@ export function PaymentFlow() {
     setTimeout(() => setCopied(""), 2000);
   };
 
-  // Nothing due
-  if (!loading && rounds.length === 0 && grants.length === 0 && claims.length === 0) return null;
+  // Nothing to show — hide entire card (grants are displayed in AllocationTable)
+  if (!loading && rounds.length === 0 && claims.length === 0) return null;
   if (loading) return <Card><CardHeader title="Payments" /><p className="text-sm text-gray-400">Loading…</p></Card>;
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500";
@@ -291,7 +291,7 @@ export function PaymentFlow() {
             );
           })}
 
-          {rounds.length === 0 && grants.length === 0 && claims.length > 0 && (
+          {rounds.length === 0 && claims.length > 0 && (
             <p className="text-sm text-emerald-600 font-medium">All balances settled. Thank you!</p>
           )}
 
