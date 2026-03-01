@@ -98,10 +98,17 @@ export async function POST(request: NextRequest) {
     }
 
     const roundLabel = roundNames.join(" + ");
+
+    // Load enabled payment methods for the email
+    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
+    const settings = await loadPaymentSettings(supabase);
+    const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
+
     const composed = composeCapitalCallEmail(
       investor.full_name,
       totalDue,
-      roundLabel
+      roundLabel,
+      enabledMethods
     );
     subject = composed.subject;
     html = composed.html;

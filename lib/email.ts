@@ -59,13 +59,53 @@ export function composeWelcomeEmail(investorName: string) {
 export function composeCapitalCallEmail(
   investorName: string,
   amountUsd: number,
-  roundName: string
+  roundName: string,
+  /** Pass enabled method IDs, e.g. ["usdc_eth","usdc_sol","wire"]. Defaults to all crypto if omitted. */
+  enabledMethods?: string[]
 ) {
   const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(amountUsd);
+
+  // Build payment method rows based on what's enabled
+  const methods = enabledMethods ?? ["usdc_eth", "usdc_sol", "usdt_eth"];
+  const hasCrypto = methods.some(m => m.startsWith("usdc_") || m.startsWith("usdt_"));
+  const hasWire = methods.includes("wire");
+
+  const cryptoLabels: string[] = [];
+  if (methods.includes("usdc_eth")) cryptoLabels.push("USDC on Ethereum");
+  if (methods.includes("usdc_sol")) cryptoLabels.push("USDC on Solana");
+  if (methods.includes("usdt_eth")) cryptoLabels.push("USDT on Ethereum");
+
+  let methodRows = "";
+
+  if (hasCrypto) {
+    methodRows += `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+          <strong style="color:#374151;">Crypto${!hasWire ? "" : " (Recommended)"}</strong>
+        </td>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+          ${cryptoLabels.join(", ")}.<br/>
+          <span style="color:#059669;font-size:11px;">✓ Automatic on-chain verification — instant confirmation</span>
+        </td>
+      </tr>`;
+  }
+
+  if (hasWire) {
+    methodRows += `
+      <tr>
+        <td style="padding:8px 0;${hasCrypto ? "" : "border-bottom:1px solid #f3f4f6;"}vertical-align:top;">
+          <strong style="color:#374151;">Wire Transfer (USD)</strong>
+        </td>
+        <td style="padding:8px 0;${hasCrypto ? "" : "border-bottom:1px solid #f3f4f6;"}">
+          Bank wire instructions available in the portal.<br/>
+          <span style="font-size:11px;color:#9ca3af;">Manual verification — 2–5 business days</span>
+        </td>
+      </tr>`;
+  }
 
   const subject = `Kayan Token — Capital Call: ${formatted} for ${roundName}`;
   const html = wrapHtml(`
@@ -89,32 +129,7 @@ export function composeCapitalCallEmail(
 
     <p style="margin:0 0 8px;font-size:14px;color:#374151;font-weight:600;">Payment Methods</p>
     <table style="width:100%;font-size:13px;color:#6b7280;border-collapse:collapse;margin:0 0 16px;" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
-          <strong style="color:#374151;">Crypto (Recommended)</strong>
-        </td>
-        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
-          USDC on Ethereum or Solana, USDT on Ethereum.<br/>
-          <span style="color:#059669;font-size:11px;">✓ Automatic on-chain verification — instant confirmation</span>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
-          <strong style="color:#374151;">Wire Transfer (USD)</strong>
-        </td>
-        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
-          Bank wire instructions available in the portal.<br/>
-          <span style="font-size:11px;color:#9ca3af;">Manual verification — 2–5 business days</span>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:8px 0;vertical-align:top;">
-          <strong style="color:#9ca3af;">Credit Card</strong>
-        </td>
-        <td style="padding:8px 0;">
-          <span style="font-size:11px;color:#9ca3af;">Coming soon</span>
-        </td>
-      </tr>
+      ${methodRows}
     </table>
 
     <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.6;">

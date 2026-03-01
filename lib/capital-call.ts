@@ -203,10 +203,16 @@ export async function checkAndSendCapitalCall(
       }, 0
     );
 
+    // Load enabled payment methods for the email
+    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
+    const settings = await loadPaymentSettings(supabase);
+    const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
+
     const { subject, html } = composeCapitalCallEmail(
       investor.full_name,
       totalDueRound,
-      roundName
+      roundName,
+      enabledMethods
     );
     const emailSent = await sendEmail(investor.email, subject, html);
 
