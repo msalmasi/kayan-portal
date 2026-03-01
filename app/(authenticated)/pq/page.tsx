@@ -56,6 +56,7 @@ export default function PurchaserQuestionnairePage() {
   const [reviewNotes, setReviewNotes] = useState("");
   const [pqUpdatePrompted, setPqUpdatePrompted] = useState(false);
   const [existingData, setExistingData] = useState<PqFormData | null>(null);
+  const [editingApproved, setEditingApproved] = useState(false);
 
   // ── Form state (each section) ──
   const [sectionA, setSectionA] = useState<PqSectionA>({
@@ -236,7 +237,6 @@ export default function PurchaserQuestionnairePage() {
   }
 
   // ── Already approved — read-only by default, but can opt to edit ──
-  const [editingApproved, setEditingApproved] = useState(false);
   const readOnly = pqStatus === "submitted" || (pqStatus === "approved" && !editingApproved);
   const canEdit = pqStatus === "sent" || pqStatus === "rejected" || pqStatus === "not_sent" || editingApproved;
 

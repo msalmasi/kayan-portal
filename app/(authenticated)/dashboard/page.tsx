@@ -68,33 +68,28 @@ export default async function DashboardPage() {
     );
   }
 
-  // Fetch paid allocations (fully confirmed, approved only — includes grants)
-  const { data: paidAllocations } = await supabase
+  // Fetch ALL approved allocations (every status — paid, partial, invoiced, unpaid, grant)
+  const { data: allAllocations } = await supabase
     .from("allocations")
     .select("*, saft_rounds(*)")
     .eq("investor_id", investor.id)
-    .in("payment_status", ["paid", "grant"])
     .eq("approval_status", "approved");
 
-  // Fetch partial allocations (some payment received, approved only)
-  const { data: partialAllocations } = await supabase
-    .from("allocations")
-    .select("*, saft_rounds(*)")
-    .eq("investor_id", investor.id)
-    .eq("payment_status", "partial")
-    .eq("approval_status", "approved");
+  // Fetch invoiced + partial for amount due banner
+  const outstandingAllocations = (allAllocations || []).filter(
+    (a: any) => a.payment_status === "invoiced" || a.payment_status === "partial"
+  );
 
-  // Fetch invoiced + partial for amount due banner (approved only)
-  const { data: outstandingAllocations } = await supabase
-    .from("allocations")
-    .select("amount_usd, amount_received_usd, token_amount, saft_rounds(name, token_price)")
-    .eq("investor_id", investor.id)
-    .in("payment_status", ["invoiced", "partial"])
-    .eq("approval_status", "approved");
+  // Separate confirmed (shown in stats/vesting) vs all (shown in table)
+  const confirmedAllocations = (allAllocations || []).filter(
+    (a: any) => a.payment_status === "paid" || a.payment_status === "grant"
+  );
 
   // For partial allocations, scale token_amount to the paid proportion.
-  // e.g. 100,000 tokens at $50k, $20k received → show 40,000 tokens
-  const scaledPartials = (partialAllocations || []).map((a: any) => {
+  const partialAllocations = (allAllocations || []).filter(
+    (a: any) => a.payment_status === "partial"
+  );
+  const scaledPartials = partialAllocations.map((a: any) => {
     const totalDue = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
     const received = Number(a.amount_received_usd) || 0;
     const paidRatio = totalDue > 0 ? received / totalDue : 0;
@@ -108,19 +103,34 @@ export default async function DashboardPage() {
     };
   });
 
+  // Stats/vesting show confirmed + scaled partials
   const typedAllocations = [
-    ...(paidAllocations || []),
+    ...confirmedAllocations,
     ...scaledPartials,
   ] as AllocationWithRound[];
 
   const typedInvestor = investor as Investor;
 
   // Calculate remaining balance: total due minus what's been received
-  const amountDue = (outstandingAllocations || []).reduce((sum: number, a: any) => {
+  const amountDue = outstandingAllocations.reduce((sum: number, a: any) => {
     const total = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
     const received = Number(a.amount_received_usd) || 0;
     return sum + (total - received);
   }, 0);
+
+  // Fetch SAFT signing status per round
+  const { data: investorDocs } = await supabase
+    .from("investor_documents")
+    .select("round_id, doc_type, status")
+    .eq("investor_id", investor.id)
+    .eq("doc_type", "saft");
+
+  // Build a set of round IDs with signed SAFTs
+  const signedRoundIds = new Set(
+    (investorDocs || [])
+      .filter((d: any) => d.status === "signed")
+      .map((d: any) => d.round_id)
+  );
 
   const hasPartials = scaledPartials.length > 0;
 
@@ -132,7 +142,7 @@ export default async function DashboardPage() {
           Welcome, {typedInvestor.full_name}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          {typedAllocations.length > 0
+          {(allAllocations || []).length > 0
             ? "Your $KAYAN token allocation overview"
             : "Complete your subscription to see your token allocations"}
         </p>
@@ -180,8 +190,16 @@ export default async function DashboardPage() {
         kycStatus={typedInvestor.kyc_status}
       />
 
-      {/* Allocation Details */}
-      <AllocationTable allocations={typedAllocations} />
+      {/* Allocation Details — shows ALL allocations with status indicators */}
+      <AllocationTable
+        allocations={(allAllocations || []) as AllocationWithRound[]}
+        investorStatus={{
+          kycVerified: typedInvestor.kyc_status === "verified",
+          pqApproved: typedInvestor.pq_status === "approved",
+          docsSent: !!typedInvestor.docs_sent_at,
+          signedRoundIds,
+        }}
+      />
 
       {/* Vesting Schedule Chart */}
       <VestingChart allocations={typedAllocations} />

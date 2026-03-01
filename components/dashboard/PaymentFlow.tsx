@@ -291,25 +291,6 @@ export function PaymentFlow() {
             );
           })}
 
-          {/* ── Grant allocations (no payment needed) ── */}
-          {grants.map((g) => (
-            <div
-              key={`grant-${g.round_id}`}
-              className="border border-emerald-200 bg-emerald-50/30 rounded-xl px-5 py-4 flex items-center justify-between"
-            >
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{g.round_name}</p>
-                <p className="text-xs text-emerald-600 mt-0.5">Grant — no payment required</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-emerald-700">{g.total_tokens.toLocaleString()} tokens</p>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">
-                  ✓ Granted
-                </span>
-              </div>
-            </div>
-          ))}
-
           {rounds.length === 0 && grants.length === 0 && claims.length > 0 && (
             <p className="text-sm text-emerald-600 font-medium">All balances settled. Thank you!</p>
           )}
