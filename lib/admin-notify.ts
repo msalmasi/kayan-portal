@@ -216,7 +216,9 @@ export function notifyPaymentReceived(
     investorId: investor.id,
     investorName: investor.full_name,
     investorEmail: investor.email,
-    title: `${investor.full_name} payment ${status === "paid" ? "confirmed" : "partially received"} — $${amount.toLocaleString()}`,
+    title: status === "grant"
+      ? `${investor.full_name} allocation marked as grant`
+      : `${investor.full_name} payment ${status === "paid" ? "confirmed" : "partially received"} — $${amount.toLocaleString()}`,
     detail: `Round: ${roundName}`,
     metadata: { amount, round_name: roundName, status },
   });
