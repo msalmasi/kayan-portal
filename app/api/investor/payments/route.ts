@@ -324,6 +324,137 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(claim);
 }
 
+// ─── PATCH: Re-check a pending crypto claim ─────────────────
+
+/**
+ * PATCH /api/investor/payments
+ * Re-run on-chain verification for a pending crypto claim.
+ * Body: { claim_id: string }
+ */
+export async function PATCH(request: NextRequest) {
+  const ctx = await getInvestorContext();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { investor, adminClient } = ctx;
+  const { claim_id } = await request.json();
+
+  if (!claim_id) {
+    return NextResponse.json({ error: "claim_id required" }, { status: 400 });
+  }
+
+  // Fetch the claim — must belong to this investor
+  const { data: claim } = await adminClient
+    .from("payment_claims")
+    .select("*")
+    .eq("id", claim_id)
+    .eq("investor_id", investor.id)
+    .single();
+
+  if (!claim) {
+    return NextResponse.json({ error: "Claim not found" }, { status: 404 });
+  }
+
+  if (claim.status === "verified") {
+    return NextResponse.json({ error: "Claim already verified" }, { status: 400 });
+  }
+
+  if (!claim.tx_hash) {
+    return NextResponse.json({ error: "No transaction hash — wire claims cannot be re-checked" }, { status: 400 });
+  }
+
+  // Load wallet from DB and re-verify
+  const { loadPaymentSettings, getWalletForMethod } = await import("@/lib/payment-config");
+  const settings = await loadPaymentSettings(adminClient);
+  const receivingWallet = getWalletForMethod(claim.method, settings.wallets);
+
+  const { verifyOnChain } = await import("@/lib/chain-verify");
+  const result = await verifyOnChain(claim.method, claim.tx_hash, Number(claim.amount_usd), receivingWallet);
+
+  const isOnChainConfirmed = result.verified || result.reason === "insufficient_amount";
+  const actualAmount = result.amountTransferred || 0;
+
+  if (isOnChainConfirmed && actualAmount > 0) {
+    // Verified — auto-apply
+    await adminClient
+      .from("payment_claims")
+      .update({
+        status: "verified",
+        amount_usd: actualAmount,
+        amount_verified_usd: actualAmount,
+        verified_at: new Date().toISOString(),
+        verified_by: "auto",
+        chain_data: result.chainData,
+      })
+      .eq("id", claim_id);
+
+    await applyPayment(
+      adminClient, investor, claim.round_id,
+      actualAmount, claim.method, claim.tx_hash
+    );
+
+    return NextResponse.json({
+      success: true,
+      verified: true,
+      amount_applied: actualAmount,
+      detail: `Verified: $${actualAmount.toLocaleString()} received on-chain`,
+    });
+  }
+
+  // Still not verifiable — update chain_data
+  await adminClient
+    .from("payment_claims")
+    .update({ chain_data: result.chainData || { error: result.detail } })
+    .eq("id", claim_id);
+
+  return NextResponse.json({
+    success: true,
+    verified: false,
+    detail: result.detail || "Transaction still not confirmed on-chain",
+  });
+}
+
+// ─── DELETE: Remove an unverified claim ─────────────────────
+
+/**
+ * DELETE /api/investor/payments
+ * Investor can delete their own claims that haven't been verified.
+ * Body: { claim_id: string }
+ */
+export async function DELETE(request: NextRequest) {
+  const ctx = await getInvestorContext();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { investor, adminClient } = ctx;
+  const { claim_id } = await request.json();
+
+  if (!claim_id) {
+    return NextResponse.json({ error: "claim_id required" }, { status: 400 });
+  }
+
+  // Fetch claim — must belong to this investor and not be verified
+  const { data: claim } = await adminClient
+    .from("payment_claims")
+    .select("id, status")
+    .eq("id", claim_id)
+    .eq("investor_id", investor.id)
+    .single();
+
+  if (!claim) {
+    return NextResponse.json({ error: "Claim not found" }, { status: 404 });
+  }
+
+  if (claim.status === "verified") {
+    return NextResponse.json({ error: "Cannot delete a verified payment" }, { status: 400 });
+  }
+
+  await adminClient
+    .from("payment_claims")
+    .delete()
+    .eq("id", claim_id);
+
+  return NextResponse.json({ success: true, deleted: claim_id });
+}
+
 // ─── Apply verified payment to allocations ──────────────────
 
 /**

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { toast } from "sonner";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -223,15 +224,57 @@ export function PaymentFlow() {
                   return (
                     <div className="space-y-2">
                       {roundClaims.length > 0 && (
-                        <div className="text-xs text-amber-700 bg-amber-100 rounded-lg px-3 py-2 space-y-1">
+                        <div className="text-xs text-amber-700 bg-amber-100 rounded-lg px-3 py-2 space-y-2">
                           {roundClaims.map((c) => (
-                            <div key={c.id} className="flex items-center gap-2">
-                              <span>
-                                {c.method === "wire"
-                                  ? `Wire payment of $${Number(c.amount_usd).toLocaleString()} submitted`
-                                  : "Crypto payment submitted — awaiting verification"}
-                              </span>
-                              <ClaimStatusBadge status={c.status} />
+                            <div key={c.id} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="flex-1">
+                                  {c.method === "wire"
+                                    ? `Wire payment of $${Number(c.amount_usd).toLocaleString()} submitted`
+                                    : "Crypto payment submitted — awaiting verification"}
+                                </span>
+                                <ClaimStatusBadge status={c.status} />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {/* Re-check: crypto only */}
+                                {c.tx_hash && (
+                                  <button
+                                    onClick={async () => {
+                                      const res = await fetch("/api/investor/payments", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ claim_id: c.id }),
+                                      });
+                                      const d = await res.json();
+                                      if (d.verified) {
+                                        toast.success(`Verified! $${(d.amount_applied || 0).toLocaleString()} applied`);
+                                      } else {
+                                        toast.info(d.detail || "Still not confirmed on-chain");
+                                      }
+                                      fetchData();
+                                    }}
+                                    className="text-[11px] font-medium text-blue-700 hover:text-blue-900 underline"
+                                  >
+                                    ↻ Re-check
+                                  </button>
+                                )}
+                                {/* Delete */}
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm("Remove this payment claim? This cannot be undone.")) return;
+                                    const res = await fetch("/api/investor/payments", {
+                                      method: "DELETE",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ claim_id: c.id }),
+                                    });
+                                    if (res.ok) { toast.success("Payment claim removed"); fetchData(); }
+                                    else { const d = await res.json(); toast.error(d.error || "Failed"); }
+                                  }}
+                                  className="text-[11px] font-medium text-red-600 hover:text-red-800 underline"
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -254,27 +297,70 @@ export function PaymentFlow() {
             <div className="border-t border-gray-100 pt-4">
               <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Payment History</h4>
               <div className="space-y-2">
-                {claims.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg text-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-xs text-gray-400">{METHOD_LABELS[c.method] || c.method}</span>
-                      <span className="text-xs text-gray-500 font-mono truncate max-w-[160px]">
-                        {c.tx_hash ? `${c.tx_hash.slice(0, 10)}…${c.tx_hash.slice(-6)}` : c.wire_reference || "—"}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {c.status === "verified"
-                          ? `$${Number((c as any).amount_verified_usd ?? c.amount_usd).toLocaleString()}`
-                          : c.method === "wire"
-                            ? `$${c.amount_usd.toLocaleString()}`
-                            : "pending"}
-                      </span>
+                {claims.map((c) => {
+                  const isActionable = c.status !== "verified";
+                  return (
+                    <div key={c.id} className={`py-2 px-3 rounded-lg text-sm ${isActionable ? "bg-amber-50/50" : "bg-gray-50"}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-xs text-gray-400">{METHOD_LABELS[c.method] || c.method}</span>
+                          <span className="text-xs text-gray-500 font-mono truncate max-w-[160px]">
+                            {c.tx_hash ? `${c.tx_hash.slice(0, 10)}…${c.tx_hash.slice(-6)}` : c.wire_reference || "—"}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {c.status === "verified"
+                              ? `$${Number((c as any).amount_verified_usd ?? c.amount_usd).toLocaleString()}`
+                              : c.method === "wire"
+                                ? `$${c.amount_usd.toLocaleString()}`
+                                : "pending"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <ClaimStatusBadge status={c.status} />
+                          <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      {/* Actions for unverified claims */}
+                      {isActionable && (
+                        <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-gray-100">
+                          {c.tx_hash && (
+                            <button
+                              onClick={async () => {
+                                const res = await fetch("/api/investor/payments", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ claim_id: c.id }),
+                                });
+                                const d = await res.json();
+                                if (d.verified) toast.success(`Verified! $${(d.amount_applied || 0).toLocaleString()} applied`);
+                                else toast.info(d.detail || "Still not confirmed");
+                                fetchData();
+                              }}
+                              className="text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              ↻ Re-check on-chain
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              if (!confirm("Remove this payment claim?")) return;
+                              const res = await fetch("/api/investor/payments", {
+                                method: "DELETE",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ claim_id: c.id }),
+                              });
+                              if (res.ok) { toast.success("Claim removed"); fetchData(); }
+                              else { const d = await res.json(); toast.error(d.error || "Failed"); }
+                            }}
+                            className="text-[11px] font-medium text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <ClaimStatusBadge status={c.status} />
-                      <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
