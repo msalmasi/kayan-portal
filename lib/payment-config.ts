@@ -66,15 +66,15 @@ const DEFAULTS: PaymentSettings = {
     credit_card: { enabled: false, label: "Credit Card",        sublabel: "Coming soon", icon: "💳" },
   },
   wallets: {
-    ethereum: process.env.RECEIVING_WALLET_ETH || "",
-    solana: process.env.RECEIVING_WALLET_SOL || "",
+    ethereum: "",
+    solana: "",
   },
   wire_instructions: {
-    bank_name: process.env.WIRE_BANK_NAME || "",
-    account_name: process.env.WIRE_ACCOUNT_NAME || "",
-    account_number: process.env.WIRE_ACCOUNT_NUMBER || "",
-    routing_number: process.env.WIRE_ROUTING_NUMBER || "",
-    swift_code: process.env.WIRE_SWIFT_CODE || "",
+    bank_name: "",
+    account_name: "",
+    account_number: "",
+    routing_number: "",
+    swift_code: "",
     reference_note: "Include your full name and 'Kayan Token' as reference",
   },
 };

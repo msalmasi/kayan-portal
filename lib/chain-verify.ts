@@ -54,7 +54,7 @@ export async function verifyEthereumTx(
   const decimals = TOKEN_DECIMALS[contractKey];
 
   if (!receivingWallet) {
-    return { verified: false, reason: "error", detail: "Receiving wallet not configured (RECEIVING_WALLET_ETH)", chainData: {} };
+    return { verified: false, reason: "error", detail: "Receiving wallet not configured — set it in Admin Settings", chainData: {} };
   }
 
   try {
@@ -172,7 +172,7 @@ export async function verifySolanaTx(
   const decimals = TOKEN_DECIMALS.usdc_sol;
 
   if (!receivingWallet) {
-    return { verified: false, reason: "error", detail: "Receiving wallet not configured (RECEIVING_WALLET_SOL)", chainData: {} };
+    return { verified: false, reason: "error", detail: "Receiving wallet not configured — set it in Admin Settings", chainData: {} };
   }
 
   try {
