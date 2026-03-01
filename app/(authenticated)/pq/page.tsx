@@ -139,9 +139,12 @@ export default function PurchaserQuestionnairePage() {
     const bChecks = Object.values(sectionB);
     if (bChecks.some((v) => !v)) return "Section B: All Non-U.S. Person certifications must be checked";
 
-    if (!sectionD.investment_amount_usd || sectionD.investment_amount_usd <= 0)
-      return "Section D: Investment amount is required";
-    if (!sectionD.source_of_funds) return "Section D: Source of funds description is required";
+    // Section D: skip investment/payment/source checks for grants
+    if (!sectionD.is_grant) {
+      if (!sectionD.investment_amount_usd || sectionD.investment_amount_usd <= 0)
+        return "Section D: Investment amount is required";
+      if (!sectionD.source_of_funds) return "Section D: Source of funds description is required";
+    }
     if (!sectionD.sanctions_confirmation)
       return "Section D: Sanctions confirmation is required";
 
@@ -183,8 +186,12 @@ export default function PurchaserQuestionnairePage() {
 
     setSubmitting(false);
     if (res.ok) {
-      toast.success("Purchaser Questionnaire submitted successfully");
+      toast.success(editingApproved
+        ? "Questionnaire resubmitted for re-approval"
+        : "Purchaser Questionnaire submitted successfully"
+      );
       setPqStatus("submitted");
+      setEditingApproved(false);
     } else {
       const err = await res.json();
       toast.error(err.error || "Submission failed");
@@ -226,9 +233,10 @@ export default function PurchaserQuestionnairePage() {
     );
   }
 
-  // ── Already approved — read-only ──
-  const readOnly = pqStatus === "approved" || pqStatus === "submitted";
-  const canEdit = pqStatus === "sent" || pqStatus === "rejected" || pqStatus === "not_sent";
+  // ── Already approved — read-only by default, but can opt to edit ──
+  const [editingApproved, setEditingApproved] = useState(false);
+  const readOnly = pqStatus === "submitted" || (pqStatus === "approved" && !editingApproved);
+  const canEdit = pqStatus === "sent" || pqStatus === "rejected" || pqStatus === "not_sent" || editingApproved;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -242,9 +250,27 @@ export default function PurchaserQuestionnairePage() {
       </div>
 
       {/* Status messages */}
-      {pqStatus === "approved" && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800">
-          Your Purchaser Questionnaire has been approved. No changes needed.
+      {pqStatus === "approved" && !editingApproved && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800 flex items-center justify-between">
+          <span>Your Purchaser Questionnaire has been approved.</span>
+          <button
+            onClick={() => setEditingApproved(true)}
+            className="text-xs font-medium text-kayan-600 hover:text-kayan-800 underline underline-offset-2"
+          >
+            Update for re-approval →
+          </button>
+        </div>
+      )}
+      {editingApproved && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+          <strong>Editing mode:</strong> Your changes will require re-approval by an admin.
+          Previously approved data will be preserved until the new submission is reviewed.
+          <button
+            onClick={() => setEditingApproved(false)}
+            className="ml-3 text-xs font-medium text-amber-600 hover:text-amber-800 underline underline-offset-2"
+          >
+            Cancel editing
+          </button>
         </div>
       )}
       {pqStatus === "submitted" && (
@@ -353,25 +379,40 @@ export default function PurchaserQuestionnairePage() {
       <Card>
         <CardHeader title="Section D — Source of Funds & AML" subtitle="Investment amount, payment method, and compliance" />
         <div className={sectionCls}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Investment Amount (USD)</label>
-              <input type="number" value={sectionD.investment_amount_usd || ""} onChange={(e) => setSectionD({ ...sectionD, investment_amount_usd: Number(e.target.value) })} disabled={readOnly} placeholder="50000" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Payment Method</label>
-              <select value={sectionD.payment_method} onChange={(e) => setSectionD({ ...sectionD, payment_method: e.target.value as PaymentMethod })} disabled={readOnly} className={selectCls}>
-                <option value="wire">USD Wire Transfer</option>
-                <option value="usdt">USDT (Tether)</option>
-                <option value="usdc">USDC (USD Coin)</option>
-                <option value="credit_card">Credit Card</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Source of Funds</label>
-            <textarea value={sectionD.source_of_funds} onChange={(e) => setSectionD({ ...sectionD, source_of_funds: e.target.value })} disabled={readOnly} rows={3} placeholder="Describe the origin of the funds being used for this investment (e.g., employment income, business profits, investment returns, family wealth)" className={`${inputCls} resize-none`} />
-          </div>
+          <Check
+            checked={!!sectionD.is_grant}
+            onChange={(v) => setSectionD({ ...sectionD, is_grant: v })}
+            disabled={readOnly}
+            label="This allocation is a grant (no investment payment required)"
+          />
+          {sectionD.is_grant && (
+            <p className="text-xs text-gray-400 ml-7 -mt-2">
+              Investment amount, payment method, and source of funds do not apply for grants.
+            </p>
+          )}
+          {!sectionD.is_grant && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Investment Amount (USD)</label>
+                  <input type="number" value={sectionD.investment_amount_usd || ""} onChange={(e) => setSectionD({ ...sectionD, investment_amount_usd: Number(e.target.value) })} disabled={readOnly} placeholder="50000" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Payment Method</label>
+                  <select value={sectionD.payment_method} onChange={(e) => setSectionD({ ...sectionD, payment_method: e.target.value as PaymentMethod })} disabled={readOnly} className={selectCls}>
+                    <option value="wire">USD Wire Transfer</option>
+                    <option value="usdt">USDT (Tether)</option>
+                    <option value="usdc">USDC (USD Coin)</option>
+                    <option value="credit_card">Credit Card</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Source of Funds</label>
+                <textarea value={sectionD.source_of_funds} onChange={(e) => setSectionD({ ...sectionD, source_of_funds: e.target.value })} disabled={readOnly} rows={3} placeholder="Describe the origin of the funds being used for this investment (e.g., employment income, business profits, investment returns, family wealth)" className={`${inputCls} resize-none`} />
+              </div>
+            </>
+          )}
           <Check checked={sectionD.sanctions_confirmation} onChange={(v) => setSectionD({ ...sectionD, sanctions_confirmation: v })} disabled={readOnly}
             label="I confirm that I am not subject to any sanctions administered by OFAC, the UN Security Council, the EU, or HM Treasury, and that the funds used for this investment are not derived from or connected to any sanctioned person, entity, or jurisdiction." />
         </div>
@@ -439,11 +480,17 @@ export default function PurchaserQuestionnairePage() {
       {canEdit && (
         <div className="flex items-center gap-4 pb-8">
           <Button onClick={handleSubmit} loading={submitting}>
-            {existingData ? "Resubmit Questionnaire" : "Submit Questionnaire"}
+            {editingApproved ? "Resubmit for Re-Approval" : existingData ? "Resubmit Questionnaire" : "Submit Questionnaire"}
           </Button>
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
-            Back to Dashboard
-          </Link>
+          {editingApproved ? (
+            <button onClick={() => setEditingApproved(false)} className="text-sm text-gray-500 hover:text-gray-700">
+              Cancel
+            </button>
+          ) : (
+            <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
+              Back to Dashboard
+            </Link>
+          )}
         </div>
       )}
     </div>

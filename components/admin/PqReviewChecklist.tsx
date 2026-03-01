@@ -252,9 +252,18 @@ export function PqReviewChecklist({
           onUpdate={(v) => updateSection("section_d", v)}
           disabled={disabled}
         >
-          <p><strong>Amount:</strong> ${d.section_d.investment_amount_usd?.toLocaleString() || "—"}</p>
-          <p><strong>Method:</strong> {PAYMENT_METHOD_LABELS[d.section_d.payment_method] || d.section_d.payment_method}</p>
-          <p><strong>Source:</strong> {d.section_d.source_of_funds || "—"}</p>
+          {d.section_d.is_grant ? (
+            <div className="bg-emerald-50 border border-emerald-100 rounded px-3 py-2">
+              <p className="text-emerald-700 font-medium text-xs">Grant allocation — no payment required</p>
+              <p className="text-gray-500 text-xs mt-0.5">Investment amount, payment method, and source of funds do not apply.</p>
+            </div>
+          ) : (
+            <>
+              <p><strong>Amount:</strong> ${d.section_d.investment_amount_usd?.toLocaleString() || "—"}</p>
+              <p><strong>Method:</strong> {PAYMENT_METHOD_LABELS[d.section_d.payment_method] || d.section_d.payment_method}</p>
+              <p><strong>Source:</strong> {d.section_d.source_of_funds || "—"}</p>
+            </>
+          )}
           <BoolVal value={d.section_d.sanctions_confirmation} label="Sanctions compliance confirmed" />
         </SectionReviewBlock>
 

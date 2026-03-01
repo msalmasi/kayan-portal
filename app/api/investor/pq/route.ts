@@ -73,10 +73,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Block submission if already approved
-  if (ctx.investor.pq_status === "approved") {
+  // Investors can resubmit if rejected or if updating after approval (for re-approval).
+  // "submitted" status blocks resubmission to prevent duplicate submissions while under review.
+  if (ctx.investor.pq_status === "submitted") {
     return NextResponse.json(
-      { error: "Your Purchaser Questionnaire has already been approved" },
+      { error: "Your questionnaire is currently under review" },
       { status: 400 }
     );
   }
@@ -114,6 +115,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const wasApproved = ctx.investor.pq_status === "approved";
+
   // Save the PQ data
   const { error } = await ctx.adminClient
     .from("investors")
@@ -121,8 +124,9 @@ export async function POST(request: NextRequest) {
       pq_data,
       pq_status: "submitted",
       pq_submitted_at: new Date().toISOString(),
-      // Clear any previous review if resubmitting after rejection
+      // Clear previous review data on resubmission
       pq_review: null,
+      pq_notes: null,
       pq_reviewed_at: null,
       pq_reviewed_by: null,
     })
@@ -137,12 +141,15 @@ export async function POST(request: NextRequest) {
     investor_id: ctx.investor.id,
     email_type: "pq_submitted_notification",
     sent_by: ctx.userEmail,
-    metadata: { trigger: "investor_submitted" },
+    metadata: {
+      trigger: wasApproved ? "investor_resubmitted_after_approval" : "investor_submitted",
+      is_grant: !!pq_data.section_d?.is_grant,
+    },
   });
 
   // Notify admins — this is action_required (needs review)
   const { notifyPqSubmitted } = await import("@/lib/admin-notify");
-  await notifyPqSubmitted(ctx.adminClient, ctx.investor);
+  await notifyPqSubmitted(ctx.adminClient, ctx.investor, wasApproved);
 
   return NextResponse.json({ success: true, pq_status: "submitted" });
 }

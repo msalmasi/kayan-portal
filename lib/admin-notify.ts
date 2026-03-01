@@ -168,7 +168,8 @@ export function notifyKycRejected(
 /** Investor submitted their Purchaser Questionnaire — needs review */
 export function notifyPqSubmitted(
   supabase: SupabaseClient,
-  investor: { id: string; full_name: string; email: string }
+  investor: { id: string; full_name: string; email: string },
+  wasApproved?: boolean
 ) {
   return notify(supabase, {
     eventType: "pq_submitted",
@@ -176,7 +177,9 @@ export function notifyPqSubmitted(
     investorId: investor.id,
     investorName: investor.full_name,
     investorEmail: investor.email,
-    title: `${investor.full_name} submitted their Purchaser Questionnaire`,
+    title: wasApproved
+      ? `${investor.full_name} updated their Purchaser Questionnaire (re-approval needed)`
+      : `${investor.full_name} submitted their Purchaser Questionnaire`,
     detail: "Review and approve or reject in the investor detail page.",
   });
 }

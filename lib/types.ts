@@ -145,6 +145,8 @@ export interface PqSectionC {
 
 /** Section D: Source of funds + AML */
 export interface PqSectionD {
+  /** If true, tokens are a grant — investment amount, payment method, source of funds are N/A */
+  is_grant?: boolean;
   investment_amount_usd: number;
   payment_method: PaymentMethod;
   source_of_funds: string;
