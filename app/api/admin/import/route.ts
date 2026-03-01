@@ -119,9 +119,9 @@ export async function POST(request: NextRequest) {
 
   // Prompt investors with approved PQs to update
   try {
-    const investorIds = [...new Set(
+    const investorIds = Array.from(new Set(
       Array.from(investorMap.values()).map((inv: any) => inv.id)
-    )];
+    ));
 
     if (investorIds.length > 0) {
       const { data: approvedInvestors } = await auth.client
