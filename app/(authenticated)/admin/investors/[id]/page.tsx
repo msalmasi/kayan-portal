@@ -1171,6 +1171,36 @@ export default function InvestorDetailPage() {
                         </div>
                       );
                     })()}
+
+                    {/* Delete — available for all claims (reverses payment if verified) */}
+                    {canWrite && (
+                      <div className={`${!isPending ? "pt-2 border-t border-gray-200" : ""} mt-2`}>
+                        <button
+                          onClick={async () => {
+                            const warning = claim.status === "verified"
+                              ? "This claim has been verified — deleting it will reverse the applied payment amount. Continue?"
+                              : "Delete this payment claim? This cannot be undone.";
+                            if (!confirm(warning)) return;
+                            const res = await fetch("/api/admin/payments/claims", {
+                              method: "DELETE",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ claim_id: claim.id }),
+                            });
+                            if (res.ok) {
+                              const d = await res.json();
+                              toast.success(d.reversed ? "Claim deleted — payment reversed" : "Claim deleted");
+                              fetchData();
+                            } else {
+                              const d = await res.json();
+                              toast.error(d.error || "Failed");
+                            }
+                          }}
+                          className="text-[11px] text-gray-400 hover:text-red-600 font-medium"
+                        >
+                          🗑 Delete claim
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

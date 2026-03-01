@@ -264,3 +264,90 @@ async function applyPayment(
     }
   }
 }
+
+// ─── DELETE: Admin removes any payment claim ────────────────
+
+/**
+ * DELETE /api/admin/payments/claims
+ * Delete a payment claim. If it was verified, reverses the applied amount
+ * from the allocation's amount_received_usd.
+ *
+ * Body: { claim_id: string }
+ */
+export async function DELETE(request: NextRequest) {
+  const auth = await getAdminAuth();
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth.canWrite) {
+    return NextResponse.json({ error: "Staff cannot delete payment claims" }, { status: 403 });
+  }
+
+  const { claim_id } = await request.json();
+  if (!claim_id) {
+    return NextResponse.json({ error: "claim_id required" }, { status: 400 });
+  }
+
+  // Fetch the claim
+  const { data: claim, error: fetchErr } = await auth.client
+    .from("payment_claims")
+    .select("*")
+    .eq("id", claim_id)
+    .single();
+
+  if (fetchErr || !claim) {
+    return NextResponse.json({ error: "Claim not found" }, { status: 404 });
+  }
+
+  // If claim was verified, reverse the applied amount from allocations
+  if (claim.status === "verified") {
+    const appliedAmount = Number(claim.amount_verified_usd ?? claim.amount_usd) || 0;
+
+    if (appliedAmount > 0) {
+      // Fetch allocations for this round to reverse payment
+      const { data: allocations } = await auth.client
+        .from("allocations")
+        .select("id, amount_usd, amount_received_usd, token_amount, saft_rounds(token_price)")
+        .eq("investor_id", claim.investor_id)
+        .eq("round_id", claim.round_id)
+        .eq("approval_status", "approved");
+
+      let toReverse = appliedAmount;
+
+      // Reverse in order — reduce amount_received_usd
+      for (const alloc of (allocations || []).reverse()) {
+        if (toReverse <= 0) break;
+
+        const received = Number(alloc.amount_received_usd) || 0;
+        if (received <= 0) continue;
+
+        const reversal = Math.min(toReverse, received);
+        const newReceived = received - reversal;
+        const due = Number(alloc.amount_usd) ||
+          Number(alloc.token_amount) * Number((alloc as any).saft_rounds?.token_price || 0);
+
+        await auth.client
+          .from("allocations")
+          .update({
+            amount_received_usd: newReceived,
+            payment_status: newReceived <= 0 ? "invoiced" : newReceived >= due * 0.995 ? "paid" : "partial",
+            // Clear payment_date if no longer fully paid
+            ...(newReceived < due * 0.995 ? { payment_date: null } : {}),
+          })
+          .eq("id", alloc.id);
+
+        toReverse -= reversal;
+      }
+    }
+  }
+
+  // Delete the claim
+  await auth.client
+    .from("payment_claims")
+    .delete()
+    .eq("id", claim_id);
+
+  return NextResponse.json({
+    success: true,
+    deleted: claim_id,
+    reversed: claim.status === "verified",
+  });
+}
