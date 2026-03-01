@@ -72,7 +72,7 @@ export async function checkAndSendCapitalCall(
   // ── Fetch approved allocations ──
   const { data: allocations } = await supabase
     .from("allocations")
-    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(id, name, token_price)")
+    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(id, name, token_price, deadline)")
     .eq("investor_id", investorId)
     .eq("approval_status", "approved");
 
@@ -115,6 +115,7 @@ export async function checkAndSendCapitalCall(
   for (const [roundId, roundAllocs] of Object.entries(roundMap)) {
     const roundName = (roundAllocs[0] as any).saft_rounds?.name || "Unknown";
     const tokenPrice = Number((roundAllocs[0] as any).saft_rounds?.token_price || 0);
+    const roundDeadline = (roundAllocs[0] as any).saft_rounds?.deadline || null;
     const hasSigned = signedRoundIds.has(roundId);
 
     // Skip rounds without signed SAFT
@@ -212,7 +213,8 @@ export async function checkAndSendCapitalCall(
       investor.full_name,
       totalDueRound,
       roundName,
-      enabledMethods
+      enabledMethods,
+      roundDeadline
     );
     const emailSent = await sendEmail(investor.email, subject, html);
 

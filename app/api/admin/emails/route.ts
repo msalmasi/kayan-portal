@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
     // Calculate total amount due across all unpaid allocations
     let totalDue = 0;
     const roundNames: string[] = [];
+    let earliestDeadline: string | null = null;
 
     for (const alloc of unpaidAllocations) {
       const price = alloc.saft_rounds?.token_price || 0;
@@ -83,6 +84,12 @@ export async function POST(request: NextRequest) {
       totalDue += amount;
       if (alloc.saft_rounds?.name && !roundNames.includes(alloc.saft_rounds.name)) {
         roundNames.push(alloc.saft_rounds.name);
+      }
+      // Track the earliest deadline across all rounds
+      if (alloc.saft_rounds?.deadline) {
+        if (!earliestDeadline || alloc.saft_rounds.deadline < earliestDeadline) {
+          earliestDeadline = alloc.saft_rounds.deadline;
+        }
       }
 
       // Auto-update payment status to "invoiced" if currently "unpaid"
@@ -108,7 +115,8 @@ export async function POST(request: NextRequest) {
       investor.full_name,
       totalDue,
       roundLabel,
-      enabledMethods
+      enabledMethods,
+      earliestDeadline
     );
     subject = composed.subject;
     html = composed.html;

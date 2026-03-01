@@ -59,7 +59,15 @@ function getRequiredActions(
 }
 
 /** Status badge for an allocation */
-function StatusBadge({ alloc, allDone }: { alloc: AllocationWithRound; allDone: boolean }) {
+function StatusBadge({ alloc, allDone, expired }: { alloc: AllocationWithRound; allDone: boolean; expired?: boolean }) {
+  if (expired) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
+        Expired
+      </span>
+    );
+  }
+
   const ps = alloc.payment_status;
 
   if (ps === "grant" && allDone) {
@@ -131,13 +139,27 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
           const isConfirmed = alloc.payment_status === "paid" || (isGrant && allDone);
           const nextAction = actions.find((a) => !a.done);
 
+          // Deadline logic
+          const deadlineStr = alloc.saft_rounds?.deadline;
+          const deadlineDate = deadlineStr ? new Date(deadlineStr) : null;
+          const isExpired = deadlineDate ? deadlineDate < new Date() : false;
+          const isExpiredUnconfirmed = isExpired && !isConfirmed;
+
+          // Days remaining for countdown
+          const daysLeft = deadlineDate
+            ? Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            : null;
+          const isUrgent = daysLeft !== null && daysLeft > 0 && daysLeft <= 7;
+
           return (
             <div
               key={alloc.id}
               className={`border rounded-xl px-5 py-4 transition-colors ${
-                isConfirmed
-                  ? "border-emerald-200 bg-emerald-50/30"
-                  : "border-gray-200 bg-white"
+                isExpiredUnconfirmed
+                  ? "border-red-200 bg-red-50/30 opacity-75"
+                  : isConfirmed
+                    ? "border-emerald-200 bg-emerald-50/30"
+                    : "border-gray-200 bg-white"
               }`}
             >
               {/* Top row: round name, tokens, badge */}
@@ -165,21 +187,42 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                   <p className={`text-lg font-bold ${isConfirmed ? "text-emerald-700" : "text-gray-900"}`}>
                     {formatTokenAmount(Number(alloc.token_amount))}
                   </p>
-                  <StatusBadge alloc={alloc} allDone={allDone} />
+                  <StatusBadge alloc={alloc} allDone={allDone} expired={isExpiredUnconfirmed} />
                 </div>
               </div>
 
               {/* Vesting info (compact) */}
               {alloc.saft_rounds && (
-                <div className="flex gap-4 mt-2 text-[11px] text-gray-400">
+                <div className="flex flex-wrap gap-4 mt-2 text-[11px] text-gray-400">
                   <span>TGE: {alloc.saft_rounds.tge_unlock_pct}%</span>
                   <span>Cliff: {alloc.saft_rounds.cliff_months > 0 ? `${alloc.saft_rounds.cliff_months}mo` : "None"}</span>
                   <span>Vesting: {alloc.saft_rounds.vesting_months}mo</span>
+                  {deadlineDate && !isConfirmed && (
+                    <span className={
+                      isExpired ? "text-red-500 font-medium" :
+                      isUrgent ? "text-amber-600 font-medium" :
+                      ""
+                    }>
+                      {isExpired
+                        ? `Deadline passed ${deadlineDate.toLocaleDateString()}`
+                        : `Deadline: ${deadlineDate.toLocaleDateString()}${isUrgent ? ` (${daysLeft}d left)` : ""}`
+                      }
+                    </span>
+                  )}
                 </div>
               )}
 
-              {/* Progress steps — only shown when not fully confirmed */}
-              {!isConfirmed && (
+              {/* Expired message — replaces progress steps */}
+              {isExpiredUnconfirmed && (
+                <div className="mt-3 pt-3 border-t border-red-100">
+                  <p className="text-xs text-red-500">
+                    The payment deadline for this round has passed. This allocation is no longer available.
+                  </p>
+                </div>
+              )}
+
+              {/* Progress steps — only shown when not confirmed and not expired */}
+              {!isConfirmed && !isExpiredUnconfirmed && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {actions.map((action, i) => (

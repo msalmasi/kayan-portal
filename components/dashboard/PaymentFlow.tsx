@@ -15,6 +15,7 @@ interface RoundBalance {
   total_due: number;
   total_received: number;
   balance_due: number;
+  deadline: string | null;
 }
 
 interface PaymentClaim {
@@ -194,6 +195,14 @@ export function PaymentFlow() {
       {step === "overview" && (
         <div className="space-y-4">
           {rounds.map((r) => {
+            const deadlineDate = r.deadline ? new Date(r.deadline) : null;
+            const isExpired = deadlineDate ? deadlineDate < new Date() : false;
+            const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+            const isUrgent = daysLeft !== null && daysLeft > 0 && daysLeft <= 7;
+
+            // Skip expired rounds entirely in payment flow
+            if (isExpired) return null;
+
             return (
               <div key={r.round_id} className="border border-amber-200 bg-amber-50/50 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -202,6 +211,11 @@ export function PaymentFlow() {
                     <p className="text-xs text-gray-500">
                       {r.total_tokens.toLocaleString()} tokens · ${r.total_due.toLocaleString()} total
                     </p>
+                    {deadlineDate && (
+                      <p className={`text-[11px] mt-0.5 ${isUrgent ? "text-red-600 font-medium" : "text-gray-400"}`}>
+                        Deadline: {deadlineDate.toLocaleDateString()}{isUrgent ? ` — ${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-amber-800">${r.balance_due.toLocaleString()}</p>

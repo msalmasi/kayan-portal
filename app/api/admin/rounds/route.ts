@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
       tge_unlock_pct: body.tge_unlock_pct || 0,
       cliff_months: body.cliff_months || 0,
       vesting_months: body.vesting_months,
+      deadline: body.deadline || null,
     })
     .select()
     .single();

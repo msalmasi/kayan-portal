@@ -50,7 +50,7 @@ export async function GET() {
   // Fetch outstanding allocations (invoiced or partial, approved only)
   const { data: allocations } = await adminClient
     .from("allocations")
-    .select("id, round_id, token_amount, amount_usd, payment_status, amount_received_usd, saft_rounds(id, name, token_price)")
+    .select("id, round_id, token_amount, amount_usd, payment_status, amount_received_usd, saft_rounds(id, name, token_price, deadline)")
     .eq("investor_id", investor.id)
     .eq("approval_status", "approved")
     .in("payment_status", ["invoiced", "partial"]);
@@ -58,7 +58,7 @@ export async function GET() {
   // Fetch grant allocations separately (no payment needed)
   const { data: grants } = await adminClient
     .from("allocations")
-    .select("id, round_id, token_amount, amount_usd, payment_status, amount_received_usd, saft_rounds(id, name, token_price)")
+    .select("id, round_id, token_amount, amount_usd, payment_status, amount_received_usd, saft_rounds(id, name, token_price, deadline)")
     .eq("investor_id", investor.id)
     .eq("approval_status", "approved")
     .eq("payment_status", "grant");
@@ -79,6 +79,7 @@ export async function GET() {
         round_id: rid,
         round_name: (alloc as any).saft_rounds?.name || "Unknown",
         token_price: Number((alloc as any).saft_rounds?.token_price || 0),
+        deadline: (alloc as any).saft_rounds?.deadline || null,
         total_tokens: 0,
         total_due: 0,
         total_received: 0,
@@ -184,6 +185,20 @@ export async function POST(request: NextRequest) {
     if (existing && existing.length > 0) {
       return NextResponse.json({ error: "This transaction has already been submitted" }, { status: 409 });
     }
+  }
+
+  // Check if this round has a deadline that has passed
+  const { data: round } = await adminClient
+    .from("saft_rounds")
+    .select("deadline")
+    .eq("id", round_id)
+    .single();
+
+  if (round?.deadline && new Date(round.deadline) < new Date()) {
+    return NextResponse.json(
+      { error: "The payment deadline for this round has passed. This allocation is no longer available." },
+      { status: 410 }
+    );
   }
 
   // Verify investor has outstanding balance for this round

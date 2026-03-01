@@ -20,6 +20,7 @@ export default function RoundsPage() {
   const [tgeUnlockPct, setTgeUnlockPct] = useState("0");
   const [cliffMonths, setCliffMonths] = useState("0");
   const [vestingMonths, setVestingMonths] = useState("");
+  const [deadline, setDeadline] = useState("");
   const [saving, setSaving] = useState(false);
 
   const fetchRounds = useCallback(async () => {
@@ -39,6 +40,7 @@ export default function RoundsPage() {
     setTgeUnlockPct("0");
     setCliffMonths("0");
     setVestingMonths("");
+    setDeadline("");
     setShowForm(false);
   };
 
@@ -55,6 +57,7 @@ export default function RoundsPage() {
         tge_unlock_pct: Number(tgeUnlockPct),
         cliff_months: Number(cliffMonths),
         vesting_months: Number(vestingMonths),
+        deadline: deadline ? new Date(deadline).toISOString() : null,
       }),
     });
 
@@ -193,6 +196,19 @@ export default function RoundsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Payment Deadline
+                </label>
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                />
+                <p className="text-[11px] text-gray-400 mt-0.5">Optional. After this date, unpaid allocations expire.</p>
+              </div>
             </div>
 
             <div className="mt-3">
@@ -217,19 +233,20 @@ export default function RoundsPage() {
                 <th className="text-right py-3 px-2 font-medium text-gray-500">TGE %</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">Cliff</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">Vesting</th>
+                <th className="text-right py-3 px-2 font-medium text-gray-500">Deadline</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
+                  <td colSpan={7} className="py-12 text-center text-gray-400">
                     Loading...
                   </td>
                 </tr>
               ) : rounds.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
+                  <td colSpan={7} className="py-12 text-center text-gray-400">
                     No rounds configured yet
                   </td>
                 </tr>
@@ -253,6 +270,21 @@ export default function RoundsPage() {
                     </td>
                     <td className="py-3 px-2 text-right text-gray-700">
                       {round.vesting_months}mo
+                    </td>
+                    <td className="py-3 px-2 text-right text-gray-700">
+                      {round.deadline ? (
+                        (() => {
+                          const d = new Date(round.deadline);
+                          const expired = d < new Date();
+                          return (
+                            <span className={expired ? "text-red-500" : ""}>
+                              {d.toLocaleDateString()}{expired ? " (expired)" : ""}
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-gray-300">None</span>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-right">
                       {canWrite && (

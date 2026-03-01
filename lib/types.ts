@@ -32,6 +32,8 @@ export interface SaftRound {
   tge_unlock_pct: number;
   cliff_months: number;
   vesting_months: number;
+  /** Optional payment deadline. NULL = no deadline. After this, unpaid allocations expire. */
+  deadline: string | null;
   created_at: string;
 }
 
