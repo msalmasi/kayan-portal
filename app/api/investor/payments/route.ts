@@ -55,6 +55,14 @@ export async function GET() {
     .eq("approval_status", "approved")
     .in("payment_status", ["invoiced", "partial"]);
 
+  // Fetch grant allocations separately (no payment needed)
+  const { data: grants } = await adminClient
+    .from("allocations")
+    .select("id, round_id, token_amount, amount_usd, payment_status, amount_received_usd, saft_rounds(id, name, token_price)")
+    .eq("investor_id", investor.id)
+    .eq("approval_status", "approved")
+    .eq("payment_status", "grant");
+
   // Fetch existing payment claims
   const { data: claims } = await adminClient
     .from("payment_claims")
@@ -90,6 +98,21 @@ export async function GET() {
     balance_due: r.total_due - r.total_received,
   }));
 
+  // Compute per-round grant summaries (no payment needed)
+  const grantMap: Record<string, any> = {};
+  for (const alloc of (grants || [])) {
+    const rid = alloc.round_id;
+    if (!grantMap[rid]) {
+      grantMap[rid] = {
+        round_id: rid,
+        round_name: (alloc as any).saft_rounds?.name || "Unknown",
+        total_tokens: 0,
+      };
+    }
+    grantMap[rid].total_tokens += Number(alloc.token_amount);
+  }
+  const grantRounds = Object.values(grantMap);
+
   // Personalize wire reference note
   const wireInstructions = {
     ...settings.wire_instructions,
@@ -99,6 +122,7 @@ export async function GET() {
 
   return NextResponse.json({
     rounds,
+    grants: grantRounds,
     claims: claims || [],
     investor_name: investor.full_name,
     // Dynamic settings from DB

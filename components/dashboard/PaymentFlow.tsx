@@ -87,6 +87,7 @@ function getExplorerUrl(method: string, hash: string): string {
 export function PaymentFlow() {
   const [loading, setLoading] = useState(true);
   const [rounds, setRounds] = useState<RoundBalance[]>([]);
+  const [grants, setGrants] = useState<{ round_id: string; round_name: string; total_tokens: number }[]>([]);
   const [claims, setClaims] = useState<PaymentClaim[]>([]);
   const [methods, setMethods] = useState<MethodOption[]>([]);
   const [wallets, setWallets] = useState<{ ethereum: string; solana: string }>({ ethereum: "", solana: "" });
@@ -119,6 +120,7 @@ export function PaymentFlow() {
     if (res.ok) {
       const data = await res.json();
       setRounds(data.rounds || []);
+      setGrants(data.grants || []);
       setClaims(data.claims || []);
       if (data.methods) setMethods(data.methods);
       if (data.wallets) setWallets(data.wallets);
@@ -175,7 +177,7 @@ export function PaymentFlow() {
   };
 
   // Nothing due
-  if (!loading && rounds.length === 0 && claims.length === 0) return null;
+  if (!loading && rounds.length === 0 && grants.length === 0 && claims.length === 0) return null;
   if (loading) return <Card><CardHeader title="Payments" /><p className="text-sm text-gray-400">Loading…</p></Card>;
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500";
@@ -185,7 +187,7 @@ export function PaymentFlow() {
       <div id="payments" className="scroll-mt-24" />
       <CardHeader
         title="Payments"
-        subtitle={step === "overview" ? "Outstanding balances and payment history" : undefined}
+        subtitle={step === "overview" ? "Allocations, balances, and payment history" : undefined}
       />
 
       {/* ── OVERVIEW ── */}
@@ -289,7 +291,26 @@ export function PaymentFlow() {
             );
           })}
 
-          {rounds.length === 0 && claims.length > 0 && (
+          {/* ── Grant allocations (no payment needed) ── */}
+          {grants.map((g) => (
+            <div
+              key={`grant-${g.round_id}`}
+              className="border border-emerald-200 bg-emerald-50/30 rounded-xl px-5 py-4 flex items-center justify-between"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{g.round_name}</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Grant — no payment required</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-emerald-700">{g.total_tokens.toLocaleString()} tokens</p>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">
+                  ✓ Granted
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {rounds.length === 0 && grants.length === 0 && claims.length > 0 && (
             <p className="text-sm text-emerald-600 font-medium">All balances settled. Thank you!</p>
           )}
 
