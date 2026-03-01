@@ -59,11 +59,19 @@ function getRequiredActions(
 }
 
 /** Status badge for an allocation */
-function StatusBadge({ alloc, allDone, expired }: { alloc: AllocationWithRound; allDone: boolean; expired?: boolean }) {
+function StatusBadge({ alloc, allDone, expired, expiredPartial }: { alloc: AllocationWithRound; allDone: boolean; expired?: boolean; expiredPartial?: boolean }) {
   if (expired) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
         Expired
+      </span>
+    );
+  }
+
+  if (expiredPartial) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+        Partially Paid
       </span>
     );
   }
@@ -136,6 +144,7 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
           const actions = getRequiredActions(alloc, investorStatus);
           const allDone = actions.every((a) => a.done);
           const isGrant = alloc.payment_status === "grant";
+          const isPartial = alloc.payment_status === "partial";
           const isConfirmed = alloc.payment_status === "paid" || (isGrant && allDone);
           const nextAction = actions.find((a) => !a.done);
 
@@ -143,7 +152,8 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
           const deadlineStr = alloc.saft_rounds?.deadline;
           const deadlineDate = deadlineStr ? new Date(deadlineStr) : null;
           const isExpired = deadlineDate ? deadlineDate < new Date() : false;
-          const isExpiredUnconfirmed = isExpired && !isConfirmed;
+          const isExpiredUnconfirmed = isExpired && !isConfirmed && !isPartial;
+          const isExpiredPartial = isExpired && isPartial;
 
           // Days remaining for countdown
           const daysLeft = deadlineDate
@@ -151,15 +161,28 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
             : null;
           const isUrgent = daysLeft !== null && daysLeft > 0 && daysLeft <= 7;
 
+          // For expired partials, compute the confirmed token amount
+          const paidRatio = isPartial && Number(alloc.amount_usd) > 0
+            ? (Number(alloc.amount_received_usd) || 0) / Number(alloc.amount_usd)
+            : 0;
+          const confirmedTokens = isExpiredPartial
+            ? Math.floor(Number(alloc.token_amount) * paidRatio)
+            : 0;
+          const forfeitedTokens = isExpiredPartial
+            ? Number(alloc.token_amount) - confirmedTokens
+            : 0;
+
           return (
             <div
               key={alloc.id}
               className={`border rounded-xl px-5 py-4 transition-colors ${
                 isExpiredUnconfirmed
                   ? "border-red-200 bg-red-50/30 opacity-75"
-                  : isConfirmed
-                    ? "border-emerald-200 bg-emerald-50/30"
-                    : "border-gray-200 bg-white"
+                  : isExpiredPartial
+                    ? "border-amber-200 bg-amber-50/30"
+                    : isConfirmed
+                      ? "border-emerald-200 bg-emerald-50/30"
+                      : "border-gray-200 bg-white"
               }`}
             >
               {/* Top row: round name, tokens, badge */}
@@ -184,10 +207,21 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                   )}
                 </div>
                 <div className="text-right">
-                  <p className={`text-lg font-bold ${isConfirmed ? "text-emerald-700" : "text-gray-900"}`}>
-                    {formatTokenAmount(Number(alloc.token_amount))}
-                  </p>
-                  <StatusBadge alloc={alloc} allDone={allDone} expired={isExpiredUnconfirmed} />
+                  {isExpiredPartial ? (
+                    <>
+                      <p className="text-lg font-bold text-amber-700">
+                        {formatTokenAmount(confirmedTokens)}
+                      </p>
+                      <p className="text-[10px] text-gray-400 line-through">
+                        of {formatTokenAmount(Number(alloc.token_amount))}
+                      </p>
+                    </>
+                  ) : (
+                    <p className={`text-lg font-bold ${isConfirmed ? "text-emerald-700" : "text-gray-900"}`}>
+                      {formatTokenAmount(Number(alloc.token_amount))}
+                    </p>
+                  )}
+                  <StatusBadge alloc={alloc} allDone={allDone} expired={isExpiredUnconfirmed} expiredPartial={isExpiredPartial} />
                 </div>
               </div>
 
@@ -212,7 +246,17 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                 </div>
               )}
 
-              {/* Expired message — replaces progress steps */}
+              {/* Expired partial — show paid portion and forfeited remainder */}
+              {isExpiredPartial && (
+                <div className="mt-3 pt-3 border-t border-amber-200">
+                  <p className="text-xs text-amber-700">
+                    <span className="font-medium">{formatTokenAmount(confirmedTokens)} tokens confirmed</span> from partial payment of ${(Number(alloc.amount_received_usd) || 0).toLocaleString()}.
+                    The deadline passed on {deadlineDate!.toLocaleDateString()} — the remaining {formatTokenAmount(forfeitedTokens)} tokens are no longer available.
+                  </p>
+                </div>
+              )}
+
+              {/* Expired unconfirmed — fully forfeited */}
               {isExpiredUnconfirmed && (
                 <div className="mt-3 pt-3 border-t border-red-100">
                   <p className="text-xs text-red-500">
@@ -221,8 +265,8 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                 </div>
               )}
 
-              {/* Progress steps — only shown when not confirmed and not expired */}
-              {!isConfirmed && !isExpiredUnconfirmed && (
+              {/* Progress steps — only shown when not confirmed, not expired */}
+              {!isConfirmed && !isExpiredUnconfirmed && !isExpiredPartial && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {actions.map((action, i) => (

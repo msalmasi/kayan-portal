@@ -75,9 +75,15 @@ export default async function DashboardPage() {
     .eq("investor_id", investor.id)
     .eq("approval_status", "approved");
 
-  // Fetch invoiced + partial for amount due banner
+  // Helper: check if an allocation's round deadline has passed
+  const isRoundExpired = (a: any) => {
+    const dl = a.saft_rounds?.deadline;
+    return dl ? new Date(dl) < new Date() : false;
+  };
+
+  // Fetch invoiced + partial for amount due banner (exclude expired rounds)
   const outstandingAllocations = (allAllocations || []).filter(
-    (a: any) => a.payment_status === "invoiced" || a.payment_status === "partial"
+    (a: any) => (a.payment_status === "invoiced" || a.payment_status === "partial") && !isRoundExpired(a)
   );
 
   // Separate confirmed (shown in stats/vesting) vs all (shown in table)
@@ -111,25 +117,24 @@ export default async function DashboardPage() {
 
   const typedInvestor = investor as Investor;
 
-  // Calculate remaining balance: total due minus what's been received
+  // Calculate remaining balance: total due minus what's been received (exclude expired)
   const amountDue = outstandingAllocations.reduce((sum: number, a: any) => {
     const total = Number(a.amount_usd) || Number(a.token_amount) * Number(a.saft_rounds?.token_price || 0);
     const received = Number(a.amount_received_usd) || 0;
     return sum + (total - received);
   }, 0);
 
-  // Unconfirmed allocations: invoiced + unpaid (not yet paid at all)
-  // Partials are already represented proportionally in typedAllocations,
-  // so we add the remaining unpaid portion of partials separately
+  // Unconfirmed allocations for vesting chart pending line
+  // Exclude expired rounds — those are forfeited, not "pending"
   const fullyUnpaid = (allAllocations || []).filter(
-    (a: any) => a.payment_status === "invoiced" || a.payment_status === "unpaid"
+    (a: any) => (a.payment_status === "invoiced" || a.payment_status === "unpaid") && !isRoundExpired(a)
   ) as AllocationWithRound[];
 
-  // Remaining portion of partial payments (total tokens minus what's been paid for)
+  // Remaining portion of partial payments (exclude expired — that portion is forfeited)
   const partialRemaining = scaledPartials.map((a: any) => ({
     ...a,
     token_amount: Number((allAllocations || []).find((o: any) => o.id === a.id)?.token_amount || 0) - Number(a.token_amount),
-  })).filter((a: any) => a.token_amount > 0) as AllocationWithRound[];
+  })).filter((a: any) => a.token_amount > 0 && !isRoundExpired(a)) as AllocationWithRound[];
 
   const unconfirmedAllocations = [...fullyUnpaid, ...partialRemaining];
 
