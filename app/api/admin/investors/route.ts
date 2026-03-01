@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       .from("investors")
       .select(
         "id, email, full_name, kyc_status, pq_status, created_at, " +
-        "allocations(token_amount, payment_status, approval_status), " +
+        "allocations(token_amount, payment_status, approval_status, round_id), " +
         "investor_documents(doc_type, status, round_id)"
       )
       .order("created_at", { ascending: false })
@@ -112,11 +112,26 @@ export async function GET(request: NextRequest) {
     })();
 
     // Document status
-    // "none" = no docs, "pending" = unsigned docs exist, "signed" = all signed
+    // Cross-reference approved allocations with signed SAFT documents per round.
+    // "signed" only if every approved allocation has a signed SAFT for its round.
     const docStatus = (() => {
       if (docs.length === 0) return "none";
       const safts = docs.filter((d: any) => d.doc_type === "saft");
       if (safts.length === 0) return "none";
+
+      // Build set of round IDs that have a signed SAFT
+      const signedRoundIds = new Set(
+        safts.filter((d: any) => d.status === "signed").map((d: any) => d.round_id)
+      );
+
+      // Check if any approved allocation is missing a signed SAFT
+      const approvedAllocs = allAllocs.filter((a: any) => a.approval_status === "approved");
+      if (approvedAllocs.length > 0) {
+        const allCovered = approvedAllocs.every((a: any) => signedRoundIds.has(a.round_id));
+        if (!allCovered) return "pending";
+      }
+
+      // All existing safts signed and all allocations covered
       if (safts.every((d: any) => d.status === "signed")) return "signed";
       return "pending";
     })();
