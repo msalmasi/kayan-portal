@@ -118,6 +118,21 @@ export default async function DashboardPage() {
     return sum + (total - received);
   }, 0);
 
+  // Unconfirmed allocations: invoiced + unpaid (not yet paid at all)
+  // Partials are already represented proportionally in typedAllocations,
+  // so we add the remaining unpaid portion of partials separately
+  const fullyUnpaid = (allAllocations || []).filter(
+    (a: any) => a.payment_status === "invoiced" || a.payment_status === "unpaid"
+  ) as AllocationWithRound[];
+
+  // Remaining portion of partial payments (total tokens minus what's been paid for)
+  const partialRemaining = scaledPartials.map((a: any) => ({
+    ...a,
+    token_amount: Number((allAllocations || []).find((o: any) => o.id === a.id)?.token_amount || 0) - Number(a.token_amount),
+  })).filter((a: any) => a.token_amount > 0) as AllocationWithRound[];
+
+  const unconfirmedAllocations = [...fullyUnpaid, ...partialRemaining];
+
   // Fetch SAFT signing status per round
   const { data: investorDocs } = await supabase
     .from("investor_documents")
@@ -202,7 +217,7 @@ export default async function DashboardPage() {
       />
 
       {/* Vesting Schedule Chart */}
-      <VestingChart allocations={typedAllocations} />
+      <VestingChart confirmed={typedAllocations} unconfirmed={unconfirmedAllocations} />
 
       {/* KYC Verification */}
       <SumsubKycWidget

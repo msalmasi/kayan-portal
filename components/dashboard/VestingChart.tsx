@@ -8,25 +8,67 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import { AllocationWithRound } from "@/lib/types";
 import { generateVestingSchedule, formatTokenAmount } from "@/lib/vesting";
 import { Card, CardHeader } from "@/components/ui/Card";
 
 interface VestingChartProps {
-  allocations: AllocationWithRound[];
+  /** Confirmed allocations: paid + grants with completed steps */
+  confirmed: AllocationWithRound[];
+  /** Unconfirmed allocations: invoiced, partial, unpaid */
+  unconfirmed: AllocationWithRound[];
 }
 
 /**
- * Projected vesting schedule visualization.
+ * Projected vesting schedule with two lines:
+ *   - Confirmed (solid green): paid/granted allocations
+ *   - Pending (dashed gray): unconfirmed allocations, shown as potential upside
+ *
  * X-axis: months from TGE (relative, since TGE date is TBD)
  * Y-axis: cumulative tokens unlocked
- * Aggregates across all of the investor's allocations.
  */
-export function VestingChart({ allocations }: VestingChartProps) {
-  const data = generateVestingSchedule(allocations);
+export function VestingChart({ confirmed, unconfirmed }: VestingChartProps) {
+  const confirmedData = generateVestingSchedule(confirmed);
+  const unconfirmedData = generateVestingSchedule(unconfirmed);
 
-  if (data.length === 0) return null;
+  // Nothing to chart at all
+  if (confirmedData.length === 0 && unconfirmedData.length === 0) return null;
+
+  const hasConfirmed = confirmedData.length > 0;
+  const hasUnconfirmed = unconfirmedData.length > 0;
+  const hasBoth = hasConfirmed && hasUnconfirmed;
+
+  // Merge into a single dataset aligned by month
+  const maxMonth = Math.max(
+    confirmedData.length > 0 ? confirmedData[confirmedData.length - 1].month : 0,
+    unconfirmedData.length > 0 ? unconfirmedData[unconfirmedData.length - 1].month : 0
+  );
+
+  // Build a lookup for quick access
+  const confirmedMap = new Map(confirmedData.map((d) => [d.month, d.unlocked]));
+  const unconfirmedMap = new Map(unconfirmedData.map((d) => [d.month, d.unlocked]));
+
+  const mergedData: {
+    month: number;
+    label: string;
+    confirmed: number;
+    pending: number;
+  }[] = [];
+
+  for (let m = 0; m <= maxMonth; m++) {
+    const cVal = confirmedMap.get(m) ?? (hasConfirmed ? (confirmedMap.get(confirmedData[confirmedData.length - 1].month) ?? 0) : 0);
+    const uVal = unconfirmedMap.get(m) ?? (hasUnconfirmed ? (unconfirmedMap.get(unconfirmedData[unconfirmedData.length - 1].month) ?? 0) : 0);
+
+    mergedData.push({
+      month: m,
+      label: m === 0 ? "TGE" : `Month ${m}`,
+      confirmed: cVal,
+      // Pending line shows total potential (confirmed + unconfirmed)
+      pending: cVal + uVal,
+    });
+  }
 
   return (
     <Card>
@@ -37,12 +79,17 @@ export function VestingChart({ allocations }: VestingChartProps) {
 
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <AreaChart data={mergedData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <defs>
-              {/* Gradient fill for the area under the curve */}
-              <linearGradient id="vestingGradient" x1="0" y1="0" x2="0" y2="1">
+              {/* Confirmed: solid green gradient */}
+              <linearGradient id="confirmedGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#2d5f3f" stopOpacity={0.3} />
                 <stop offset="100%" stopColor="#2d5f3f" stopOpacity={0.02} />
+              </linearGradient>
+              {/* Pending: subtle gray gradient */}
+              <linearGradient id="pendingGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#9ca3af" stopOpacity={0.15} />
+                <stop offset="100%" stopColor="#9ca3af" stopOpacity={0.02} />
               </linearGradient>
             </defs>
 
@@ -53,8 +100,7 @@ export function VestingChart({ allocations }: VestingChartProps) {
               tick={{ fontSize: 12, fill: "#9ca3af" }}
               tickLine={false}
               axisLine={{ stroke: "#e5e7eb" }}
-              // Show every 3rd label to avoid crowding
-              interval={Math.max(0, Math.floor(data.length / 8))}
+              interval={Math.max(0, Math.floor(mergedData.length / 8))}
             />
 
             <YAxis
@@ -72,27 +118,60 @@ export function VestingChart({ allocations }: VestingChartProps) {
                 borderRadius: "8px",
                 fontSize: "13px",
               }}
-              formatter={(value: number) => [
+              formatter={(value: number, name: string) => [
                 `${value.toLocaleString()} $KAYAN`,
-                "Unlocked",
+                name === "pending" ? "Total (incl. pending)" : "Confirmed",
               ]}
               labelStyle={{ fontWeight: 600, color: "#1a3c2a" }}
             />
 
-            <Area
-              type="stepAfter"
-              dataKey="unlocked"
-              stroke="#2d5f3f"
-              strokeWidth={2}
-              fill="url(#vestingGradient)"
-            />
+            {/* Pending line: dashed, sits behind confirmed */}
+            {hasUnconfirmed && (
+              <Area
+                type="stepAfter"
+                dataKey="pending"
+                stroke="#9ca3af"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                fill="url(#pendingGradient)"
+                name="pending"
+              />
+            )}
+
+            {/* Confirmed line: solid green, drawn on top */}
+            {hasConfirmed && (
+              <Area
+                type="stepAfter"
+                dataKey="confirmed"
+                stroke="#2d5f3f"
+                strokeWidth={2}
+                fill="url(#confirmedGradient)"
+                name="confirmed"
+              />
+            )}
+
+            {hasBoth && (
+              <Legend
+                verticalAlign="top"
+                align="right"
+                iconType="line"
+                wrapperStyle={{ fontSize: "12px", paddingBottom: "8px" }}
+                formatter={(value: string) =>
+                  value === "confirmed" ? "Confirmed" : "Pending"
+                }
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        Timeline is relative to TGE. Actual dates will be updated once TGE is
-        announced.
+        Timeline is relative to TGE. Actual dates will be updated once TGE is announced.
+        {hasUnconfirmed && (
+          <span className="ml-1">
+            Dashed line includes pending allocations that require further action.
+          </span>
+        )}
       </p>
     </Card>
   );
