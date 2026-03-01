@@ -153,9 +153,11 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                       </span>
                     )}
                   </div>
-                  {alloc.saft_rounds?.token_price && !isGrant && (
+                  {alloc.saft_rounds?.token_price != null && !isGrant && (
                     <p className="text-xs text-gray-400 mt-0.5">
-                      @ ${Number(alloc.saft_rounds.token_price).toFixed(4)}/token
+                      {Number(alloc.saft_rounds.token_price) > 0
+                        ? `@ $${Number(alloc.saft_rounds.token_price).toFixed(4)}/token`
+                        : "Free allocation"}
                     </p>
                   )}
                 </div>
