@@ -132,10 +132,10 @@ export async function POST(request: NextRequest) {
 
       if (approvedInvestors?.length) {
         const { sendEmail, composePqUpdatePromptEmail } = await import("@/lib/email");
-        const roundName = round.name || "a new round";
+        const importRoundName = "a new round";
 
         for (const inv of approvedInvestors) {
-          const { subject, html } = composePqUpdatePromptEmail(inv.full_name, roundName);
+          const { subject, html } = composePqUpdatePromptEmail(inv.full_name, importRoundName);
           await sendEmail(inv.email, subject, html).catch(() => {});
         }
 
