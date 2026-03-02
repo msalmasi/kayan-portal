@@ -67,7 +67,17 @@ export default function NotificationsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
+  const [actionCount, setActionCount] = useState(0);
   const { refresh: refreshBadge } = useNotifications();
+
+  // Fetch the true action-required count directly from the server
+  const fetchActionCount = useCallback(async () => {
+    const res = await fetch("/api/admin/notifications?count_only=true");
+    if (res.ok) {
+      const data = await res.json();
+      setActionCount(data.unread_count || 0);
+    }
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -88,6 +98,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     fetchNotifications();
+    fetchActionCount();
     refreshBadge();
   }, [fetchNotifications]);
 
@@ -115,9 +126,6 @@ export default function NotificationsPage() {
   };
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
-  const actionCount = notifications.filter(
-    (n) => n.priority === "action_required" && !n.is_resolved
-  ).length;
 
   return (
     <div className="space-y-6">
