@@ -227,42 +227,43 @@ export default function ReissuancePage() {
     }
   };
 
-  // ── Cancel batch ──
-  const handleCancelBatch = async (batchId: string) => {
-    if (!confirm("Cancel this re-issuance batch? Already-completed items will not be affected.")) return;
+  // ── Resend novation to all pending investors in batch ──
+  const [resending, setResending] = useState<string | null>(null);
 
+  const handleResendAll = async (batchId: string) => {
+    setResending(batchId);
     const res = await fetch(`/api/admin/reissuance/${batchId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "cancel_batch" }),
+      body: JSON.stringify({ action: "resend_all_pending" }),
     });
 
     if (res.ok) {
-      toast.success("Batch cancelled");
-      fetchBatches();
-      if (expandedBatch === batchId) fetchDetail(batchId);
+      const data = await res.json();
+      toast.success(data.message);
     } else {
-      toast.error("Failed to cancel batch");
+      toast.error("Failed to resend emails");
     }
+    setResending(null);
   };
 
-  // ── Cancel single item ──
-  const handleCancelItem = async (batchId: string, itemId: string) => {
-    if (!confirm("Cancel this investor's re-issuance?")) return;
-
+  // ── Resend novation to a single investor ──
+  const handleResendItem = async (batchId: string, itemId: string) => {
+    setResending(itemId);
     const res = await fetch(`/api/admin/reissuance/${batchId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "cancel_item", item_id: itemId }),
+      body: JSON.stringify({ action: "resend_item", item_id: itemId }),
     });
 
     if (res.ok) {
-      toast.success("Item cancelled");
-      fetchDetail(batchId);
-      fetchBatches();
+      const data = await res.json();
+      toast.success(data.message);
     } else {
-      toast.error("Failed to cancel item");
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "Failed to resend");
     }
+    setResending(null);
   };
 
   // ── Toggle round selection ──
@@ -426,7 +427,7 @@ export default function ReissuancePage() {
                   <li>• Existing signed SAFTs will be marked as superseded</li>
                   <li>• Novation agreements will be sent to all affected investors</li>
                   <li>• Payments will be frozen for affected rounds until new SAFTs are signed</li>
-                  <li>• This action cannot be undone (individual items can be cancelled)</li>
+                  <li>• This action cannot be undone</li>
                 </ul>
                 <p className="text-xs text-red-500">
                   {selectedRounds.length > 0
@@ -521,13 +522,15 @@ export default function ReissuancePage() {
                   ) : batchDetail ? (
                     <div className="p-5 pt-4">
                       {/* Summary stats */}
-                      <div className="grid grid-cols-5 gap-3 mb-4">
+                      <div className={`grid gap-3 mb-4 ${batchDetail.cancelled > 0 ? "grid-cols-5" : "grid-cols-4"}`}>
                         {[
                           { label: "Awaiting Novation", count: batchDetail.pending_novation, color: "text-amber-600" },
                           { label: "Novation Signed", count: batchDetail.novation_signed, color: "text-blue-600" },
                           { label: "Awaiting New SAFT", count: batchDetail.pending_new_saft, color: "text-purple-600" },
                           { label: "Complete", count: batchDetail.complete, color: "text-emerald-600" },
-                          { label: "Cancelled", count: batchDetail.cancelled, color: "text-gray-400" },
+                          ...(batchDetail.cancelled > 0
+                            ? [{ label: "Cancelled", count: batchDetail.cancelled, color: "text-gray-400" }]
+                            : []),
                         ].map((stat) => (
                           <div key={stat.label} className="text-center p-2 rounded-lg bg-gray-50">
                             <p className={`text-lg font-bold ${stat.color}`}>{stat.count}</p>
@@ -557,12 +560,13 @@ export default function ReissuancePage() {
                                 <td className="py-2.5 text-gray-600">{item.round_name}</td>
                                 <td className="py-2.5"><ItemStatusBadge status={item.status} /></td>
                                 <td className="py-2.5 text-right">
-                                  {item.status !== "complete" && item.status !== "cancelled" && isAdmin && (
+                                  {item.status === "pending_novation" && isAdmin && (
                                     <button
-                                      onClick={() => handleCancelItem(batch.id, item.id)}
-                                      className="text-xs text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => handleResendItem(batch.id, item.id)}
+                                      disabled={resending === item.id}
+                                      className="text-xs text-kayan-600 hover:text-kayan-800 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                                     >
-                                      Cancel
+                                      {resending === item.id ? "Sending…" : "Resend"}
                                     </button>
                                   )}
                                 </td>
@@ -573,15 +577,16 @@ export default function ReissuancePage() {
                       </div>
 
                       {/* Batch actions */}
-                      {batch.status === "active" && isAdmin && (
+                      {batch.status === "active" && isAdmin && batch.counts.pending_novation > 0 && (
                         <div className="mt-4 pt-3 border-t border-gray-100">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleCancelBatch(batch.id)}
-                            className="!text-red-600 hover:!bg-red-50"
+                            onClick={() => handleResendAll(batch.id)}
+                            loading={resending === batch.id}
+                            className="!text-kayan-700 hover:!bg-kayan-50"
                           >
-                            Cancel Entire Batch
+                            Resend to All Pending ({batch.counts.pending_novation})
                           </Button>
                         </div>
                       )}
