@@ -38,6 +38,12 @@ export const PLACEHOLDER_LABELS: Record<string, string> = {
   round_name: "Round Name",
   payment_method: "Payment Method",
   date: "Date",
+  // Novation-specific
+  old_entity: "Original Issuing Entity",
+  new_entity: "New Issuing Entity",
+  new_jurisdiction: "New Entity Jurisdiction",
+  reason: "Reason for Change",
+  original_saft_date: "Original SAFT Date",
 };
 
 /** A missing variable entry stored on the document record */

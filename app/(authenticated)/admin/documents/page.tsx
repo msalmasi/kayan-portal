@@ -5,13 +5,13 @@ import { toast } from "sonner";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useAdminRole } from "@/lib/hooks";
-import { SaftRound, DocTemplate, DOC_TYPE_LABELS, SAFT_PLACEHOLDERS } from "@/lib/types";
+import { SaftRound, DocTemplate, DOC_TYPE_LABELS, SAFT_PLACEHOLDERS, NOVATION_PLACEHOLDERS } from "@/lib/types";
 
 /**
  * /admin/documents — Template management
  *
- * Upload SAFT (.docx), PPM (.pdf), and CIS (.pdf) templates.
- * SAFT and PPM are per-round. CIS is global.
+ * Upload SAFT (.docx), PPM (.pdf), CIS (.pdf), and Novation (.docx) templates.
+ * SAFT and PPM are per-round. CIS and Novation are global.
  */
 export default function AdminDocumentsPage() {
   const { canWrite } = useAdminRole();
@@ -21,7 +21,7 @@ export default function AdminDocumentsPage() {
   const [uploading, setUploading] = useState(false);
 
   // Upload form state
-  const [uploadType, setUploadType] = useState<"saft" | "ppm" | "cis">("saft");
+  const [uploadType, setUploadType] = useState<"saft" | "ppm" | "cis" | "novation">("saft");
   const [uploadRound, setUploadRound] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
@@ -93,6 +93,7 @@ export default function AdminDocumentsPage() {
   }));
 
   const cis = templates.find((t) => t.doc_type === "cis");
+  const novation = templates.find((t) => t.doc_type === "novation");
 
   const inputCls = "px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 bg-white";
 
@@ -103,7 +104,7 @@ export default function AdminDocumentsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Document Templates</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Manage SAFT, PPM, and CIS templates for each round
+          Manage SAFT, PPM, CIS, and Novation templates
         </p>
       </div>
 
@@ -147,6 +148,51 @@ export default function AdminDocumentsPage() {
         ) : (
           <p className="text-sm text-gray-400 py-3">No CIS uploaded yet.</p>
         )}
+      </Card>
+
+      {/* ── Novation Template (Global) ── */}
+      <Card>
+        <CardHeader
+          title="Novation Agreement Template"
+          subtitle="Used during SAFT re-issuance when the issuing entity changes"
+        />
+        {novation ? (
+          <div className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">{novation.file_name}</p>
+                <p className="text-xs text-gray-400">
+                  {(novation.placeholders as string[] | null)?.length || 0} placeholders •{" "}
+                  Uploaded {new Date(novation.created_at).toLocaleDateString()} by {novation.uploaded_by || "—"}
+                </p>
+              </div>
+            </div>
+            {canWrite && (
+              <button onClick={() => handleDelete(novation.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+            )}
+          </div>
+        ) : (
+          <div className="py-3 space-y-2">
+            <p className="text-sm text-amber-600">No novation template uploaded yet.</p>
+            <p className="text-xs text-gray-400">
+              A novation template is required to initiate SAFT re-issuance.
+              Upload a .docx file with the placeholders listed below.
+            </p>
+          </div>
+        )}
+
+        {/* Novation placeholder reference */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Novation Placeholders</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {NOVATION_PLACEHOLDERS.map((ph) => (
+              <code key={ph} className="bg-amber-50 rounded px-2 py-1 text-xs text-amber-700 font-mono">
+                {`{${ph}}`}
+              </code>
+            ))}
+          </div>
+        </div>
       </Card>
 
       {/* ── Per-Round Templates ── */}
@@ -224,15 +270,16 @@ export default function AdminDocumentsPage() {
                 <label className="block text-xs text-gray-500 mb-1">Document Type</label>
                 <select
                   value={uploadType}
-                  onChange={(e) => { setUploadType(e.target.value as any); if (e.target.value === "cis") setUploadRound(""); }}
+                  onChange={(e) => { setUploadType(e.target.value as any); if (e.target.value === "cis" || e.target.value === "novation") setUploadRound(""); }}
                   className={inputCls + " w-full"}
                 >
                   <option value="saft">SAFT Template (.docx)</option>
                   <option value="ppm">PPM (.pdf)</option>
                   <option value="cis">CIS (.pdf)</option>
+                  <option value="novation">Novation Template (.docx)</option>
                 </select>
               </div>
-              {uploadType !== "cis" && (
+              {uploadType !== "cis" && uploadType !== "novation" && (
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Round</label>
                   <select
@@ -251,7 +298,7 @@ export default function AdminDocumentsPage() {
                 <label className="block text-xs text-gray-500 mb-1">File</label>
                 <input
                   type="file"
-                  accept={uploadType === "saft" ? ".docx" : ".pdf"}
+                  accept={(uploadType === "saft" || uploadType === "novation") ? ".docx" : ".pdf"}
                   onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                   className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-kayan-50 file:text-kayan-700 hover:file:bg-kayan-100"
                 />
@@ -260,7 +307,7 @@ export default function AdminDocumentsPage() {
             <Button
               onClick={handleUpload}
               loading={uploading}
-              disabled={!uploadFile || (uploadType !== "cis" && !uploadRound)}
+              disabled={!uploadFile || (uploadType !== "cis" && uploadType !== "novation" && !uploadRound)}
             >
               Upload Template
             </Button>

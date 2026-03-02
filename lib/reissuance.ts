@@ -1,5 +1,11 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { generateDocsForInvestor } from "@/lib/doc-generate-core";
+import {
+  fillDocxTemplate,
+  docxToHtml,
+  hashContent,
+  SaftVariables,
+} from "@/lib/doc-generator";
 import { sendEmail, composeNovationEmail, composeNewSaftReadyEmail } from "@/lib/email";
 
 // ============================================================
@@ -85,6 +91,29 @@ export async function initiateBatchReissuance(
     throw new Error(`Failed to create batch: ${batchErr?.message}`);
   }
 
+  // ── Fetch the active novation template ──
+  const { data: novationTemplate } = await supabase
+    .from("doc_templates")
+    .select("*")
+    .eq("doc_type", "novation")
+    .eq("is_active", true)
+    .is("round_id", null)
+    .single();
+
+  if (!novationTemplate) {
+    throw new Error("No active novation template found. Please upload a novation .docx template in Document Templates before initiating re-issuance.");
+  }
+
+  const { data: templateFile, error: dlErr } = await supabase.storage
+    .from("documents")
+    .download(novationTemplate.storage_path);
+
+  if (dlErr || !templateFile) {
+    throw new Error(`Failed to download novation template: ${dlErr?.message}`);
+  }
+
+  const templateBuffer = Buffer.from(await templateFile.arrayBuffer());
+
   // ── Find all signed SAFTs in target rounds ──
   let query = supabase
     .from("investor_documents")
@@ -124,16 +153,45 @@ export async function initiateBatchReissuance(
       },
     });
 
-    // ── 2. Generate novation document ──
-    const novationHtml = generateNovationHtml({
-      investorName: investor.full_name,
-      roundName: round.name,
-      oldEntity: input.old_entity_name,
-      newEntity: input.new_entity_name,
-      newJurisdiction: input.new_entity_jurisdiction || "—",
+    // ── 2. Generate novation document from template ──
+    const novationVars: SaftVariables = {
+      investor_name: investor.full_name,
+      investor_email: investor.email || "",
+      investor_address: "",
+      investor_jurisdiction: "",
+      investment_amount_usd: "",
+      token_amount: "",
+      token_price: "",
+      round_name: round.name,
+      payment_method: "",
+      date: new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+      // Novation-specific variables
+      old_entity: input.old_entity_name,
+      new_entity: input.new_entity_name,
+      new_jurisdiction: input.new_entity_jurisdiction || "—",
       reason: input.reason,
-      originalSaftDate: saft.signed_at || saft.created_at,
-    });
+      original_saft_date: new Date(saft.signed_at || saft.created_at).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    };
+
+    const filledDocx = fillDocxTemplate(templateBuffer, novationVars);
+    const novationHtml = await docxToHtml(filledDocx);
+    const novationHash = hashContent(novationHtml);
+
+    // Store filled docx for audit trail
+    const filledPath = `generated/${saft.investor_id}/${saft.round_id}/Novation-${investor.full_name.replace(/\s+/g, "_")}-${Date.now()}.docx`;
+    await supabase.storage
+      .from("documents")
+      .upload(filledPath, filledDocx, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
 
     const { data: novDoc } = await supabase
       .from("investor_documents")
@@ -141,9 +199,12 @@ export async function initiateBatchReissuance(
         investor_id: saft.investor_id,
         doc_type: "novation",
         round_id: saft.round_id,
+        template_id: novationTemplate.id,
+        storage_path: filledPath,
         html_content: novationHtml,
-        doc_hash: hashSimple(novationHtml),
+        doc_hash: novationHash,
         status: "pending",
+        variables: novationVars,
         reissuance_item_id: null, // circular — updated below
       })
       .select("id")
@@ -248,8 +309,65 @@ export async function onNovationSigned(
     .eq("id", item.id);
 
   // ── Generate new SAFT ──
-  // Uses the standard doc generation flow — the new entity name
-  // should already be updated in the SAFT template by the admin.
+  // First, supersede the old PPM and CIS so the investor
+  // can see they've been replaced (visible audit trail).
+  // generateDocsForInvestor will skip deleting already-superseded docs.
+
+  // Supersede PPM for this round
+  const { data: oldPpm } = await supabase
+    .from("investor_documents")
+    .select("id")
+    .eq("investor_id", investorId)
+    .eq("round_id", item.round_id)
+    .eq("doc_type", "ppm")
+    .not("status", "in", '("superseded","terminated")')
+    .limit(1);
+
+  if (oldPpm && oldPpm.length > 0) {
+    await supabase
+      .from("investor_documents")
+      .update({ status: "superseded" })
+      .eq("id", oldPpm[0].id);
+
+    await supabase.from("signing_events").insert({
+      document_id: oldPpm[0].id,
+      investor_id: investorId,
+      event_type: "superseded" as any,
+      metadata: {
+        batch_id: item.batch_id,
+        reason: "Entity change re-issuance",
+      },
+    });
+  }
+
+  // Supersede CIS (global, round_id is null)
+  const { data: oldCis } = await supabase
+    .from("investor_documents")
+    .select("id")
+    .eq("investor_id", investorId)
+    .eq("doc_type", "cis")
+    .is("round_id", null)
+    .not("status", "in", '("superseded","terminated")')
+    .limit(1);
+
+  if (oldCis && oldCis.length > 0) {
+    await supabase
+      .from("investor_documents")
+      .update({ status: "superseded" })
+      .eq("id", oldCis[0].id);
+
+    await supabase.from("signing_events").insert({
+      document_id: oldCis[0].id,
+      investor_id: investorId,
+      event_type: "superseded" as any,
+      metadata: {
+        batch_id: item.batch_id,
+        reason: "Entity change re-issuance",
+      },
+    });
+  }
+
+  // Now generate the new document set (SAFT + PPM + CIS)
   const { data: investor } = await supabase
     .from("investors")
     .select("*")
@@ -439,96 +557,5 @@ export async function hasActiveReissuance(
 
 // ─── HELPERS ────────────────────────────────────────────────
 
-/** Simple hash for novation HTML content */
-function hashSimple(content: string): string {
-  const { createHash } = require("crypto");
-  return createHash("sha256").update(content).digest("hex");
-}
-
-/**
- * Generate novation agreement HTML.
- * Self-contained legal instrument — no .docx template needed.
- */
-function generateNovationHtml(params: {
-  investorName: string;
-  roundName: string;
-  oldEntity: string;
-  newEntity: string;
-  newJurisdiction: string;
-  reason: string;
-  originalSaftDate: string;
-}): string {
-  const date = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const origDate = new Date(params.originalSaftDate).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  return `
-<div style="font-family: 'Times New Roman', serif; max-width: 720px; margin: 0 auto; padding: 40px; line-height: 1.6;">
-  <h1 style="text-align: center; font-size: 18px; margin-bottom: 8px;">
-    TERMINATION AND NOVATION AGREEMENT
-  </h1>
-  <p style="text-align: center; font-size: 14px; color: #555; margin-bottom: 32px;">
-    ${params.roundName} — Kayan Token
-  </p>
-
-  <p><strong>Date:</strong> ${date}</p>
-  <p><strong>Investor:</strong> ${params.investorName}</p>
-  <p><strong>Original Issuing Entity:</strong> ${params.oldEntity}</p>
-  <p><strong>New Issuing Entity:</strong> ${params.newEntity}</p>
-  ${params.newJurisdiction !== "—" ? `<p><strong>New Entity Jurisdiction:</strong> ${params.newJurisdiction}</p>` : ""}
-
-  <hr style="margin: 24px 0; border: none; border-top: 1px solid #ccc;" />
-
-  <h2 style="font-size: 14px;">RECITALS</h2>
-
-  <p>A. The Investor and ${params.oldEntity} (the "<strong>Original Issuer</strong>") entered into
-  a Simple Agreement for Future Tokens ("SAFT") dated ${origDate} in connection with the
-  ${params.roundName} round of the Kayan Token offering.</p>
-
-  <p>B. The Original Issuer has determined to transfer and novate its obligations under the
-  Original SAFT to ${params.newEntity} (the "<strong>New Issuer</strong>").
-  ${params.reason ? `The reason for this change is: ${params.reason}.` : ""}</p>
-
-  <p>C. The parties wish to terminate the Original SAFT and enter into a replacement SAFT
-  between the Investor and the New Issuer on substantially the same terms.</p>
-
-  <h2 style="font-size: 14px;">AGREEMENT</h2>
-
-  <p><strong>1. Termination of Original SAFT.</strong> The Original SAFT between the Investor
-  and ${params.oldEntity} dated ${origDate} is hereby terminated in its entirety with
-  immediate effect upon execution of this Agreement. Neither party shall have any further
-  rights or obligations under the Original SAFT.</p>
-
-  <p><strong>2. Novation.</strong> The New Issuer, ${params.newEntity}, assumes all rights
-  and obligations of the Original Issuer under a replacement SAFT to be executed by the
-  Investor and the New Issuer. The replacement SAFT shall contain terms substantially
-  identical to the Original SAFT, except that references to the Original Issuer shall be
-  replaced with references to the New Issuer.</p>
-
-  <p><strong>3. Consideration.</strong> The mutual promises contained herein, including the
-  New Issuer's assumption of the Original Issuer's obligations and the issuance of a
-  replacement SAFT, constitute sufficient consideration for this Agreement.</p>
-
-  <p><strong>4. Release.</strong> Upon execution of the replacement SAFT, the Investor
-  releases ${params.oldEntity} from all obligations under the Original SAFT.</p>
-
-  <p><strong>5. Governing Law.</strong> This Agreement shall be governed by and construed
-  in accordance with the laws applicable to the replacement SAFT.</p>
-
-  <hr style="margin: 24px 0; border: none; border-top: 1px solid #ccc;" />
-
-  <p style="font-size: 12px; color: #666;">
-    By signing below, the Investor acknowledges that they have read, understood, and agree
-    to the termination of the Original SAFT and the novation of the issuer's obligations
-    to ${params.newEntity}. A replacement SAFT will be provided for execution following
-    the signing of this Agreement.
-  </p>
-</div>`.trim();
-}
+// (hashSimple and generateNovationHtml removed —
+//  novation docs now use the template system via docxtemplater)

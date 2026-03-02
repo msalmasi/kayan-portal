@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   // ── Validation ──
   if (!file) return NextResponse.json({ error: "File is required" }, { status: 400 });
-  if (!docType || !["saft", "ppm", "cis"].includes(docType)) {
+  if (!docType || !["saft", "ppm", "cis", "novation"].includes(docType)) {
     return NextResponse.json({ error: "Invalid doc_type" }, { status: 400 });
   }
   if ((docType === "saft" || docType === "ppm") && !roundId) {
@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
 
   // Validate file type
   const fileName = file.name;
-  if (docType === "saft" && !fileName.endsWith(".docx")) {
-    return NextResponse.json({ error: "SAFT template must be a .docx file" }, { status: 400 });
+  if ((docType === "saft" || docType === "novation") && !fileName.endsWith(".docx")) {
+    return NextResponse.json({ error: `${docType.toUpperCase()} template must be a .docx file` }, { status: 400 });
   }
   if ((docType === "ppm" || docType === "cis") && !fileName.endsWith(".pdf")) {
     return NextResponse.json({ error: "PPM and CIS must be .pdf files" }, { status: 400 });
@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // ── Extract placeholders from SAFT template ──
+  // ── Extract placeholders from docx templates (SAFT + novation) ──
   let placeholders: string[] | null = null;
-  if (docType === "saft") {
+  if (docType === "saft" || docType === "novation") {
     try {
       placeholders = extractPlaceholders(buffer);
     } catch (err: any) {
       return NextResponse.json(
-        { error: `Failed to parse SAFT template: ${err.message}` },
+        { error: `Failed to parse ${docType} template: ${err.message}` },
         { status: 400 }
       );
     }
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     .eq("doc_type", docType)
     .eq("is_active", true);
 
-  if (docType === "cis") {
+  if (docType === "cis" || docType === "novation") {
     await deactivateQuery.is("round_id", null);
   } else {
     await deactivateQuery.eq("round_id", roundId!);
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     .from("doc_templates")
     .insert({
       doc_type: docType,
-      round_id: docType === "cis" ? null : roundId,
+      round_id: (docType === "cis" || docType === "novation") ? null : roundId,
       file_name: fileName,
       storage_path: storagePath,
       placeholders,

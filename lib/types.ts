@@ -342,3 +342,15 @@ export const SAFT_PLACEHOLDERS = [
   "payment_method",
   "date",
 ] as const;
+
+/** Novation agreement placeholders — filled from reissuance batch data */
+export const NOVATION_PLACEHOLDERS = [
+  "investor_name",
+  "round_name",
+  "old_entity",
+  "new_entity",
+  "new_jurisdiction",
+  "reason",
+  "original_saft_date",
+  "date",
+] as const;

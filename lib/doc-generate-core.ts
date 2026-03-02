@@ -140,26 +140,29 @@ export async function generateDocsForInvestor(
     });
 
   // ── Void existing docs (re-generation) ──
+  // Preserve docs already in terminal states (superseded/terminated) so
+  // investors can see the visual history. Only delete active docs.
   const { data: existingDocs } = await supabase
     .from("investor_documents")
-    .select("id")
+    .select("id, status")
     .eq("investor_id", investor.id)
     .eq("round_id", roundId);
 
   const { data: existingCis } = await supabase
     .from("investor_documents")
-    .select("id")
+    .select("id, status")
     .eq("investor_id", investor.id)
     .eq("doc_type", "cis")
     .is("round_id", null);
 
-  const idsToVoid = [
-    ...(existingDocs || []).map((d: any) => d.id),
-    ...(existingCis || []).map((d: any) => d.id),
-  ];
+  const terminalStatuses = ["superseded", "terminated"];
+  const allExisting = [...(existingDocs || []), ...(existingCis || [])];
+  const idsToDelete = allExisting
+    .filter((d: any) => !terminalStatuses.includes(d.status))
+    .map((d: any) => d.id);
 
-  if (idsToVoid.length > 0) {
-    for (const docId of idsToVoid) {
+  if (idsToDelete.length > 0) {
+    for (const docId of idsToDelete) {
       await supabase.from("signing_events").insert({
         document_id: docId,
         investor_id: investor.id,
@@ -170,7 +173,7 @@ export async function generateDocsForInvestor(
     await supabase
       .from("investor_documents")
       .delete()
-      .in("id", idsToVoid);
+      .in("id", idsToDelete);
   }
 
   // ── Insert new document records ──
@@ -233,7 +236,7 @@ export async function generateDocsForInvestor(
         missing_variables: missingVars.map((m) => m.key),
         template: saftTemplate.file_name,
         triggered_by: triggeredBy,
-        is_regeneration: idsToVoid.length > 0,
+        is_regeneration: idsToDelete.length > 0,
       },
     });
   }
@@ -251,7 +254,7 @@ export async function generateDocsForInvestor(
       round_name: round.name,
       docs_generated: docs?.length || 0,
       missing_variables: missingVars.length,
-      is_regeneration: idsToVoid.length > 0,
+      is_regeneration: idsToDelete.length > 0,
       sent_successfully: emailSent,
     },
   });
@@ -260,6 +263,6 @@ export async function generateDocsForInvestor(
     documents: docs || [],
     missingVars,
     emailSent,
-    voidedCount: idsToVoid.length,
+    voidedCount: idsToDelete.length,
   };
 }

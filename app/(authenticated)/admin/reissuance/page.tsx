@@ -129,6 +129,7 @@ export default function ReissuancePage() {
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
   const [batchDetail, setBatchDetail] = useState<BatchDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [hasNovationTemplate, setHasNovationTemplate] = useState(true);
 
   // Form state
   const [oldEntity, setOldEntity] = useState("");
@@ -157,7 +158,18 @@ export default function ReissuancePage() {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { fetchBatches(); fetchRounds(); }, [fetchBatches, fetchRounds]);
+  // ── Check for novation template ──
+  const checkTemplate = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/documents/templates?doc_type=novation");
+      if (res.ok) {
+        const templates = await res.json();
+        setHasNovationTemplate(templates.length > 0);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchBatches(); fetchRounds(); checkTemplate(); }, [fetchBatches, fetchRounds, checkTemplate]);
 
   // ── Fetch batch detail ──
   const fetchDetail = async (batchId: string) => {
@@ -308,6 +320,18 @@ export default function ReissuancePage() {
               </p>
             </div>
 
+            {/* Missing template warning */}
+            {!hasNovationTemplate && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                <p className="text-sm font-medium text-red-700">Novation template required</p>
+                <p className="text-xs text-red-600 mt-1">
+                  Upload a Novation Agreement template (.docx) in{" "}
+                  <a href="/admin/documents" className="underline font-medium">Document Templates</a>{" "}
+                  before initiating re-issuance.
+                </p>
+              </div>
+            )}
+
             {/* Entity fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -418,7 +442,7 @@ export default function ReissuancePage() {
               <Button
                 onClick={handleCreate}
                 loading={creating}
-                disabled={!oldEntity || !newEntity || !reason}
+                disabled={!oldEntity || !newEntity || !reason || !hasNovationTemplate}
                 size="sm"
                 className={confirmStep ? "!bg-red-600 hover:!bg-red-500" : ""}
               >
