@@ -8,6 +8,8 @@ import { Card, CardHeader } from "@/components/ui/Card";
 interface InvestorStatus {
   kycVerified: boolean;
   pqApproved: boolean;
+  /** Raw PQ status for distinguishing submitted-but-pending from not-started */
+  pqStatus: string;
   docsSent: boolean;
   /** Set of round IDs where the SAFT has been signed */
   signedRoundIds: Set<string>;
@@ -24,7 +26,7 @@ interface AllocationTableProps {
 function getRequiredActions(
   alloc: AllocationWithRound,
   status: InvestorStatus
-): { label: string; href: string; done: boolean }[] {
+): { label: string; href: string; done: boolean; pending?: boolean }[] {
   const isGrant = alloc.payment_status === "grant";
   const isPaid = alloc.payment_status === "paid";
 
@@ -35,9 +37,14 @@ function getRequiredActions(
       done: status.kycVerified,
     },
     {
-      label: "Submit PQ",
+      label: status.pqApproved
+        ? "Submit PQ"
+        : status.pqStatus === "submitted"
+          ? "PQ Awaiting Approval"
+          : "Submit PQ",
       href: "/pq",
       done: status.pqApproved,
+      pending: status.pqStatus === "submitted",
     },
     {
       label: "Sign SAFT",
@@ -146,7 +153,7 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
           const isGrant = alloc.payment_status === "grant";
           const isPartial = alloc.payment_status === "partial";
           const isConfirmed = alloc.payment_status === "paid" || (isGrant && allDone);
-          const nextAction = actions.find((a) => !a.done);
+          const nextAction = actions.find((a) => !a.done && !a.pending);
 
           // Deadline logic
           const deadlineStr = alloc.saft_rounds?.deadline;
@@ -275,10 +282,15 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                           <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
+                        ) : action.pending ? (
+                          <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+                            <circle cx="12" cy="12" r="9" strokeWidth={2} />
+                          </svg>
                         ) : (
                           <span className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 flex-shrink-0" />
                         )}
-                        <span className={`text-xs ${action.done ? "text-gray-400 line-through" : "text-gray-600"}`}>
+                        <span className={`text-xs ${action.done ? "text-gray-400 line-through" : action.pending ? "text-amber-600" : "text-gray-600"}`}>
                           {action.label}
                         </span>
                       </div>

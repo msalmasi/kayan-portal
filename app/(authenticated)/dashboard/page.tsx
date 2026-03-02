@@ -216,6 +216,7 @@ export default async function DashboardPage() {
         investorStatus={{
           kycVerified: typedInvestor.kyc_status === "verified",
           pqApproved: typedInvestor.pq_status === "approved",
+          pqStatus: typedInvestor.pq_status,
           docsSent: !!typedInvestor.docs_sent_at,
           signedRoundIds,
         }}
