@@ -98,7 +98,7 @@ export async function GET(
     round_name: doc.saft_rounds?.name || null,
     round_id: doc.round_id,
     status: doc.status,
-    html_content: doc.doc_type === "saft" ? doc.html_content : null,
+    html_content: (doc.doc_type === "saft" || doc.doc_type === "novation") ? doc.html_content : null,
     doc_hash: doc.doc_hash,
     signed_at: doc.signed_at,
     signature_name: doc.signature_name,
