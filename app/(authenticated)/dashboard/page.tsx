@@ -75,15 +75,15 @@ export default async function DashboardPage() {
     .eq("investor_id", investor.id)
     .eq("approval_status", "approved");
 
-  // Helper: check if an allocation's round deadline has passed
-  const isRoundExpired = (a: any) => {
-    const dl = a.saft_rounds?.deadline;
+  // Helper: check if an allocation's payment deadline has passed
+  const isPaymentExpired = (a: any) => {
+    const dl = a.payment_deadline;
     return dl ? new Date(dl) < new Date() : false;
   };
 
-  // Fetch invoiced + partial for amount due banner (exclude expired rounds)
+  // Fetch invoiced + partial for amount due banner (exclude payment-expired allocations)
   const outstandingAllocations = (allAllocations || []).filter(
-    (a: any) => (a.payment_status === "invoiced" || a.payment_status === "partial") && !isRoundExpired(a)
+    (a: any) => (a.payment_status === "invoiced" || a.payment_status === "partial") && !isPaymentExpired(a)
   );
 
   // Separate confirmed (shown in stats/vesting) vs all (shown in table)
@@ -127,14 +127,14 @@ export default async function DashboardPage() {
   // Unconfirmed allocations for vesting chart pending line
   // Exclude expired rounds — those are forfeited, not "pending"
   const fullyUnpaid = (allAllocations || []).filter(
-    (a: any) => (a.payment_status === "invoiced" || a.payment_status === "unpaid") && !isRoundExpired(a)
+    (a: any) => (a.payment_status === "invoiced" || a.payment_status === "unpaid") && !isPaymentExpired(a)
   ) as AllocationWithRound[];
 
   // Remaining portion of partial payments (exclude expired — that portion is forfeited)
   const partialRemaining = scaledPartials.map((a: any) => ({
     ...a,
     token_amount: Number((allAllocations || []).find((o: any) => o.id === a.id)?.token_amount || 0) - Number(a.token_amount),
-  })).filter((a: any) => a.token_amount > 0 && !isRoundExpired(a)) as AllocationWithRound[];
+  })).filter((a: any) => a.token_amount > 0 && !isPaymentExpired(a)) as AllocationWithRound[];
 
   const unconfirmedAllocations = [...fullyUnpaid, ...partialRemaining];
 

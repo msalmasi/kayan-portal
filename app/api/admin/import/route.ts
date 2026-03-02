@@ -71,6 +71,16 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
+    // Block imports to closed rounds
+    if (round.closing_date && new Date(round.closing_date) < new Date()) {
+      results.errors.push({
+        row: i + 1,
+        message: `Round "${row.round_name}" has closed — cannot add new allocations`,
+      });
+      results.skipped++;
+      continue;
+    }
+
     // Upsert investor: reuse if exists, create if new
     let investorId: string;
     const existing = investorMap.get(email);

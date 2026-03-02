@@ -20,10 +20,10 @@ export default function RoundsPage() {
   const [tgeUnlockPct, setTgeUnlockPct] = useState("0");
   const [cliffMonths, setCliffMonths] = useState("0");
   const [vestingMonths, setVestingMonths] = useState("");
-  const [deadline, setDeadline] = useState("");
+  const [closingDate, setClosingDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [editingDeadlineId, setEditingDeadlineId] = useState<string | null>(null);
-  const [pendingDeadline, setPendingDeadline] = useState("");
+  const [editingClosingId, setEditingClosingId] = useState<string | null>(null);
+  const [pendingClosing, setPendingClosing] = useState("");
 
   const fetchRounds = useCallback(async () => {
     setLoading(true);
@@ -42,7 +42,7 @@ export default function RoundsPage() {
     setTgeUnlockPct("0");
     setCliffMonths("0");
     setVestingMonths("");
-    setDeadline("");
+    setClosingDate("");
     setShowForm(false);
   };
 
@@ -59,7 +59,7 @@ export default function RoundsPage() {
         tge_unlock_pct: Number(tgeUnlockPct),
         cliff_months: Number(cliffMonths),
         vesting_months: Number(vestingMonths),
-        deadline: deadline ? new Date(deadline).toISOString() : null,
+        closing_date: closingDate ? new Date(closingDate).toISOString() : null,
       }),
     });
 
@@ -201,15 +201,15 @@ export default function RoundsPage() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Payment Deadline
+                  Round Closing Date
                 </label>
                 <input
                   type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
+                  value={closingDate}
+                  onChange={(e) => setClosingDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
                 />
-                <p className="text-[11px] text-gray-400 mt-0.5">Optional. After this date, unpaid allocations expire.</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Optional. After this date, no new investors, signing, or capital calls for this round.</p>
               </div>
             </div>
 
@@ -235,7 +235,7 @@ export default function RoundsPage() {
                 <th className="text-right py-3 px-2 font-medium text-gray-500">TGE %</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">Cliff</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500">Vesting</th>
-                <th className="text-right py-3 px-2 font-medium text-gray-500">Deadline</th>
+                <th className="text-right py-3 px-2 font-medium text-gray-500">Closing Date</th>
                 <th className="text-right py-3 px-2 font-medium text-gray-500"></th>
               </tr>
             </thead>
@@ -274,28 +274,28 @@ export default function RoundsPage() {
                       {round.vesting_months}mo
                     </td>
                     <td className="py-3 px-2 text-right text-gray-700">
-                      {canWrite && editingDeadlineId === round.id ? (
+                      {canWrite && editingClosingId === round.id ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <input
                             type="date"
-                            value={pendingDeadline}
-                            onChange={(e) => setPendingDeadline(e.target.value)}
+                            value={pendingClosing}
+                            onChange={(e) => setPendingClosing(e.target.value)}
                             className="w-32 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-kayan-500"
                           />
                           <button
                             onClick={async () => {
-                              const newDeadline = pendingDeadline ? new Date(pendingDeadline).toISOString() : null;
+                              const newClosingDate = pendingClosing ? new Date(pendingClosing).toISOString() : null;
                               const res = await fetch("/api/admin/rounds", {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ id: round.id, deadline: newDeadline }),
+                                body: JSON.stringify({ id: round.id, closing_date: newClosingDate }),
                               });
                               if (res.ok) {
-                                toast.success(newDeadline ? `Deadline set for ${round.name}` : `Deadline removed for ${round.name}`);
-                                setEditingDeadlineId(null);
+                                toast.success(newClosingDate ? `Closing Date set for ${round.name}` : `Closing Date removed for ${round.name}`);
+                                setEditingClosingId(null);
                                 fetchRounds();
                               } else {
-                                toast.error("Failed to update deadline");
+                                toast.error("Failed to update closing date");
                               }
                             }}
                             className="text-[11px] font-medium text-emerald-600 hover:text-emerald-800"
@@ -303,7 +303,7 @@ export default function RoundsPage() {
                             Save
                           </button>
                           <button
-                            onClick={() => setEditingDeadlineId(null)}
+                            onClick={() => setEditingClosingId(null)}
                             className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
                           >
                             Cancel
@@ -311,9 +311,9 @@ export default function RoundsPage() {
                         </div>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          {round.deadline ? (
+                          {round.closing_date ? (
                             (() => {
-                              const d = new Date(round.deadline);
+                              const d = new Date(round.closing_date);
                               const expired = d < new Date();
                               return (
                                 <span className={expired ? "text-red-500" : ""}>
@@ -327,9 +327,9 @@ export default function RoundsPage() {
                           {canWrite && (
                             <button
                               onClick={() => {
-                                setEditingDeadlineId(round.id);
-                                setPendingDeadline(
-                                  round.deadline ? new Date(round.deadline).toISOString().split("T")[0] : ""
+                                setEditingClosingId(round.id);
+                                setPendingClosing(
+                                  round.closing_date ? new Date(round.closing_date).toISOString().split("T")[0] : ""
                                 );
                               }}
                               className="text-[11px] font-medium text-blue-500 hover:text-blue-700"

@@ -66,6 +66,10 @@ export async function PATCH(request: NextRequest) {
     };
   }
 
+  if (body.capital_call_payment_days !== undefined) {
+    updated.capital_call_payment_days = Math.max(1, Math.min(90, Number(body.capital_call_payment_days) || 10));
+  }
+
   // Upsert the single global row
   const { error } = await auth.client
     .from("payment_settings")

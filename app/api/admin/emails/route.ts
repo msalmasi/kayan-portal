@@ -76,7 +76,14 @@ export async function POST(request: NextRequest) {
     // Calculate total amount due across all unpaid allocations
     let totalDue = 0;
     const roundNames: string[] = [];
-    let earliestDeadline: string | null = null;
+
+    // Load payment settings for deadline calculation and email methods
+    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
+    const { addBusinessDays } = await import("@/lib/business-days");
+    const settings = await loadPaymentSettings(auth.client);
+    const paymentDays = settings.capital_call_payment_days || 10;
+    const paymentDeadline = addBusinessDays(new Date(), paymentDays);
+    const paymentDeadlineISO = paymentDeadline.toISOString();
 
     for (const alloc of unpaidAllocations) {
       const price = alloc.saft_rounds?.token_price || 0;
@@ -85,20 +92,15 @@ export async function POST(request: NextRequest) {
       if (alloc.saft_rounds?.name && !roundNames.includes(alloc.saft_rounds.name)) {
         roundNames.push(alloc.saft_rounds.name);
       }
-      // Track the earliest deadline across all rounds
-      if (alloc.saft_rounds?.deadline) {
-        if (!earliestDeadline || alloc.saft_rounds.deadline < earliestDeadline) {
-          earliestDeadline = alloc.saft_rounds.deadline;
-        }
-      }
 
-      // Auto-update payment status to "invoiced" if currently "unpaid"
+      // Auto-update payment status to "invoiced" and set payment deadline
       if (alloc.payment_status === "unpaid") {
         await auth.client
           .from("allocations")
           .update({
             payment_status: "invoiced",
             amount_usd: amount,
+            payment_deadline: paymentDeadlineISO,
           })
           .eq("id", alloc.id);
       }
@@ -106,9 +108,6 @@ export async function POST(request: NextRequest) {
 
     const roundLabel = roundNames.join(" + ");
 
-    // Load enabled payment methods for the email
-    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
-    const settings = await loadPaymentSettings(auth.client);
     const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
 
     const composed = composeCapitalCallEmail(
@@ -116,7 +115,7 @@ export async function POST(request: NextRequest) {
       totalDue,
       roundLabel,
       enabledMethods,
-      earliestDeadline
+      paymentDeadlineISO
     );
     subject = composed.subject;
     html = composed.html;

@@ -32,8 +32,8 @@ export interface SaftRound {
   tge_unlock_pct: number;
   cliff_months: number;
   vesting_months: number;
-  /** Optional payment deadline. NULL = no deadline. After this, unpaid allocations expire. */
-  deadline: string | null;
+  /** Optional round closing date. NULL = no close date. After this: no new investors, no signing, no new capital calls. */
+  closing_date: string | null;
   created_at: string;
 }
 
@@ -65,6 +65,8 @@ export interface Allocation {
   approved_by: string | null;
   approved_at: string | null;
   rejection_reason: string | null;
+  /** Payment due date — set when capital call issued. NULL = no deadline. */
+  payment_deadline: string | null;
   created_at: string;
 }
 

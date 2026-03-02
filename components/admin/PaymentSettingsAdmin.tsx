@@ -279,6 +279,33 @@ export function PaymentSettingsAdmin() {
         </div>
       </Card>
 
+      {/* ── Capital Call Settings ── */}
+      <Card>
+        <CardHeader
+          title="Capital Call Settings"
+          subtitle="Default payment terms for new capital calls"
+        />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Payment Deadline (business days after issuance)</label>
+            <input
+              type="number"
+              min={1}
+              max={90}
+              className="block w-32 rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-kayan-500 focus:ring-kayan-500"
+              value={settings.capital_call_payment_days ?? 10}
+              onChange={(e) => {
+                setSettings({ ...settings, capital_call_payment_days: parseInt(e.target.value) || 10 });
+                setDirty(true);
+              }}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              When a capital call is issued, investors will have this many business days to complete payment. Weekends are excluded.
+            </p>
+          </div>
+        </div>
+      </Card>
+
       {/* ── Save button ── */}
       {canEdit && dirty && (
         <div className="sticky bottom-4 flex justify-end">

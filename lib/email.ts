@@ -62,8 +62,8 @@ export function composeCapitalCallEmail(
   roundName: string,
   /** Pass enabled method IDs, e.g. ["usdc_eth","usdc_sol","wire"]. Defaults to all crypto if omitted. */
   enabledMethods?: string[],
-  /** Optional payment deadline for this round */
-  deadline?: string | null
+  /** Payment deadline date for this capital call */
+  paymentDeadline?: string | null
 ) {
   const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -125,10 +125,10 @@ export function composeCapitalCallEmail(
         <tr>
           <td style="padding:4px 0;font-weight:600;">Round</td>
           <td style="padding:4px 0;text-align:right;">${roundName}</td>
-        </tr>${deadline ? `
+        </tr>${paymentDeadline ? `
         <tr>
           <td style="padding:4px 0;font-weight:600;">Payment Deadline</td>
-          <td style="padding:4px 0;text-align:right;color:#dc2626;font-weight:600;">${new Date(deadline).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td>
+          <td style="padding:4px 0;text-align:right;color:#dc2626;font-weight:600;">${new Date(paymentDeadline).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td>
         </tr>` : ""}
       </table>
     </div>

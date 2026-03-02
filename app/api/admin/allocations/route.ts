@@ -38,6 +38,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Block allocation to closed rounds
+  const { data: round } = await auth.client
+    .from("saft_rounds")
+    .select("closing_date")
+    .eq("id", body.round_id)
+    .single();
+
+  if (round?.closing_date && new Date(round.closing_date) < new Date()) {
+    return NextResponse.json(
+      { error: "This round has closed. New allocations cannot be added." },
+      { status: 410 }
+    );
+  }
+
   // Staff proposes (pending); manager+ approves immediately
   const isManager = isManagerOrAbove(auth.role);
   const approvalStatus = isManager ? "approved" : "pending";

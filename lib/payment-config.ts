@@ -53,6 +53,8 @@ export interface PaymentSettings {
     swift_code: string;
     reference_note: string;
   };
+  /** Default business days after capital call issuance for payment deadline */
+  capital_call_payment_days: number;
 }
 
 // ─── Default config (used if DB row doesn't exist yet) ──────
@@ -77,6 +79,7 @@ const DEFAULTS: PaymentSettings = {
     swift_code: "",
     reference_note: "Include your full name and 'Kayan Token' as reference",
   },
+  capital_call_payment_days: 10,
 };
 
 // ─── Load from database ─────────────────────────────────────
@@ -91,7 +94,7 @@ export async function loadPaymentSettings(
   try {
     const { data } = await supabase
       .from("payment_settings")
-      .select("methods, wallets, wire_instructions")
+      .select("methods, wallets, wire_instructions, capital_call_payment_days")
       .eq("id", "global")
       .single();
 
@@ -101,6 +104,7 @@ export async function loadPaymentSettings(
       methods: { ...DEFAULTS.methods, ...(data.methods || {}) },
       wallets: { ...DEFAULTS.wallets, ...(data.wallets || {}) },
       wire_instructions: { ...DEFAULTS.wire_instructions, ...(data.wire_instructions || {}) },
+      capital_call_payment_days: data.capital_call_payment_days ?? DEFAULTS.capital_call_payment_days,
     };
   } catch {
     return DEFAULTS;

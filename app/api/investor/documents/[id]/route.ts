@@ -272,6 +272,22 @@ export async function POST(
     return NextResponse.json({ error: "Document already signed" }, { status: 400 });
   }
 
+  // Block signing if the round has closed
+  if (doc.round_id) {
+    const { data: round } = await admin
+      .from("saft_rounds")
+      .select("closing_date")
+      .eq("id", doc.round_id)
+      .single();
+
+    if (round?.closing_date && new Date(round.closing_date) < new Date()) {
+      return NextResponse.json(
+        { error: "This round has closed. Documents can no longer be signed." },
+        { status: 410 }
+      );
+    }
+  }
+
   // Block signing if there are still missing variables
   const missing: MissingVariable[] = doc.missing_variables || [];
   if (missing.length > 0) {

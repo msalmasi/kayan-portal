@@ -155,16 +155,21 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
           const isConfirmed = alloc.payment_status === "paid" || (isGrant && allDone);
           const nextAction = actions.find((a) => !a.done && !a.pending);
 
-          // Deadline logic
-          const deadlineStr = alloc.saft_rounds?.deadline;
-          const deadlineDate = deadlineStr ? new Date(deadlineStr) : null;
-          const isExpired = deadlineDate ? deadlineDate < new Date() : false;
-          const isExpiredUnconfirmed = isExpired && !isConfirmed && !isPartial;
-          const isExpiredPartial = isExpired && isPartial;
+          // Round closing date (offer window — informational)
+          const closingStr = alloc.saft_rounds?.closing_date;
+          const closingDate = closingStr ? new Date(closingStr) : null;
+          const roundClosed = closingDate ? closingDate < new Date() : false;
 
-          // Days remaining for countdown
-          const daysLeft = deadlineDate
-            ? Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          // Payment deadline (per-allocation — set when capital call issued)
+          const payDeadlineStr = alloc.payment_deadline;
+          const payDeadlineDate = payDeadlineStr ? new Date(payDeadlineStr) : null;
+          const payExpired = payDeadlineDate ? payDeadlineDate < new Date() : false;
+          const isExpiredUnconfirmed = payExpired && !isConfirmed && !isPartial;
+          const isExpiredPartial = payExpired && isPartial;
+
+          // Days remaining on payment deadline for countdown
+          const daysLeft = payDeadlineDate
+            ? Math.ceil((payDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
             : null;
           const isUrgent = daysLeft !== null && daysLeft > 0 && daysLeft <= 7;
 
@@ -238,15 +243,20 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                   <span>TGE: {alloc.saft_rounds.tge_unlock_pct}%</span>
                   <span>Cliff: {alloc.saft_rounds.cliff_months > 0 ? `${alloc.saft_rounds.cliff_months}mo` : "None"}</span>
                   <span>Vesting: {alloc.saft_rounds.vesting_months}mo</span>
-                  {deadlineDate && !isConfirmed && (
+                  {closingDate && (
+                    <span className={roundClosed ? "text-gray-400" : ""}>
+                      {roundClosed ? `Round closed ${closingDate.toLocaleDateString()}` : `Closes: ${closingDate.toLocaleDateString()}`}
+                    </span>
+                  )}
+                  {payDeadlineDate && !isConfirmed && (
                     <span className={
-                      isExpired ? "text-red-500 font-medium" :
+                      payExpired ? "text-red-500 font-medium" :
                       isUrgent ? "text-amber-600 font-medium" :
                       ""
                     }>
-                      {isExpired
-                        ? `Deadline passed ${deadlineDate.toLocaleDateString()}`
-                        : `Deadline: ${deadlineDate.toLocaleDateString()}${isUrgent ? ` (${daysLeft}d left)` : ""}`
+                      {payExpired
+                        ? `Payment expired ${payDeadlineDate.toLocaleDateString()}`
+                        : `Pay by: ${payDeadlineDate.toLocaleDateString()}${isUrgent ? ` (${daysLeft}d left)` : ""}`
                       }
                     </span>
                   )}
@@ -258,7 +268,7 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                 <div className="mt-3 pt-3 border-t border-amber-200">
                   <p className="text-xs text-amber-700">
                     <span className="font-medium">{formatTokenAmount(confirmedTokens)} tokens confirmed</span> from partial payment of ${(Number(alloc.amount_received_usd) || 0).toLocaleString()}.
-                    The deadline passed on {deadlineDate!.toLocaleDateString()} — the remaining {formatTokenAmount(forfeitedTokens)} tokens are no longer available.
+                    The payment deadline passed on {payDeadlineDate!.toLocaleDateString()} — the remaining {formatTokenAmount(forfeitedTokens)} tokens are no longer available.
                   </p>
                 </div>
               )}
@@ -267,7 +277,7 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
               {isExpiredUnconfirmed && (
                 <div className="mt-3 pt-3 border-t border-red-100">
                   <p className="text-xs text-red-500">
-                    The payment deadline for this round has passed. This allocation is no longer available.
+                    The payment deadline for this capital call has passed. This allocation is no longer available.
                   </p>
                 </div>
               )}

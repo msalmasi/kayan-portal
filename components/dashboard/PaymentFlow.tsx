@@ -213,7 +213,7 @@ export function PaymentFlow() {
                     </p>
                     {deadlineDate && (
                       <p className={`text-[11px] mt-0.5 ${isUrgent ? "text-red-600 font-medium" : "text-gray-400"}`}>
-                        Deadline: {deadlineDate.toLocaleDateString()}{isUrgent ? ` — ${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : ""}
+                        Pay by: {deadlineDate.toLocaleDateString()}{isUrgent ? ` — ${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : ""}
                       </p>
                     )}
                   </div>

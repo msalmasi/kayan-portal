@@ -4,6 +4,7 @@ import {
   composeCapitalCallEmail,
   composeAllocationConfirmedEmail,
 } from "@/lib/email";
+import { addBusinessDays } from "@/lib/business-days";
 
 /**
  * Capital call readiness status.
@@ -72,7 +73,7 @@ export async function checkAndSendCapitalCall(
   // ── Fetch approved allocations ──
   const { data: allocations } = await supabase
     .from("allocations")
-    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(id, name, token_price, deadline)")
+    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(id, name, token_price, closing_date)")
     .eq("investor_id", investorId)
     .eq("approval_status", "approved");
 
@@ -115,11 +116,17 @@ export async function checkAndSendCapitalCall(
   for (const [roundId, roundAllocs] of Object.entries(roundMap)) {
     const roundName = (roundAllocs[0] as any).saft_rounds?.name || "Unknown";
     const tokenPrice = Number((roundAllocs[0] as any).saft_rounds?.token_price || 0);
-    const roundDeadline = (roundAllocs[0] as any).saft_rounds?.deadline || null;
+    const closingDate = (roundAllocs[0] as any).saft_rounds?.closing_date;
     const hasSigned = signedRoundIds.has(roundId);
 
     // Skip rounds without signed SAFT
     if (!hasSigned) {
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped" });
+      continue;
+    }
+
+    // Skip closed rounds — no new capital calls after closing
+    if (closingDate && new Date(closingDate) < new Date()) {
       roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped" });
       continue;
     }
@@ -184,6 +191,14 @@ export async function checkAndSendCapitalCall(
 
     // ── Unpaid allocations in this round: send capital call ──
     let amountDue = 0;
+
+    // Load payment settings for deadline calculation and email methods
+    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
+    const settings = await loadPaymentSettings(supabase);
+    const paymentDays = settings.capital_call_payment_days || 10;
+    const paymentDeadline = addBusinessDays(new Date(), paymentDays);
+    const paymentDeadlineISO = paymentDeadline.toISOString();
+
     for (const alloc of roundAllocs) {
       if (alloc.payment_status === "unpaid") {
         const amount = Number(alloc.amount_usd) || Number(alloc.token_amount) * tokenPrice;
@@ -191,7 +206,11 @@ export async function checkAndSendCapitalCall(
 
         await supabase
           .from("allocations")
-          .update({ payment_status: "invoiced", amount_usd: amount })
+          .update({
+            payment_status: "invoiced",
+            amount_usd: amount,
+            payment_deadline: paymentDeadlineISO,
+          })
           .eq("id", alloc.id);
       }
     }
@@ -204,9 +223,6 @@ export async function checkAndSendCapitalCall(
       }, 0
     );
 
-    // Load enabled payment methods for the email
-    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
-    const settings = await loadPaymentSettings(supabase);
     const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
 
     const { subject, html } = composeCapitalCallEmail(
@@ -214,7 +230,7 @@ export async function checkAndSendCapitalCall(
       totalDueRound,
       roundName,
       enabledMethods,
-      roundDeadline
+      paymentDeadlineISO
     );
     const emailSent = await sendEmail(investor.email, subject, html);
 
