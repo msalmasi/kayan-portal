@@ -83,6 +83,38 @@ function getExplorerUrl(method: string, hash: string): string {
   return "";
 }
 
+/**
+ * Inline error alert — shown on the "pay" step when submission fails.
+ * Renders a clear, non-dismissable message so the investor knows
+ * exactly why their payment was blocked.
+ */
+function InlinePaymentError({ error, onDismiss }: { error: string; onDismiss: () => void }) {
+  return (
+    <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+      <div className="flex items-start gap-3">
+        <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg className="w-3.5 h-3.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-red-800">Payment could not be submitted</p>
+          <p className="text-sm text-red-600 mt-1">{error}</p>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-red-400 hover:text-red-600 flex-shrink-0"
+          aria-label="Dismiss"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────
 
 export function PaymentFlow() {
@@ -107,6 +139,10 @@ export function PaymentFlow() {
   const [result, setResult] = useState<{ verified: boolean; detail: string } | null>(null);
   const [copied, setCopied] = useState("");
 
+  // Error states
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<{ message: string; type: "paused" | "error" } | null>(null);
+
   // ── Helper: get wallet address for a method from loaded state ──
   const getWalletAddress = (method: string): string => {
     if (method === "usdc_eth" || method === "usdt_eth") return wallets.ethereum;
@@ -117,8 +153,31 @@ export function PaymentFlow() {
   // ── Fetch ──
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/investor/payments");
-    if (res.ok) {
+    setFetchError(null);
+    try {
+      const res = await fetch("/api/investor/payments");
+
+      if (res.status === 503) {
+        // Platform paused
+        const data = await res.json();
+        setFetchError({
+          message: data.reason || "The platform is undergoing scheduled maintenance. Payments are temporarily unavailable.",
+          type: "paused",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFetchError({
+          message: data.error || "Unable to load payment information. Please try again later.",
+          type: "error",
+        });
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
       setRounds(data.rounds || []);
       setGrants(data.grants || []);
@@ -126,6 +185,8 @@ export function PaymentFlow() {
       if (data.methods) setMethods(data.methods);
       if (data.wallets) setWallets(data.wallets);
       if (data.wire_instructions) setWireInstructions(data.wire_instructions);
+    } catch {
+      setFetchError({ message: "Network error — please check your connection.", type: "error" });
     }
     setLoading(false);
   }, []);
@@ -135,12 +196,13 @@ export function PaymentFlow() {
   const resetFlow = () => {
     setStep("overview"); setSelectedRound(null); setSelectedMethod(null);
     setTxHash(""); setFromWallet(""); setWireRef(""); setResult(null);
+    setSubmitError(null);
   };
 
   // ── Submit ──
   const handleSubmit = async () => {
     if (!selectedRound || !selectedMethod) return;
-    setSubmitting(true); setResult(null);
+    setSubmitting(true); setResult(null); setSubmitError(null);
 
     const body: Record<string, any> = {
       round_id: selectedRound.round_id,
@@ -152,22 +214,55 @@ export function PaymentFlow() {
     if (selectedMethod === "wire") body.wire_reference = wireRef;
     else { body.tx_hash = txHash; if (fromWallet) body.from_wallet = fromWallet; }
 
-    const res = await fetch("/api/investor/payments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    setSubmitting(false);
+    try {
+      const res = await fetch("/api/investor/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setSubmitting(false);
 
-    if (!res.ok) {
-      setResult({ verified: false, detail: data.error || "Submission failed" });
-      return;
+      if (!res.ok) {
+        // Parse the error into a user-friendly message with context
+        setSubmitError(parseSubmitError(res.status, data));
+        return;
+      }
+
+      setResult(data.verification || { verified: false, detail: "Submitted for manual review by our team." });
+      setStep("submitted");
+      fetchData();
+    } catch {
+      setSubmitting(false);
+      setSubmitError("Network error — please check your connection and try again.");
+    }
+  };
+
+  /**
+   * Turn API error responses into clear, actionable messages.
+   * The backend already sends good error strings, but we add
+   * context about what the investor should do next.
+   */
+  const parseSubmitError = (status: number, data: any): string => {
+    const raw = data?.error || "Something went wrong. Please try again.";
+
+    // Platform paused (503)
+    if (status === 503 || data?.paused) {
+      return data?.reason
+        ? `The platform is currently paused: ${data.reason}. Payments will resume once the pause is lifted.`
+        : "The platform is undergoing maintenance. Payments are temporarily unavailable — please try again later.";
     }
 
-    setResult(data.verification || { verified: false, detail: "Submitted for manual review by our team." });
-    setStep("submitted");
-    fetchData();
+    // The 403 messages from the API are already descriptive, so pass them
+    // through directly. They cover PQ not approved, SAFT not signed, and
+    // reissuance freeze — each with a clear explanation.
+    if (status === 403) return raw;
+
+    // Duplicate transaction (409)
+    if (status === 409) return raw;
+
+    // Anything else — use the raw message
+    return raw;
   };
 
   // ── Copy helper ──
@@ -178,8 +273,60 @@ export function PaymentFlow() {
   };
 
   // Nothing to show — hide entire card (grants are displayed in AllocationTable)
-  if (!loading && rounds.length === 0 && claims.length === 0) return null;
+  if (!loading && !fetchError && rounds.length === 0 && claims.length === 0) return null;
   if (loading) return <Card><CardHeader title="Payments" /><p className="text-sm text-gray-400">Loading…</p></Card>;
+
+  // ── Fetch-level error (platform paused, auth issue, network) ──
+  if (fetchError) {
+    return (
+      <Card>
+        <CardHeader title="Payments" />
+        <div className={`rounded-lg p-4 ${
+          fetchError.type === "paused"
+            ? "bg-gray-50 border border-gray-200"
+            : "bg-red-50 border border-red-200"
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+              fetchError.type === "paused"
+                ? "bg-gray-200 text-gray-500"
+                : "bg-red-100 text-red-500"
+            }`}>
+              {fetchError.type === "paused" ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <p className={`text-sm font-medium ${
+                fetchError.type === "paused" ? "text-gray-700" : "text-red-700"
+              }`}>
+                {fetchError.type === "paused" ? "Payments Unavailable" : "Unable to Load Payments"}
+              </p>
+              <p className={`text-sm mt-1 ${
+                fetchError.type === "paused" ? "text-gray-500" : "text-red-600"
+              }`}>
+                {fetchError.message}
+              </p>
+              {fetchError.type === "error" && (
+                <button
+                  onClick={fetchData}
+                  className="text-sm font-medium text-kayan-600 hover:text-kayan-800 mt-2 underline underline-offset-2"
+                >
+                  Try again
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500";
 
@@ -295,7 +442,7 @@ export function PaymentFlow() {
                           ))}
                         </div>
                       )}
-                      <Button size="sm" onClick={() => { setSelectedRound(r); setStep("method"); }}>
+                      <Button size="sm" onClick={() => { setSelectedRound(r); setSubmitError(null); setStep("method"); }}>
                         {roundClaims.length > 0 ? "Make Another Payment" : "Make Payment"}
                       </Button>
                     </div>
@@ -403,6 +550,7 @@ export function PaymentFlow() {
                 disabled={!m.enabled}
                 onClick={() => {
                   setSelectedMethod(m.id);
+                  setSubmitError(null);
                   setStep("pay");
                 }}
                 className={`w-full flex items-center gap-4 p-4 rounded-lg border text-left transition-colors ${
@@ -506,11 +654,15 @@ export function PaymentFlow() {
             </div>
           </div>
 
+          {submitError && (
+            <InlinePaymentError error={submitError} onDismiss={() => setSubmitError(null)} />
+          )}
+
           <div className="flex items-center gap-3">
             <Button onClick={handleSubmit} disabled={!txHash || submitting} loading={submitting}>
               {submitting ? "Verifying on-chain…" : "Submit & Verify"}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setStep("method")}>← Back</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setSubmitError(null); setStep("method"); }}>← Back</Button>
           </div>
 
           <p className="text-xs text-gray-400">
@@ -614,11 +766,15 @@ export function PaymentFlow() {
               </div>
             </div>
 
+            {submitError && (
+              <InlinePaymentError error={submitError} onDismiss={() => setSubmitError(null)} />
+            )}
+
             <div className="flex items-center gap-3">
               <Button onClick={handleSubmit} disabled={!wireRef || submitting} loading={submitting}>
                 Submit Wire Confirmation
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setStep("method")}>← Back</Button>
+              <Button variant="ghost" size="sm" onClick={() => { setSubmitError(null); setStep("method"); }}>← Back</Button>
             </div>
 
             <p className="text-xs text-gray-400">
