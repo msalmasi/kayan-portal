@@ -290,8 +290,7 @@ export default function ReissuancePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Document Re-issuance</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Re-issue SAFTs when the issuing entity, terms, or templates change.
-            Each batch generates novation agreements for affected investors.
+            Supersede and replace investor agreements when entities, terms, or templates change
           </p>
         </div>
         {isAdmin && !showForm && (
@@ -306,7 +305,7 @@ export default function ReissuancePage() {
         <Card>
           <CardHeader
             title="Initiate Re-issuance"
-            subtitle="This will supersede existing SAFTs and send novation agreements to all affected investors"
+            subtitle="Supersede existing agreements and issue replacements to affected investors"
           />
 
           <div className="space-y-4">
