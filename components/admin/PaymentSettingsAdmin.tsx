@@ -26,6 +26,7 @@ interface PaymentSettings {
     swift_code: string;
     reference_note: string;
   };
+  capital_call_payment_days: number;
 }
 
 // ─── Method display order ───────────────────────────────────
