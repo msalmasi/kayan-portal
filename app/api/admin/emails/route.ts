@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
-import {
-  sendEmail,
-  composeWelcomeEmail,
-  composeCapitalCallEmail,
-} from "@/lib/email";
+import { sendEmail, composeWelcomeEmail } from "@/lib/email";
 
 /**
  * POST /api/admin/emails
@@ -12,8 +8,12 @@ import {
  *
  * Body: { investor_id, email_type: "welcome" | "capital_call" }
  *
- * Welcome emails can be sent by any role (fires after investor creation).
- * Capital call emails require canWrite (manager+).
+ * Welcome emails can be sent by any role.
+ * Capital call emails require canWrite (manager+) and route through
+ * checkAndSendCapitalCall() which enforces all three gates:
+ *   1. PQ approved
+ *   2. SAFT signed for the round
+ *   3. Round not closed
  */
 export async function POST(request: NextRequest) {
   const auth = await getAdminAuth();
@@ -39,10 +39,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Fetch investor with allocations + rounds
+  // Fetch investor
   const { data: investor, error: invErr } = await auth.client
     .from("investors")
-    .select("*, allocations(*, saft_rounds(*))")
+    .select("*")
     .eq("id", investor_id)
     .single();
 
@@ -50,109 +50,59 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Investor not found" }, { status: 404 });
   }
 
-  let subject: string;
-  let html: string;
-  let metadata: Record<string, any> = {};
-
   if (email_type === "welcome") {
     // ── Welcome email ──
-    const composed = composeWelcomeEmail(investor.full_name);
-    subject = composed.subject;
-    html = composed.html;
+    const { subject, html } = composeWelcomeEmail(investor.full_name);
+    const sent = await sendEmail(investor.email, subject, html);
+
+    await auth.client.from("email_events").insert({
+      investor_id,
+      email_type,
+      sent_by: body.sent_by || "system",
+      metadata: { sent_successfully: sent },
+    });
+
+    return NextResponse.json({
+      success: true,
+      sent,
+      message: sent
+        ? `Welcome email sent to ${investor.email}`
+        : `Welcome email logged (no RESEND_API_KEY configured)`,
+    });
+
   } else if (email_type === "capital_call") {
-    // ── Capital call email ──
-    // Sum all unpaid/invoiced allocations for the capital call
-    const unpaidAllocations = (investor.allocations || []).filter(
-      (a: any) => a.payment_status === "unpaid" || a.payment_status === "invoiced"
+    // ── Capital call — delegate to gated flow ──
+    // checkAndSendCapitalCall enforces: PQ approved, SAFT signed, round not closed.
+    // It sends per-round emails, sets payment_deadline, and logs everything.
+    const { checkAndSendCapitalCall } = await import("@/lib/capital-call");
+
+    const result = await checkAndSendCapitalCall(
+      auth.client,
+      investor_id,
+      "admin_resend",
+      body.sent_by || "system"
     );
 
-    if (unpaidAllocations.length === 0) {
-      return NextResponse.json(
-        { error: "No unpaid allocations to issue a capital call for" },
-        { status: 400 }
-      );
+    if (!result.sent) {
+      const reason = result.pending.length > 0
+        ? result.pending.join("; ")
+        : "No eligible allocations (already invoiced, paid, or round closed)";
+      return NextResponse.json({ error: reason }, { status: 400 });
     }
 
-    // Calculate total amount due across all unpaid allocations
-    let totalDue = 0;
-    const roundNames: string[] = [];
+    return NextResponse.json({
+      success: true,
+      sent: true,
+      message: `Capital call issued: ${result.capital_calls_sent} call(s), ${result.grants_confirmed} grant confirmation(s)`,
+      details: result.rounds,
+    });
 
-    // Load payment settings for deadline calculation and email methods
-    const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
-    const { addBusinessDays } = await import("@/lib/business-days");
-    const settings = await loadPaymentSettings(auth.client);
-    const paymentDays = settings.capital_call_payment_days || 10;
-    const paymentDeadline = addBusinessDays(new Date(), paymentDays);
-    const paymentDeadlineISO = paymentDeadline.toISOString();
-
-    for (const alloc of unpaidAllocations) {
-      const price = alloc.saft_rounds?.token_price || 0;
-      const amount = Number(alloc.token_amount) * Number(price);
-      totalDue += amount;
-      if (alloc.saft_rounds?.name && !roundNames.includes(alloc.saft_rounds.name)) {
-        roundNames.push(alloc.saft_rounds.name);
-      }
-
-      // Auto-update payment status to "invoiced" and set payment deadline
-      if (alloc.payment_status === "unpaid") {
-        await auth.client
-          .from("allocations")
-          .update({
-            payment_status: "invoiced",
-            amount_usd: amount,
-            payment_deadline: paymentDeadlineISO,
-          })
-          .eq("id", alloc.id);
-      }
-    }
-
-    const roundLabel = roundNames.join(" + ");
-
-    const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
-
-    const composed = composeCapitalCallEmail(
-      investor.full_name,
-      totalDue,
-      roundLabel,
-      enabledMethods,
-      paymentDeadlineISO
-    );
-    subject = composed.subject;
-    html = composed.html;
-    metadata = { total_due: totalDue, rounds: roundNames };
   } else {
     return NextResponse.json(
       { error: "Invalid email_type. Use 'welcome' or 'capital_call'." },
       { status: 400 }
     );
   }
-
-  // Send the email
-  const sent = await sendEmail(investor.email, subject, html);
-
-  // Get the admin user's email for audit trail
-  const adminUserRes = await auth.client
-    .from("admin_users")
-    .select("email")
-    .limit(1);
-  // Use the request context to get sender — fallback to "system"
-  const senderEmail = body.sent_by || "system";
-
-  // Log the email event
-  await auth.client.from("email_events").insert({
-    investor_id,
-    email_type,
-    sent_by: senderEmail,
-    metadata: { ...metadata, sent_successfully: sent },
-  });
-
-  return NextResponse.json({
-    success: true,
-    sent,
-    message: sent
-      ? `${email_type} email sent to ${investor.email}`
-      : `${email_type} email logged (no RESEND_API_KEY configured — set it to enable delivery)`,
-  });
 }
 
 /**
