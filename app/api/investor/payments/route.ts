@@ -174,6 +174,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "wire_reference is required for wire payments" }, { status: 400 });
   }
 
+  // ── Re-verify compliance gates before accepting payment ──
+  // These gates are checked continuously, not just at capital call time.
+  // If PQ was resubmitted or SAFT unsigned, payment is blocked.
+
+  // Gate: PQ must be currently approved
+  if (investor.pq_status !== "approved") {
+    return NextResponse.json(
+      { error: "Your Purchaser Questionnaire must be approved before payment can be accepted. Please contact the issuer if you believe this is an error." },
+      { status: 403 }
+    );
+  }
+
+  // Gate: SAFT must be signed for this round
+  const { data: signedSaft } = await adminClient
+    .from("investor_documents")
+    .select("id")
+    .eq("investor_id", investor.id)
+    .eq("round_id", round_id)
+    .eq("doc_type", "saft")
+    .eq("status", "signed")
+    .limit(1);
+
+  if (!signedSaft || signedSaft.length === 0) {
+    return NextResponse.json(
+      { error: "The SAFT agreement for this round must be signed before payment can be accepted." },
+      { status: 403 }
+    );
+  }
+
   // Check for duplicate tx_hash
   if (tx_hash) {
     const { data: existing } = await adminClient

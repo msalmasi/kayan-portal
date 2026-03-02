@@ -84,10 +84,16 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result.sent) {
+      // Surface specific reasons: gate failures first, then per-round skip reasons
+      const skipReasons = result.rounds
+        .filter(r => r.action === "skipped" && r.skip_reason)
+        .map(r => `${r.round_name}: ${r.skip_reason}`);
       const reason = result.pending.length > 0
         ? result.pending.join("; ")
-        : "No eligible allocations (already invoiced, paid, or round closed)";
-      return NextResponse.json({ error: reason }, { status: 400 });
+        : skipReasons.length > 0
+          ? skipReasons.join("; ")
+          : "No eligible allocations";
+      return NextResponse.json({ error: reason, details: result.rounds }, { status: 400 });
     }
 
     return NextResponse.json({

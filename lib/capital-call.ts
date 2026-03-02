@@ -25,8 +25,9 @@ export interface CapitalCallStatus {
   rounds: {
     round_id: string;
     round_name: string;
-    action: "capital_call" | "grant_confirmed" | "already_sent" | "already_paid" | "skipped";
+    action: "capital_call" | "resent" | "grant_confirmed" | "already_paid" | "skipped";
     amount_due?: number;
+    skip_reason?: string;
   }[];
 }
 
@@ -38,11 +39,15 @@ export interface CapitalCallStatus {
  *   2. Approved allocation(s) exist for this round
  *   3. SAFT is signed for this round
  *
+ * These gates are checked CONTINUOUSLY — even for already-invoiced rounds.
+ * If conditions change (e.g. PQ resubmitted), previously-issued capital
+ * calls will NOT be resent until gates are satisfied again.
+ *
  * Behaviour by payment status:
  *   - "unpaid"            → send capital call email, mark as invoiced
- *   - "invoiced"          → capital call already sent, skip
+ *   - "invoiced"/"partial"→ re-send capital call email (reminder)
  *   - "grant"             → send grant confirmation email, no capital call
- *   - "paid"/"partial"    → already handled, skip
+ *   - "paid"              → fully complete, skip
  *
  * Capital calls are sent PER ROUND (not batched) for clean tracking.
  */
@@ -73,7 +78,7 @@ export async function checkAndSendCapitalCall(
   // ── Fetch approved allocations ──
   const { data: allocations } = await supabase
     .from("allocations")
-    .select("id, round_id, token_amount, payment_status, amount_usd, saft_rounds(id, name, token_price, closing_date)")
+    .select("id, round_id, token_amount, payment_status, amount_usd, amount_received_usd, saft_rounds(id, name, token_price, closing_date)")
     .eq("investor_id", investorId)
     .eq("approval_status", "approved");
 
@@ -119,30 +124,31 @@ export async function checkAndSendCapitalCall(
     const closingDate = (roundAllocs[0] as any).saft_rounds?.closing_date;
     const hasSigned = signedRoundIds.has(roundId);
 
-    // Skip rounds without signed SAFT
+    // Gate: SAFT must be signed for this round
     if (!hasSigned) {
-      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped" });
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped", skip_reason: "SAFT not signed" });
       continue;
     }
 
-    // Skip closed rounds — no new capital calls after closing
-    if (closingDate && new Date(closingDate) < new Date()) {
-      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped" });
-      continue;
-    }
+    // Gate: Round closing only blocks NEW capital calls.
+    // Resends for already-invoiced allocations are allowed (investor may have missed the email).
+    const roundClosed = closingDate && new Date(closingDate) < new Date();
 
-    // Check if ALL allocations in this round are grants
+    // Check allocation states
     const allGrants = roundAllocs.every((a: any) => a.payment_status === "grant");
-    // Check if ALL are paid/grant (fully complete)
     const allComplete = roundAllocs.every(
       (a: any) => a.payment_status === "paid" || a.payment_status === "grant"
     );
-    // Check if any are still unpaid (need a fresh capital call)
     const hasUnpaid = roundAllocs.some((a: any) => a.payment_status === "unpaid");
-    // Check if already invoiced (capital call was sent before)
-    const allInvoicedOrBetter = roundAllocs.every(
-      (a: any) => a.payment_status !== "unpaid"
+    const hasInvoicedOrPartial = roundAllocs.some(
+      (a: any) => a.payment_status === "invoiced" || a.payment_status === "partial"
     );
+
+    if (roundClosed && hasUnpaid) {
+      // Can't issue new capital calls for closed rounds
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped", skip_reason: "Round closed — cannot issue new capital calls" });
+      continue;
+    }
 
     // ── Grant round: send confirmation, no capital call ──
     if (allGrants) {
@@ -183,56 +189,82 @@ export async function checkAndSendCapitalCall(
       continue;
     }
 
-    // ── Already invoiced (capital call was sent), no new unpaid ──
-    if (allInvoicedOrBetter && !hasUnpaid) {
-      roundResults.push({ round_id: roundId, round_name: roundName, action: "already_sent" });
+    // ── Closed round with nothing actionable → skip ──
+    // Resends for invoiced/partial are still allowed (investor may have missed the email).
+    if (roundClosed && !hasUnpaid && !hasInvoicedOrPartial) {
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped", skip_reason: "Round closed — no outstanding payments" });
       continue;
     }
 
-    // ── Unpaid allocations in this round: send capital call ──
-    let amountDue = 0;
-
-    // Load payment settings for deadline calculation and email methods
+    // ── Load payment settings (shared across new + resend paths) ──
     const { loadPaymentSettings, getMethodList } = await import("@/lib/payment-config");
     const settings = await loadPaymentSettings(supabase);
-    const paymentDays = settings.capital_call_payment_days || 10;
-    const paymentDeadline = addBusinessDays(new Date(), paymentDays);
-    const paymentDeadlineISO = paymentDeadline.toISOString();
+    const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
 
-    for (const alloc of roundAllocs) {
-      if (alloc.payment_status === "unpaid") {
-        const amount = Number(alloc.amount_usd) || Number(alloc.token_amount) * tokenPrice;
-        amountDue += amount;
+    // ── Process unpaid allocations: mark as invoiced + set deadline ──
+    if (hasUnpaid) {
+      const paymentDays = settings.capital_call_payment_days || 10;
+      const paymentDeadline = addBusinessDays(new Date(), paymentDays);
+      const paymentDeadlineISO = paymentDeadline.toISOString();
 
-        await supabase
-          .from("allocations")
-          .update({
-            payment_status: "invoiced",
-            amount_usd: amount,
-            payment_deadline: paymentDeadlineISO,
-          })
-          .eq("id", alloc.id);
+      for (const alloc of roundAllocs) {
+        if (alloc.payment_status === "unpaid") {
+          const amount = Number(alloc.amount_usd) || Number(alloc.token_amount) * tokenPrice;
+
+          await supabase
+            .from("allocations")
+            .update({
+              payment_status: "invoiced",
+              amount_usd: amount,
+              payment_deadline: paymentDeadlineISO,
+            })
+            .eq("id", alloc.id);
+        }
       }
     }
 
-    // Total due for display includes any previously invoiced amounts still outstanding
+    // ── Compute total due for email (invoiced + partial + newly invoiced) ──
     const totalDueRound = roundAllocs.reduce(
       (s: number, a: any) => {
         if (a.payment_status === "paid" || a.payment_status === "grant") return s;
-        return s + (Number(a.amount_usd) || Number(a.token_amount) * tokenPrice);
+        const due = Number(a.amount_usd) || Number(a.token_amount) * tokenPrice;
+        const received = Number(a.amount_received_usd) || 0;
+        return s + (due - received);
       }, 0
     );
 
-    const enabledMethods = getMethodList(settings.methods).filter(m => m.enabled).map(m => m.id);
+    // ── Find earliest active payment deadline for the email ──
+    const deadlines = roundAllocs
+      .filter((a: any) => a.payment_deadline && a.payment_status !== "paid" && a.payment_status !== "grant")
+      .map((a: any) => a.payment_deadline);
 
+    // For newly invoiced (just set above), re-fetch to get the deadline
+    const { data: freshAllocs } = await supabase
+      .from("allocations")
+      .select("payment_deadline")
+      .eq("investor_id", investorId)
+      .eq("round_id", roundId)
+      .eq("approval_status", "approved")
+      .in("payment_status", ["invoiced", "partial"]);
+
+    const allDeadlines = (freshAllocs || [])
+      .map((a: any) => a.payment_deadline)
+      .filter(Boolean);
+    const earliestDeadline = allDeadlines.length > 0
+      ? allDeadlines.sort()[0]
+      : null;
+
+    // ── Send the capital call email ──
     const { subject, html } = composeCapitalCallEmail(
       investor.full_name,
       totalDueRound,
       roundName,
       enabledMethods,
-      paymentDeadlineISO
+      earliestDeadline
     );
     const emailSent = await sendEmail(investor.email, subject, html);
+
+    const isResend = !hasUnpaid && hasInvoicedOrPartial;
 
     await supabase.from("email_events").insert({
       investor_id: investorId,
@@ -240,6 +272,7 @@ export async function checkAndSendCapitalCall(
       sent_by: triggeredBy,
       metadata: {
         trigger,
+        is_resend: isResend,
         round_id: roundId,
         round_name: roundName,
         total_due: totalDueRound,
@@ -252,7 +285,7 @@ export async function checkAndSendCapitalCall(
     roundResults.push({
       round_id: roundId,
       round_name: roundName,
-      action: "capital_call",
+      action: isResend ? "resent" : "capital_call",
       amount_due: totalDueRound,
     });
   }
