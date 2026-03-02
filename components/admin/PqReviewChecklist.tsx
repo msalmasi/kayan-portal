@@ -274,10 +274,10 @@ export function PqReviewChecklist({
           onUpdate={(v) => updateSection("section_e", v)}
           disabled={disabled}
         >
-          <BoolVal value={d.section_e.understands_restricted_security} label="Understands restricted security" />
-          <BoolVal value={d.section_e.understands_holding_period} label="Understands holding period" />
-          <BoolVal value={d.section_e.understands_transfer_conditions} label="Understands transfer conditions" />
-          <BoolVal value={d.section_e.understands_no_hedging} label="Accepts no-hedging covenant" />
+          <BoolVal value={d.section_e.understands_restricted_security} label="Understands restricted security / unregistered status" />
+          <BoolVal value={d.section_e.understands_holding_period} label="Understands Rule 144 holding period (U.S. resales) vs. Reg S offshore" />
+          <BoolVal value={d.section_e.understands_transfer_conditions} label="Understands transfer conditions (Reg S / Rule 144 / consent)" />
+          <BoolVal value={d.section_e.understands_no_hedging} label="Accepts no-hedging during distribution compliance period" />
           <BoolVal value={d.section_e.accepts_indemnification} label="Accepts indemnification" />
         </SectionReviewBlock>
 

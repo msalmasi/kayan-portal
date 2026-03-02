@@ -440,19 +440,28 @@ export default function PurchaserQuestionnairePage() {
 
       {/* ═══ SECTION E: Transfer Restrictions ═══ */}
       <Card>
-        <CardHeader title="Section E — Transfer Restrictions" subtitle="Acknowledgment of restricted security status" />
-        <p className="text-xs text-gray-500 mb-4">
+        <CardHeader title="Section E — Transfer Restrictions" subtitle="Acknowledgment of restricted security status and resale limitations" />
+        <p className="text-xs text-gray-500 mb-2">
           I acknowledge and agree to the following transfer restrictions:
+        </p>
+        <p className="text-[11px] text-gray-400 mb-4 leading-relaxed">
+          <strong>Note:</strong> The Tokens are being offered under Regulation S of the U.S. Securities Act, which
+          permits sales to non-U.S. persons in offshore transactions. An <em>&quot;offshore transaction&quot;</em> is one
+          in which (i) the offer is not made to a person in the United States and (ii) either the buyer is outside
+          the United States at the time of the buy order or the transaction is executed on an established foreign
+          securities exchange. Rule 144 holding periods referenced below apply specifically to any future resale
+          of the Tokens into the U.S. market or to U.S. persons, and do not restrict compliant offshore
+          resales under Regulation S.
         </p>
         <div className="space-y-3">
           <Check checked={sectionE.understands_restricted_security} onChange={(v) => setSectionE({ ...sectionE, understands_restricted_security: v })} disabled={readOnly}
-            label="I understand the Tokens are &quot;restricted securities&quot; as defined under U.S. securities law" />
+            label="I understand the Tokens are &quot;restricted securities&quot; as defined under U.S. securities law and have not been registered under the Securities Act" />
           <Check checked={sectionE.understands_holding_period} onChange={(v) => setSectionE({ ...sectionE, understands_holding_period: v })} disabled={readOnly}
-            label="I understand there is a minimum one-year holding period from the date of issuance" />
+            label="I understand that under Rule 144, any resale of the Tokens to U.S. persons or into the U.S. market is subject to a minimum one-year holding period from the date of issuance. This restriction does not apply to compliant offshore resales under Regulation S." />
           <Check checked={sectionE.understands_transfer_conditions} onChange={(v) => setSectionE({ ...sectionE, understands_transfer_conditions: v })} disabled={readOnly}
-            label="I understand any transfer must comply with applicable securities laws and may require prior written consent" />
+            label="I understand any transfer must comply with applicable securities laws (including Regulation S for offshore transactions and Rule 144 for U.S. resales) and may require prior written consent from the Company" />
           <Check checked={sectionE.understands_no_hedging} onChange={(v) => setSectionE({ ...sectionE, understands_no_hedging: v })} disabled={readOnly}
-            label="I agree not to engage in hedging transactions with respect to the Tokens prior to the end of the applicable holding period" />
+            label="I agree not to engage in hedging transactions with respect to the Tokens prior to the end of the applicable Regulation S distribution compliance period" />
           <Check checked={sectionE.accepts_indemnification} onChange={(v) => setSectionE({ ...sectionE, accepts_indemnification: v })} disabled={readOnly}
             label="I agree to indemnify the Company against any losses arising from a breach of these representations" />
         </div>
