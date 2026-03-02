@@ -39,6 +39,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // ── Pause guard: block investor-facing emails when paused ──
+  const { getPauseStatus } = await import("@/lib/platform-pause");
+  const pauseStatus = await getPauseStatus(auth.client);
+  if (pauseStatus.paused) {
+    return NextResponse.json(
+      { error: "Platform is paused — investor-facing emails are blocked", paused: true, reason: pauseStatus.reason },
+      { status: 503 }
+    );
+  }
+
   // Fetch investor
   const { data: investor, error: invErr } = await auth.client
     .from("investors")

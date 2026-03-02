@@ -151,6 +151,12 @@ export async function POST(request: NextRequest) {
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { investor, adminClient } = ctx;
+
+  // ── Pause guard ──
+  const { pauseGuard } = await import("@/lib/platform-pause");
+  const paused = await pauseGuard(adminClient);
+  if (paused) return paused;
+
   const body = await request.json();
   const { round_id, method, amount_usd, wire_reference, tx_hash, from_wallet } = body;
 
@@ -172,6 +178,16 @@ export async function POST(request: NextRequest) {
   // Wire requires wire_reference
   if (method === "wire" && !wire_reference) {
     return NextResponse.json({ error: "wire_reference is required for wire payments" }, { status: 400 });
+  }
+
+  // ── Reissuance freeze: block payments if entity change in progress ──
+  const { hasActiveReissuance } = await import("@/lib/reissuance");
+  const reissuanceActive = await hasActiveReissuance(adminClient, investor.id, round_id);
+  if (reissuanceActive) {
+    return NextResponse.json(
+      { error: "Payments are temporarily frozen for this round while your SAFT agreement is being re-issued. Please complete the novation signing process first." },
+      { status: 403 }
+    );
   }
 
   // ── Re-verify compliance gates before accepting payment ──

@@ -50,6 +50,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Investor not found" }, { status: 404 });
   }
 
+  // ── Pause guard ──
+  const { createClient } = await import("@supabase/supabase-js");
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+  const { pauseGuard } = await import("@/lib/platform-pause");
+  const paused = await pauseGuard(adminClient);
+  if (paused) return paused;
+
   // Already verified — no need for a new token
   if (investor.kyc_status === "verified") {
     return NextResponse.json(

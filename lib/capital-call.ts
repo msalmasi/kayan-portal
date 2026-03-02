@@ -130,6 +130,14 @@ export async function checkAndSendCapitalCall(
       continue;
     }
 
+    // Gate: Reissuance freeze — block capital calls while entity change in progress
+    const { hasActiveReissuance } = await import("@/lib/reissuance");
+    const reissuanceActive = await hasActiveReissuance(supabase, investorId, roundId);
+    if (reissuanceActive) {
+      roundResults.push({ round_id: roundId, round_name: roundName, action: "skipped", skip_reason: "SAFT re-issuance in progress" });
+      continue;
+    }
+
     // Gate: Round closing only blocks NEW capital calls.
     // Resends for already-invoiced allocations are allowed (investor may have missed the email).
     const roundClosed = closingDate && new Date(closingDate) < new Date();

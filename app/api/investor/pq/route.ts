@@ -74,6 +74,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ── Pause guard ──
+  const { pauseGuard } = await import("@/lib/platform-pause");
+  const paused = await pauseGuard(ctx.adminClient);
+  if (paused) return paused;
+
   // Investors can resubmit if rejected or if updating after approval (for re-approval).
   // "submitted" status blocks resubmission to prevent duplicate submissions while under review.
   if (ctx.investor.pq_status === "submitted") {

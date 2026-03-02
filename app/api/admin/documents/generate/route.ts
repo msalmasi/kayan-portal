@@ -18,6 +18,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Staff cannot generate documents" }, { status: 403 });
   }
 
+  // ── Pause guard: block doc generation when paused ──
+  const { getPauseStatus } = await import("@/lib/platform-pause");
+  const pauseStatus = await getPauseStatus(auth.client);
+  if (pauseStatus.paused) {
+    return NextResponse.json(
+      { error: "Platform is paused — document generation is blocked", paused: true, reason: pauseStatus.reason },
+      { status: 503 }
+    );
+  }
+
   const { investor_id, round_id } = await request.json();
   if (!investor_id || !round_id) {
     return NextResponse.json({ error: "investor_id and round_id required" }, { status: 400 });

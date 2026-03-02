@@ -11,6 +11,7 @@ import {
   SaftVariables,
   MissingVariable,
 } from "@/lib/doc-generator";
+import { pauseGuardWithReissuanceBypass } from "@/lib/platform-pause";
 
 /**
  * Helper: verify the request comes from the investor who owns the document.
@@ -126,6 +127,10 @@ export async function PATCH(
 ) {
   const ctx = await getDocContext(params.id);
   if (!ctx) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // ── Pause guard (reissuance docs bypass) ──
+  const pauseBlocked = await pauseGuardWithReissuanceBypass(ctx.admin, params.id);
+  if (pauseBlocked) return pauseBlocked;
 
   const { doc, admin, investor } = ctx;
   const headersList = headers();
@@ -260,20 +265,25 @@ export async function POST(
   const ctx = await getDocContext(params.id);
   if (!ctx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // ── Pause guard (reissuance docs bypass) ──
+  const paused = await pauseGuardWithReissuanceBypass(ctx.admin, params.id);
+  if (paused) return paused;
+
   const { doc, admin, investor } = ctx;
   const headersList = headers();
   const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const ua = headersList.get("user-agent") || "unknown";
 
-  if (doc.doc_type !== "saft") {
-    return NextResponse.json({ error: "Only SAFT documents require signing" }, { status: 400 });
+  // Allow signing for both SAFTs and novation agreements
+  if (doc.doc_type !== "saft" && doc.doc_type !== "novation") {
+    return NextResponse.json({ error: "Only SAFT and novation documents require signing" }, { status: 400 });
   }
   if (doc.status === "signed") {
     return NextResponse.json({ error: "Document already signed" }, { status: 400 });
   }
 
-  // Block signing if the round has closed
-  if (doc.round_id) {
+  // Block signing if the round has closed (SAFTs only — novation bypasses this)
+  if (doc.doc_type === "saft" && doc.round_id) {
     const { data: round } = await admin
       .from("saft_rounds")
       .select("closing_date")
@@ -305,6 +315,10 @@ export async function POST(
   const signedAt = new Date().toISOString();
 
   // ── Generate Certificate of Execution PDF ──
+  const docTitle = doc.doc_type === "novation"
+    ? `Termination & Novation Agreement — ${doc.saft_rounds?.name || "Entity Change"}`
+    : `SAFT Agreement — ${doc.saft_rounds?.name || "Token Purchase"}`;
+
   const signingData: SigningData = {
     signatureName: signature_name.trim(),
     signedAt,
@@ -313,7 +327,7 @@ export async function POST(
     documentHash: doc.doc_hash || "—",
     investorName: investor.full_name,
     investorEmail: investor.email,
-    documentTitle: `SAFT Agreement — ${doc.saft_rounds?.name || "Token Purchase"}`,
+    documentTitle: docTitle,
     roundName: doc.saft_rounds?.name || "—",
   };
 
@@ -372,28 +386,55 @@ export async function POST(
   // ── Check if capital call should fire ──
   // SAFT signed may be the last gate (if PQ was already approved)
   let capitalCallSent = false;
-  try {
-    const { checkAndSendCapitalCall } = await import("@/lib/capital-call");
-    const result = await checkAndSendCapitalCall(
-      admin,
-      investor.id,
-      "saft_signed",
-      investor.email
-    );
-    capitalCallSent = result.sent;
-  } catch (err: any) {
-    console.error("[SIGNING] Capital call check failed:", err.message);
+  let novationTriggeredNewSaft = false;
+
+  if (doc.doc_type === "novation") {
+    // ── REISSUANCE PHASE B: Novation signed → terminate old SAFT, generate new one ──
+    try {
+      const { onNovationSigned } = await import("@/lib/reissuance");
+      const result = await onNovationSigned(admin, doc.id, investor.id);
+      novationTriggeredNewSaft = result.new_saft_generated;
+    } catch (err: any) {
+      console.error("[SIGNING] Novation post-signing hook failed:", err.message);
+    }
+  } else {
+    // ── Standard SAFT or reissued SAFT ──
+    // Check if this is a reissued SAFT (Phase C completion)
+    if (doc.reissuance_item_id) {
+      try {
+        const { onReissuedSaftSigned } = await import("@/lib/reissuance");
+        await onReissuedSaftSigned(admin, doc.id, investor.id);
+      } catch (err: any) {
+        console.error("[SIGNING] Reissuance completion hook failed:", err.message);
+      }
+    }
+
+    // Normal capital call check
+    try {
+      const { checkAndSendCapitalCall } = await import("@/lib/capital-call");
+      const result = await checkAndSendCapitalCall(
+        admin,
+        investor.id,
+        "saft_signed",
+        investor.email
+      );
+      capitalCallSent = result.sent;
+    } catch (err: any) {
+      console.error("[SIGNING] Capital call check failed:", err.message);
+    }
   }
 
   // ── Notify admins ──
   try {
-    const { notifySaftSigned } = await import("@/lib/admin-notify");
-    await notifySaftSigned(
-      admin,
-      investor,
-      doc.saft_rounds?.name || "Unknown Round",
-      capitalCallSent
-    );
+    if (doc.doc_type === "saft") {
+      const { notifySaftSigned } = await import("@/lib/admin-notify");
+      await notifySaftSigned(
+        admin,
+        investor,
+        doc.saft_rounds?.name || "Unknown Round",
+        capitalCallSent
+      );
+    }
   } catch (err: any) {
     console.error("[SIGNING] Notification failed:", err.message);
   }
@@ -401,8 +442,10 @@ export async function POST(
   return NextResponse.json({
     success: true,
     status: "signed",
+    doc_type: doc.doc_type,
     signed_at: signedAt,
     certificate_generated: !!signedPdfPath,
     capital_call_sent: capitalCallSent,
+    new_saft_generated: novationTriggeredNewSaft,
   });
 }

@@ -494,3 +494,61 @@ export function composeAdminAlertEmail(params: {
 
   return { subject, html };
 }
+
+// ─── REISSUANCE EMAILS ──────────────────────────────────────
+
+/** Notify investor that their SAFT entity is changing and novation is required */
+export function composeNovationEmail(
+  investorName: string,
+  roundName: string,
+  oldEntity: string,
+  newEntity: string,
+  reason: string
+) {
+  const subject = `Action Required: SAFT Agreement Update — ${roundName}`;
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 16px;font-size:20px;color:#111;">SAFT Agreement Update</h2>
+    <p>Dear ${investorName},</p>
+    <p>We are writing to inform you of an important change to your SAFT Agreement for the
+    <strong>${roundName}</strong> round of the Kayan Token offering.</p>
+    <p>The issuing entity is being changed from <strong>${oldEntity}</strong> to
+    <strong>${newEntity}</strong>. ${reason ? `Reason: ${reason}` : ""}</p>
+    <p>To proceed, you will need to:</p>
+    <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 8px;"><strong>Step 1:</strong> Sign a Termination &amp; Novation Agreement
+      (confirms you agree to the entity change and terminates the old SAFT)</p>
+      <p style="margin:0;"><strong>Step 2:</strong> Sign a new SAFT Agreement with the updated entity
+      (will be generated automatically after Step 1)</p>
+    </div>
+    <p>Your investment terms — token amount, price, and vesting schedule — remain unchanged.
+    Only the counterparty entity is being updated.</p>
+    <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin:8px 0;">
+      Review &amp; Sign
+    </a>
+    <p style="font-size:12px;color:#6b7280;margin-top:16px;">
+      Please note: payments for this round are temporarily paused until you complete both signing steps.
+    </p>
+  `);
+  return { subject, html };
+}
+
+/** Notify investor that their replacement SAFT is ready to sign */
+export function composeNewSaftReadyEmail(
+  investorName: string,
+  roundName: string
+) {
+  const subject = `Your New SAFT Agreement Is Ready — ${roundName}`;
+  const html = wrapHtml(`
+    <h2 style="margin:0 0 16px;font-size:20px;color:#111;">New SAFT Agreement Ready</h2>
+    <p>Dear ${investorName},</p>
+    <p>Thank you for signing the Termination &amp; Novation Agreement. Your replacement
+    SAFT Agreement for the <strong>${roundName}</strong> round has been generated and is
+    ready for your review and signature.</p>
+    <p>Once signed, your payment obligations will resume and any previously issued
+    capital calls will be reactivated.</p>
+    <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin:8px 0;">
+      Sign New SAFT
+    </a>
+  `);
+  return { subject, html };
+}

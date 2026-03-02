@@ -265,8 +265,8 @@ export const QUALIFICATION_LABELS: Record<string, string> = {
 
 // ─── DOCUMENT TYPES ─────────────────────────────────────────
 
-export type DocType = "saft" | "ppm" | "cis";
-export type DocStatus = "pending" | "viewed" | "signed";
+export type DocType = "saft" | "ppm" | "cis" | "novation";
+export type DocStatus = "pending" | "viewed" | "signed" | "superseded" | "terminated";
 
 /** Template stored in doc_templates */
 export interface DocTemplate {
@@ -298,6 +298,7 @@ export interface InvestorDocument {
   signature_ua: string | null;
   signed_pdf_path: string | null;
   variables: Record<string, any> | null;
+  reissuance_item_id: string | null;
   created_at: string;
 }
 
@@ -306,7 +307,7 @@ export interface SigningEvent {
   id: string;
   document_id: string;
   investor_id: string;
-  event_type: "generated" | "viewed" | "signed" | "downloaded" | "voided";
+  event_type: "generated" | "viewed" | "signed" | "downloaded" | "voided" | "superseded" | "terminated";
   ip_address: string | null;
   user_agent: string | null;
   metadata: Record<string, any> | null;
@@ -317,12 +318,15 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
   saft: "SAFT Agreement",
   ppm: "Private Placement Memorandum",
   cis: "Confidential Information Statement",
+  novation: "Termination & Novation Agreement",
 };
 
 export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
   pending: "Pending",
   viewed: "Viewed",
   signed: "Signed",
+  superseded: "Superseded",
+  terminated: "Terminated",
 };
 
 /** Standard SAFT placeholders auto-filled from investor + round data */
