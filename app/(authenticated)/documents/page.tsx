@@ -15,9 +15,9 @@ interface MissingVar {
 
 interface DocListItem {
   id: string;
-  doc_type: "saft" | "ppm" | "cis";
+  doc_type: "saft" | "ppm" | "cis" | "novation";
   round_id: string | null;
-  status: "pending" | "viewed" | "signed";
+  status: "pending" | "viewed" | "signed" | "superseded" | "terminated";
   signed_at: string | null;
   created_at: string;
   saft_rounds: { name: string } | null;
@@ -46,6 +46,8 @@ function DocStatusBadge({ status }: { status: string }) {
     pending: "bg-gray-100 text-gray-700",
     viewed: "bg-blue-100 text-blue-700",
     signed: "bg-emerald-100 text-emerald-700",
+    superseded: "bg-orange-100 text-orange-700",
+    terminated: "bg-red-100 text-red-700",
   };
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || colors.pending}`}>
@@ -62,6 +64,15 @@ function DocIcon({ type }: { type: string }) {
       <div className="w-10 h-10 rounded-lg bg-kayan-50 flex items-center justify-center">
         <svg className="w-5 h-5 text-kayan-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+        </svg>
+      </div>
+    );
+  }
+  if (type === "novation") {
+    return (
+      <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+        <svg className="w-5 h-5 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
         </svg>
       </div>
     );
@@ -117,7 +128,7 @@ export default function DocumentsPage() {
   // ── Open document ──
   const openDoc = async (doc: DocListItem) => {
     // PPM and CIS — open PDF in new tab
-    if (doc.doc_type !== "saft") {
+    if (doc.doc_type !== "saft" && doc.doc_type !== "novation") {
       setViewerLoading(true);
       const res = await fetch(`/api/investor/documents/${doc.id}`);
       const detail = await res.json();
@@ -134,7 +145,7 @@ export default function DocumentsPage() {
       return;
     }
 
-    // SAFT — open in-portal viewer
+    // SAFT or Novation — open in-portal viewer
     setViewerLoading(true);
     setHasScrolledToBottom(false);
     setFilledValues({});
@@ -220,7 +231,8 @@ export default function DocumentsPage() {
 
     if (res.ok) {
       const result = await res.json();
-      toast.success("SAFT Agreement signed successfully");
+      const docLabel = viewingDoc.doc_type === "novation" ? "Novation Agreement" : "SAFT Agreement";
+      toast.success(`${docLabel} signed successfully`);
       setViewingDoc((prev) =>
         prev ? { ...prev, status: "signed", signed_at: result.signed_at, signature_name: signatureName } : null
       );
@@ -292,7 +304,7 @@ export default function DocumentsPage() {
     );
   }
 
-  // ─── SAFT VIEWER ──────────────────────────────────────────
+  // ─── DOCUMENT VIEWER (SAFT + Novation) ─────────────────────
 
   if (viewingDoc) {
     const isSigned = viewingDoc.status === "signed";
@@ -439,10 +451,13 @@ export default function DocumentsPage() {
         {showSignModal && (
           <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Sign SAFT Agreement</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                Sign {DOC_TYPE_LABELS[viewingDoc.doc_type as keyof typeof DOC_TYPE_LABELS] || "Document"}
+              </h3>
               <p className="text-sm text-gray-500 mb-6">
-                By typing your name below, you are electronically signing this SAFT Agreement
-                and agree to be bound by its terms. This signature has the same legal force
+                By typing your name below, you are electronically signing this
+                {viewingDoc.doc_type === "novation" ? " Termination & Novation Agreement" : " SAFT Agreement"}
+                {" "}and agree to be bound by its terms. This signature has the same legal force
                 as a handwritten signature.
               </p>
 
@@ -508,10 +523,15 @@ export default function DocumentsPage() {
           <CardHeader title={roundName} subtitle="Subscription document set" />
           <div className="divide-y divide-gray-100">
             {groupDocs.map((doc) => {
-              const isSaft = doc.doc_type === "saft";
+              const isSignable = doc.doc_type === "saft" || doc.doc_type === "novation";
               const isSigned = doc.status === "signed";
+              const isSuperseded = doc.status === "superseded" || doc.status === "terminated";
+              const needsAction = isSignable && !isSigned && !isSuperseded;
               return (
-                <div key={doc.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                <div
+                  key={doc.id}
+                  className={`flex items-center justify-between py-4 first:pt-0 last:pb-0 ${isSuperseded ? "opacity-50" : ""}`}
+                >
                   <div className="flex items-center gap-4">
                     <DocIcon type={doc.doc_type} />
                     <div>
@@ -519,29 +539,35 @@ export default function DocumentsPage() {
                         {DOC_TYPE_LABELS[doc.doc_type]}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {isSigned
-                          ? `Signed ${new Date(doc.signed_at!).toLocaleDateString()}`
-                          : `Available since ${new Date(doc.created_at).toLocaleDateString()}`}
+                        {isSuperseded
+                          ? `${DOC_STATUS_LABELS[doc.status]} — replaced by updated agreement`
+                          : isSigned
+                            ? `Signed ${new Date(doc.signed_at!).toLocaleDateString()}`
+                            : `Available since ${new Date(doc.created_at).toLocaleDateString()}`}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <DocStatusBadge status={doc.status} />
-                    <button
-                      onClick={() => openDoc(doc)}
-                      disabled={viewerLoading}
-                      className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
-                        isSaft && !isSigned
-                          ? "bg-kayan-600 text-white hover:bg-kayan-700"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {isSaft && !isSigned
-                        ? "Review & Sign"
-                        : isSaft && isSigned
-                          ? "View Signed"
-                          : "View PDF"}
-                    </button>
+                    {!isSuperseded && (
+                      <button
+                        onClick={() => openDoc(doc)}
+                        disabled={viewerLoading}
+                        className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
+                          needsAction
+                            ? doc.doc_type === "novation"
+                              ? "bg-amber-500 text-white hover:bg-amber-600"
+                              : "bg-kayan-600 text-white hover:bg-kayan-700"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {needsAction
+                          ? "Review & Sign"
+                          : isSignable && isSigned
+                            ? "View Signed"
+                            : "View PDF"}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
