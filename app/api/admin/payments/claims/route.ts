@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
+import { resolveNotifications } from "@/lib/admin-notify";
 
 /**
  * PATCH /api/admin/payments/claims
@@ -85,6 +86,9 @@ export async function PATCH(request: NextRequest) {
         claim.tx_hash
       );
 
+      // Resolve the "needs manual review" notification
+      await resolveNotifications(auth.client, investor.id, "payment_received", auth.email);
+
       return NextResponse.json({
         success: true,
         action: "recheck",
@@ -127,6 +131,9 @@ export async function PATCH(request: NextRequest) {
       })
       .eq("id", claim_id);
 
+    // Resolve the "needs manual review" notification
+    await resolveNotifications(auth.client, investor.id, "payment_received", auth.email);
+
     return NextResponse.json({ success: true, action: "rejected" });
   }
 
@@ -160,6 +167,9 @@ export async function PATCH(request: NextRequest) {
     claim.method,
     claim.tx_hash || claim.wire_reference || `claim-${claim_id}`
   );
+
+  // Resolve the "needs manual review" notification
+  await resolveNotifications(auth.client, investor.id, "payment_received", auth.email);
 
   return NextResponse.json({
     success: true,
