@@ -238,7 +238,7 @@ interface InvestorWithPendingActions {
  * but still have incomplete steps.
  */
 async function findInvestorsWithPendingActions(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   roundId: string
 ): Promise<InvestorWithPendingActions[]> {
   // Get all investors with approved allocations in this round
