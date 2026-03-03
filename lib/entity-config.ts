@@ -112,7 +112,7 @@ export async function getEntityConfig(
   }
 
   _cacheTimestamp = now;
-  return _cachedConfig;
+  return _cachedConfig!;
 }
 
 /** Bust the cache (call after admin updates settings) */
