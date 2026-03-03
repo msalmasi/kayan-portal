@@ -95,10 +95,17 @@ export async function GET() {
     roundMap[rid].allocations.push(alloc);
   }
 
-  const rounds = Object.values(roundMap).map((r: any) => ({
-    ...r,
-    balance_due: r.total_due - r.total_received,
-  }));
+  const rounds = Object.values(roundMap)
+    .map((r: any) => ({
+      ...r,
+      balance_due: r.total_due - r.total_received,
+    }))
+    // Hide rounds where the deadline passed and nothing was ever paid
+    .filter((r: any) => {
+      if (!r.deadline) return true;
+      const expired = new Date(r.deadline) < new Date();
+      return !(expired && r.total_received === 0);
+    });
 
   // Compute per-round grant summaries (no payment needed)
   const grantMap: Record<string, any> = {};
