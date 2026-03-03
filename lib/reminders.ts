@@ -261,7 +261,7 @@ async function findInvestorsWithPendingActions(
 
   const results: InvestorWithPendingActions[] = [];
 
-  for (const [investorId, inv] of investorMap) {
+  for (const [investorId, inv] of Array.from(investorMap.entries())) {
     const actions: string[] = [];
 
     // Check KYC
