@@ -120,19 +120,45 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
 
   // Build nav items dynamically based on role
   const items = [...navItems];
+
+  // Admin section — separated visually
+  const adminItems: typeof navItems = [];
   if (isAdmin) {
-    items.push({ href: "/admin/notifications", label: "Notifications", icon: BellIcon });
-    items.push({ href: "/admin/investors", label: "Investors", icon: AdminIcon });
-    items.push({ href: "/admin/documents", label: "Doc Templates", icon: DocumentIcon });
-    items.push({ href: "/admin/reissuance", label: "Re-issuance", icon: RefreshIcon });
+    adminItems.push({ href: "/admin/notifications", label: "Notifications", icon: BellIcon });
+    adminItems.push({ href: "/admin/investors", label: "Investors", icon: AdminIcon });
+    adminItems.push({ href: "/admin/documents", label: "Documents", icon: DocumentIcon });
     // Manager, admin, and super_admin can see Team page. Staff cannot.
     if (adminRole && adminRole !== "staff") {
-      items.push({ href: "/admin/team", label: "Team", icon: TeamIcon });
-      items.push({ href: "/admin/entity", label: "Entity Settings", icon: SettingsIcon });
+      adminItems.push({ href: "/admin/team", label: "Team", icon: TeamIcon });
     }
-    // All admins can manage their own alert preferences
-    items.push({ href: "/admin/settings", label: "Admin Settings", icon: SettingsIcon });
+    adminItems.push({ href: "/admin/settings", label: "Platform", icon: SettingsIcon });
   }
+
+  // Shared link renderer
+  const NavLink = ({ item }: { item: typeof navItems[number] }) => {
+    const active = pathname.startsWith(item.href);
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setMobileOpen(false)}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+          active
+            ? "bg-white/10 text-white"
+            : "text-brand-200 hover:bg-white/5 hover:text-white"
+        }`}
+      >
+        <Icon />
+        {item.label}
+        {item.href === "/admin/notifications" && unreadCount > 0 && (
+          <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-400 text-brand-900 text-xs font-bold">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+      </Link>
+    );
+  };
 
   const NavContent = () => (
     <div className="flex flex-col h-full">
@@ -146,33 +172,25 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
       </div>
 
       {/* Nav Links */}
-      <nav className="flex-1 p-4 space-y-1">
-        {items.map((item) => {
-          // Exact match for top-level routes, startsWith for nested ones
-          const active = pathname.startsWith(item.href);
-          const Icon = item.icon;
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {items.map((item) => (
+          <NavLink key={item.href} item={item} />
+        ))}
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? "bg-white/10 text-white"
-                  : "text-brand-200 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <Icon />
-              {item.label}
-              {item.href === "/admin/notifications" && unreadCount > 0 && (
-                <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-400 text-brand-900 text-xs font-bold">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+        {/* Admin section divider + items */}
+        {adminItems.length > 0 && (
+          <>
+            <div className="pt-4 pb-2">
+              <div className="border-t border-brand-700/30" />
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25 mt-3 px-3">
+                Admin
+              </p>
+            </div>
+            {adminItems.map((item) => (
+              <NavLink key={item.href} item={item} />
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Logout */}
