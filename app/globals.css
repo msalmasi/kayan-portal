@@ -31,7 +31,7 @@
   );
 }
 
-/* Custom scrollbar — subtle, matches the brand palette */
+/* Custom scrollbar — subtle, uses brand palette */
 ::-webkit-scrollbar {
   width: 6px;
 }
