@@ -5,6 +5,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Tabs, TabPanel } from "@/components/ui/Tabs";
+import { AlertSettings } from "@/components/admin/AlertSettings";
 import { useNotifications } from "@/lib/notification-context";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -68,6 +70,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
   const [actionCount, setActionCount] = useState(0);
+  const [topTab, setTopTab] = useState("inbox");
   const { refresh: refreshBadge } = useNotifications();
 
   // Fetch the true action-required count directly from the server
@@ -130,23 +133,41 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {filter === "action"
-              ? `${total} pending action${total !== 1 ? "s" : ""}`
-              : unreadCount > 0
-                ? `${unreadCount} unread`
-                : "All caught up"}
-          </p>
-        </div>
-        {filter !== "action" && unreadCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={markAllRead}>
-            Mark all read
-          </Button>
-        )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Inbox and email alert preferences
+        </p>
       </div>
+
+      {/* Top-level tabs */}
+      <Tabs
+        tabs={[
+          { id: "inbox", label: "Inbox", count: unreadCount || undefined },
+          { id: "alerts", label: "Email Alerts" },
+        ]}
+        active={topTab}
+        onChange={setTopTab}
+      />
+
+      {/* ── Inbox tab ── */}
+      <TabPanel id="inbox" active={topTab}>
+        <div className="space-y-6">
+          {/* Inbox header actions */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              {filter === "action"
+                ? `${total} pending action${total !== 1 ? "s" : ""}`
+                : unreadCount > 0
+                  ? `${unreadCount} unread`
+                  : "All caught up"}
+            </p>
+            {filter !== "action" && unreadCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={markAllRead}>
+                Mark all read
+              </Button>
+            )}
+          </div>
 
       {/* Filter tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
@@ -272,6 +293,13 @@ export default function NotificationsPage() {
           })}
         </div>
       )}
+        </div>
+      </TabPanel>
+
+      {/* ── Email Alerts tab ── */}
+      <TabPanel id="alerts" active={topTab}>
+        <AlertSettings />
+      </TabPanel>
     </div>
   );
 }

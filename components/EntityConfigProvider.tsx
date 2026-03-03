@@ -61,6 +61,13 @@ export function EntityConfigProvider({ children }: { children: ReactNode }) {
           for (const [shade, hex] of Object.entries(data.palette)) {
             root.style.setProperty(`--brand-${shade}`, `#${hex}`);
           }
+          // Scrollbar colors (separate from brand palette)
+          if (data.scrollbar_color) {
+            root.style.setProperty("--scrollbar-color", `#${data.scrollbar_color}`);
+          }
+          if (data.scrollbar_hover) {
+            root.style.setProperty("--scrollbar-hover", `#${data.scrollbar_hover}`);
+          }
         }
       })
       .catch(() => {

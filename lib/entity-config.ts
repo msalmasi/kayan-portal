@@ -35,6 +35,8 @@ export interface EntityConfig {
   // Colors (hex, no #)
   brand_primary: string;      // Main brand color (e.g. "1a3c2a")
   brand_accent: string;       // Lighter accent (e.g. "2d5f3f")
+  scrollbar_color: string;    // Scrollbar thumb (e.g. "b3d7c1")
+  scrollbar_hover: string;    // Scrollbar thumb on hover (e.g. "7dba97")
 
   // Legal
   footer_text: string;        // Email footer, e.g. "Kayan International Inc. • Confidential"
@@ -61,6 +63,8 @@ export const DEFAULT_ENTITY_CONFIG: EntityConfig = {
 
   brand_primary: "1a3c2a",
   brand_accent: "2d5f3f",
+  scrollbar_color: "b3d7c1",
+  scrollbar_hover: "7dba97",
 
   footer_text: "Kayan International Inc. • Confidential",
   disclaimer_entity: "Kayan Token Investor Portal",

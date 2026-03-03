@@ -274,6 +274,22 @@ export function EntityBrandingPanel() {
             value={config.brand_accent}
             onChange={handleChange}
           />
+          <Field
+            label="Scrollbar"
+            field="scrollbar_color"
+            type="color"
+            hint="Scrollbar thumb color"
+            value={config.scrollbar_color}
+            onChange={handleChange}
+          />
+          <Field
+            label="Scrollbar Hover"
+            field="scrollbar_hover"
+            type="color"
+            hint="Scrollbar thumb on hover"
+            value={config.scrollbar_hover}
+            onChange={handleChange}
+          />
         </div>
 
         {/* Color preview strip */}

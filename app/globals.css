@@ -31,7 +31,7 @@
   );
 }
 
-/* Custom scrollbar — subtle, uses brand palette */
+/* Custom scrollbar — configurable via entity settings */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -39,11 +39,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--brand-200, #b3d7c1);
+  background: var(--scrollbar-color, #d1d5db);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--brand-300, #7dba97);
+  background: var(--scrollbar-hover, #9ca3af);
 }
 
 /* Subtle focus ring for accessibility */

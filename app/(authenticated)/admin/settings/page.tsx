@@ -4,16 +4,14 @@ import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Tabs, TabPanel } from "@/components/ui/Tabs";
 import { EntityBrandingPanel } from "@/components/admin/EntityBrandingPanel";
-import { AlertSettings } from "@/components/admin/AlertSettings";
 import { PaymentSettingsAdmin } from "@/components/admin/PaymentSettingsAdmin";
 import { PlatformPauseCard } from "@/components/admin/PlatformPauseCard";
 
 // ─── Tab definitions ─────────────────────────────────────────
 
 const TABS = [
-  { id: "branding", label: "Branding" },
   { id: "operations", label: "Operations" },
-  { id: "alerts", label: "Alerts" },
+  { id: "branding", label: "Branding" },
 ];
 
 // ─── Inner component (needs Suspense for useSearchParams) ────
@@ -21,7 +19,7 @@ const TABS = [
 function SettingsInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialTab = searchParams.get("tab") || "branding";
+  const initialTab = searchParams.get("tab") || "operations";
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const handleTabChange = (tab: string) => {
@@ -33,10 +31,6 @@ function SettingsInner() {
     <>
       <Tabs tabs={TABS} active={activeTab} onChange={handleTabChange} />
 
-      <TabPanel id="branding" active={activeTab}>
-        <EntityBrandingPanel />
-      </TabPanel>
-
       <TabPanel id="operations" active={activeTab}>
         <div className="space-y-8">
           <PlatformPauseCard />
@@ -44,8 +38,8 @@ function SettingsInner() {
         </div>
       </TabPanel>
 
-      <TabPanel id="alerts" active={activeTab}>
-        <AlertSettings />
+      <TabPanel id="branding" active={activeTab}>
+        <EntityBrandingPanel />
       </TabPanel>
     </>
   );
@@ -56,9 +50,8 @@ function SettingsInner() {
 /**
  * /admin/settings — Platform settings hub
  *
- * Branding tab: entity name, logos, colors, contact info
  * Operations tab: platform pause, payment methods, wallets
- * Alerts tab: email notification subscriptions
+ * Branding tab: entity name, logos, colors, contact info
  */
 export default function AdminSettingsPage() {
   return (
@@ -66,7 +59,7 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Platform Settings</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Configure branding, operations, and notification preferences
+          Manage platform operations and branding
         </p>
       </div>
 
