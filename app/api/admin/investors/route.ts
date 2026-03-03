@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Auto-send welcome email ──
-  const { subject, html } = composeWelcomeEmail(fullName);
+  const { subject, html } = await composeWelcomeEmail(fullName);
   const emailSent = await sendEmail(email, subject, html);
 
   await auth.client.from("email_events").insert({

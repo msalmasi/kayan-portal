@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   if (email_type === "welcome") {
     // ── Welcome email ──
-    const { subject, html } = composeWelcomeEmail(investor.full_name);
+    const { subject, html } = await composeWelcomeEmail(investor.full_name);
     const sent = await sendEmail(investor.email, subject, html);
 
     await auth.client.from("email_events").insert({

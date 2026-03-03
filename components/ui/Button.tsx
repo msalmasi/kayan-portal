@@ -7,7 +7,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-/** Versatile button with Kayan branding — supports loading and disabled states */
+/** Versatile button with brand theming — supports loading and disabled states */
 export function Button({
   variant = "primary",
   size = "md",
@@ -18,10 +18,10 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kayan-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
 
   const variants = {
-    primary: "bg-kayan-600 text-white hover:bg-kayan-500 active:bg-kayan-700",
+    primary: "bg-brand-600 text-white hover:bg-brand-500 active:bg-brand-700",
     secondary:
       "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100",
     ghost: "text-gray-600 hover:bg-gray-100 active:bg-gray-200",

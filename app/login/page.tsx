@@ -4,12 +4,14 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
+import { useEntity } from "@/components/EntityConfigProvider";
 
 /**
  * Inner login component — uses useSearchParams() which requires Suspense.
  */
 function LoginForm() {
   const searchParams = useSearchParams();
+  const entity = useEntity();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -64,13 +66,13 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kayan-50 via-white to-kayan-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-brand-50 px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <img
-            src="https://kayanforest.com/wp-content/uploads/2025/06/kayan-new-logo.png"
-            alt="Kayan Forest"
+            src={entity.logoUrl}
+            alt={entity.name}
             className="h-10 w-auto"
           />
         </div>
@@ -80,9 +82,9 @@ function LoginForm() {
           {sent ? (
             // ─── Success State ───
             <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-kayan-50 flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-4">
                 <svg
-                  className="w-6 h-6 text-kayan-500"
+                  className="w-6 h-6 text-brand-500"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -113,7 +115,7 @@ function LoginForm() {
                   setEmail("");
                   setError(null);
                 }}
-                className="text-sm text-kayan-500 hover:text-kayan-600 mt-4 font-medium"
+                className="text-sm text-brand-500 hover:text-brand-600 mt-4 font-medium"
               >
                 Use a different email
               </button>
@@ -152,7 +154,7 @@ function LoginForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent placeholder:text-gray-400"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent placeholder:text-gray-400"
                   />
                 </div>
 
@@ -173,8 +175,8 @@ function LoginForm() {
         <p className="text-xs text-gray-400 text-center mt-6">
           Don&apos;t have an account?{" "}
           <a
-            href="mailto:support@kayanforest.com"
-            className="text-kayan-500 hover:text-kayan-600"
+            href={`mailto:${entity.supportEmail}`}
+            className="text-brand-500 hover:text-brand-600"
           >
             Contact support
           </a>

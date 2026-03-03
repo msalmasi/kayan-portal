@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
+import { useEntity } from "@/components/EntityConfigProvider";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -118,6 +119,7 @@ function InlinePaymentError({ error, onDismiss }: { error: string; onDismiss: ()
 // ─── Main Component ─────────────────────────────────────────
 
 export function PaymentFlow() {
+  const entity = useEntity();
   const [loading, setLoading] = useState(true);
   const [rounds, setRounds] = useState<RoundBalance[]>([]);
   const [grants, setGrants] = useState<{ round_id: string; round_name: string; total_tokens: number }[]>([]);
@@ -316,7 +318,7 @@ export function PaymentFlow() {
               {fetchError.type === "error" && (
                 <button
                   onClick={fetchData}
-                  className="text-sm font-medium text-kayan-600 hover:text-kayan-800 mt-2 underline underline-offset-2"
+                  className="text-sm font-medium text-brand-600 hover:text-brand-800 mt-2 underline underline-offset-2"
                 >
                   Try again
                 </button>
@@ -328,7 +330,7 @@ export function PaymentFlow() {
     );
   }
 
-  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500";
+  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
 
   return (
     <Card>
@@ -555,7 +557,7 @@ export function PaymentFlow() {
                 }}
                 className={`w-full flex items-center gap-4 p-4 rounded-lg border text-left transition-colors ${
                   m.enabled
-                    ? "border-gray-200 hover:border-kayan-400 hover:bg-kayan-50/30 cursor-pointer"
+                    ? "border-gray-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer"
                     : "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
                 }`}
               >
@@ -595,7 +597,7 @@ export function PaymentFlow() {
           </div>
 
           {/* Wallet + instructions */}
-          <div className="border border-kayan-200 bg-kayan-50/30 rounded-lg p-4 space-y-3">
+          <div className="border border-brand-200 bg-brand-50/30 rounded-lg p-4 space-y-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">
                 Send to this {CHAIN_LABELS[selectedMethod]} wallet:
@@ -607,7 +609,7 @@ export function PaymentFlow() {
                 {getWalletAddress(selectedMethod) && (
                   <button
                     onClick={() => handleCopy(getWalletAddress(selectedMethod), "wallet")}
-                    className="shrink-0 px-3 py-2.5 text-xs font-medium text-kayan-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                    className="shrink-0 px-3 py-2.5 text-xs font-medium text-brand-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
                     {copied === "wallet" ? "Copied ✓" : "Copy"}
                   </button>
@@ -687,7 +689,7 @@ export function PaymentFlow() {
             {value && (
               <button
                 onClick={() => handleCopy(value, copyKey)}
-                className="text-[10px] font-medium text-kayan-600 hover:text-kayan-800 px-2 py-1 rounded bg-gray-50 hover:bg-gray-100"
+                className="text-[10px] font-medium text-brand-600 hover:text-brand-800 px-2 py-1 rounded bg-gray-50 hover:bg-gray-100"
               >
                 {copied === copyKey ? "✓" : "Copy"}
               </button>
@@ -708,10 +710,10 @@ export function PaymentFlow() {
 
             {/* Wire instructions */}
             {hasInstructions ? (
-              <div className="border border-kayan-200 bg-kayan-50/30 rounded-lg p-4 space-y-1">
+              <div className="border border-brand-200 bg-brand-50/30 rounded-lg p-4 space-y-1">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="w-2 h-2 rounded-full bg-kayan-500" />
-                  <p className="text-sm font-medium text-kayan-800">Wire Transfer Instructions</p>
+                  <span className="w-2 h-2 rounded-full bg-brand-500" />
+                  <p className="text-sm font-medium text-brand-800">Wire Transfer Instructions</p>
                 </div>
                 <InstructionRow label="Bank Name" value={wi.bank_name} copyKey="bank" />
                 <InstructionRow label="Account Name" value={wi.account_name} copyKey="acct_name" />
@@ -730,8 +732,8 @@ export function PaymentFlow() {
                 <p className="text-sm font-medium text-gray-700">Wire Transfer Instructions</p>
                 <p className="text-xs text-gray-500">
                   Wire instructions have not been configured yet. Contact{" "}
-                  <a href="mailto:support@kayanforest.com" className="text-kayan-600 underline">
-                    support@kayanforest.com
+                  <a href={`mailto:${entity.supportEmail}`} className="text-brand-600 underline">
+                    {entity.supportEmail}
                   </a>{" "}
                   to arrange a wire transfer.
                 </p>
@@ -744,7 +746,7 @@ export function PaymentFlow() {
               <ul className="list-disc list-inside space-y-0.5 text-amber-600">
                 <li>Balance due: <strong>${selectedRound.balance_due.toLocaleString()} USD</strong></li>
                 <li>Partial payments accepted — you can send multiple wires</li>
-                <li>Include your name and &quot;Kayan Token&quot; in the wire reference</li>
+                <li>Include your name and &quot;{entity.project}&quot; in the wire reference</li>
                 <li>Processing typically takes 2–5 business days</li>
               </ul>
             </div>
@@ -819,7 +821,7 @@ export function PaymentFlow() {
                 href={getExplorerUrl(selectedMethod, txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 mt-3 text-xs text-kayan-600 hover:text-kayan-800 font-medium"
+                className="inline-flex items-center gap-1 mt-3 text-xs text-brand-600 hover:text-brand-800 font-medium"
               >
                 View on {CHAIN_LABELS[selectedMethod]} Explorer →
               </a>

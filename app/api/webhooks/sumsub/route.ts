@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
 
       // Send docs_package email + update PQ status
       if (!investor.docs_sent_at) {
-        const { subject, html } = composeDocsPackageEmail(investor.full_name);
+        const { subject, html } = await composeDocsPackageEmail(investor.full_name);
         const sent = await sendEmail(investor.email, subject, html);
 
         await supabase

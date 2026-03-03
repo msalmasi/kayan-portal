@@ -172,7 +172,7 @@ export default function ImportPage() {
           type="file"
           accept=".csv"
           onChange={handleFileChange}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-kayan-50 file:text-kayan-600 hover:file:bg-kayan-100 cursor-pointer"
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-600 hover:file:bg-brand-100 cursor-pointer"
         />
       </Card>
 
@@ -259,13 +259,13 @@ export default function ImportPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold text-kayan-600">
+              <p className="text-2xl font-bold text-brand-600">
                 {results.created_investors}
               </p>
               <p className="text-xs text-gray-500">New Investors</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-kayan-600">
+              <p className="text-2xl font-bold text-brand-600">
                 {results.created_allocations}
               </p>
               <p className="text-xs text-gray-500">Allocations Created</p>

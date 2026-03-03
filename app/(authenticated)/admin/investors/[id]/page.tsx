@@ -291,9 +291,9 @@ export default function InvestorDetailPage() {
 
   // ── States ──
   if (loading) return <div className="flex items-center justify-center min-h-[40vh]"><p className="text-gray-400">Loading...</p></div>;
-  if (!investor) return <div className="text-center py-12"><p className="text-gray-500">Investor not found.</p><Link href="/admin/investors" className="text-kayan-500 hover:underline text-sm mt-2 inline-block">← Back</Link></div>;
+  if (!investor) return <div className="text-center py-12"><p className="text-gray-500">Investor not found.</p><Link href="/admin/investors" className="text-brand-500 hover:underline text-sm mt-2 inline-block">← Back</Link></div>;
 
-  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
   const selectCls = `${inputCls} bg-white`;
 
   const payableAllocs = investor.allocations.filter(a => a.payment_status !== "grant" && (a as any).approval_status === "approved");
@@ -460,7 +460,7 @@ export default function InvestorDetailPage() {
                       )}
                       {/* Approved: show edit/remove for managers only */}
                       {!isPending && !isRejected && isManager && !isEditing && (
-                        <button onClick={() => { setEditingPayment(alloc.id); setPaymentForm({ payment_status: alloc.payment_status, payment_method: alloc.payment_method || "", amount_received_usd: alloc.amount_received_usd ? String(alloc.amount_received_usd) : "", tx_reference: alloc.tx_reference || "" }); }} className="text-kayan-500 hover:text-kayan-700 text-xs font-medium">Edit</button>
+                        <button onClick={() => { setEditingPayment(alloc.id); setPaymentForm({ payment_status: alloc.payment_status, payment_method: alloc.payment_method || "", amount_received_usd: alloc.amount_received_usd ? String(alloc.amount_received_usd) : "", tx_reference: alloc.tx_reference || "" }); }} className="text-brand-500 hover:text-brand-700 text-xs font-medium">Edit</button>
                       )}
                       {isManager && !isPending && <button onClick={() => handleRemoveAllocation(alloc.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Remove</button>}
                     </td>
@@ -574,7 +574,7 @@ export default function InvestorDetailPage() {
                       href={doc.download_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-kayan-600 hover:text-kayan-800 font-medium underline"
+                      className="text-xs text-brand-600 hover:text-brand-800 font-medium underline"
                     >
                       {doc.doc_type === "saft" ? "Download SAFT" : "Download PDF"}
                     </a>
@@ -1014,7 +1014,7 @@ export default function InvestorDetailPage() {
                             {claim.tx_hash}
                           </code>
                           {explorerUrl && (
-                            <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="text-kayan-600 hover:text-kayan-800 shrink-0">
+                            <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:text-brand-800 shrink-0">
                               View ↗
                             </a>
                           )}
@@ -1132,7 +1132,7 @@ export default function InvestorDetailPage() {
                                 type="number"
                                 step="0.01"
                                 defaultValue={defaultAmount}
-                                className="w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                                className="w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                               />
                             </div>
                             {isWire && (

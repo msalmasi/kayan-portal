@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { useEntity } from "@/components/EntityConfigProvider";
 import { COUNTRIES, RESTRICTED_COUNTRY_CODES, JURISDICTION_COOKIE } from "@/lib/jurisdictions";
 
 /**
@@ -18,6 +19,7 @@ import { COUNTRIES, RESTRICTED_COUNTRY_CODES, JURISDICTION_COOKIE } from "@/lib/
  */
 export default function JurisdictionGatePage() {
   const router = useRouter();
+  const entity = useEntity();
   const [country, setCountry] = useState("");
   const [usPersonStatus, setUsPersonStatus] = useState<"yes" | "no" | null>(null);
   const [ipCountry, setIpCountry] = useState<string | null>(null);
@@ -84,13 +86,13 @@ export default function JurisdictionGatePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kayan-50 via-white to-kayan-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-brand-50 px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <img
-            src="https://kayanforest.com/wp-content/uploads/2025/06/kayan-new-logo.png"
-            alt="Kayan Forest"
+            src={entity.logoUrl}
+            alt={entity.name}
             className="h-10 w-auto"
           />
         </div>
@@ -136,7 +138,7 @@ export default function JurisdictionGatePage() {
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 disabled={geoLoading}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
               >
                 <option value="">
                   {geoLoading ? "Detecting location..." : "Select your country"}
@@ -183,7 +185,7 @@ export default function JurisdictionGatePage() {
                 <label
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all text-sm font-medium ${
                     usPersonStatus === "no"
-                      ? "border-kayan-300 bg-kayan-50 text-kayan-700"
+                      ? "border-brand-300 bg-brand-50 text-brand-700"
                       : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >

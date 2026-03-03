@@ -1,44 +1,71 @@
 // ============================================================
-// Email utility — composes branded Kayan emails
+// Email utility — white-label branded emails
 // Uses Resend for delivery. Falls back to logging if no API key.
-// Set RESEND_API_KEY and EMAIL_FROM in your .env
+// All branding comes from EntityConfig (lib/entity-config.ts).
 // ============================================================
 
-const PORTAL_URL = "https://kayan.panoptes.io";
-const LOGO_URL =
-  "https://vwhnytgyjfrexekegkql.supabase.co/storage/v1/object/public/assets/kayan-white-logo-01.png";
+import { getEntityConfig, EntityConfig } from "@/lib/entity-config";
+
+/** Branding bundle used internally by compose functions */
+interface EmailBranding {
+  portalUrl: string;
+  logoUrl: string;
+  color: string;    // hex without #
+  footer: string;
+  projectName: string;
+  fromLine: string;  // "Name <email>"
+}
+
+/** Fetch entity config and extract email branding fields */
+async function getBranding(): Promise<EmailBranding> {
+  const c = await getEntityConfig();
+  return {
+    portalUrl: c.portal_url,
+    logoUrl: c.logo_light_url,
+    color: c.brand_primary,
+    footer: c.footer_text,
+    projectName: c.project_name,
+    fromLine: `${c.email_from_name} <${c.email_from_address}>`,
+  };
+}
 
 /** Shared email wrapper — dark header with logo, white body */
-function wrapHtml(body: string): string {
+function wrapHtml(b: EmailBranding, body: string): string {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/></head>
 <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:480px;margin:0 auto;padding:24px 16px;">
-  <div style="background:#1a3c2a;border-radius:12px 12px 0 0;padding:32px 24px;text-align:center;">
-    <img src="${LOGO_URL}" alt="Kayan Forest" height="32" style="height:32px;"/>
+  <div style="background:#${b.color};border-radius:12px 12px 0 0;padding:32px 24px;text-align:center;">
+    <img src="${b.logoUrl}" alt="${b.projectName}" height="32" style="height:32px;"/>
   </div>
   <div style="background:#ffffff;border-radius:0 0 12px 12px;padding:32px 24px;border:1px solid #e5e7eb;border-top:none;">
     ${body}
   </div>
   <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:16px;">
-    Kayan International Inc. &bull; Confidential
+    ${b.footer}
   </p>
 </div>
 </body></html>`;
 }
 
+/** CTA button helper */
+function btn(b: EmailBranding, href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">${label}</a>`;
+}
+
 /** Compose welcome email HTML + subject */
-export function composeWelcomeEmail(investorName: string) {
-  const subject = "Welcome to the Kayan Token Investor Portal";
-  const html = wrapHtml(`
+export async function composeWelcomeEmail(investorName: string) {
+  const b = await getBranding();
+  const subject = "Welcome to the ${b.projectName} Investor Portal";
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Welcome, ${investorName}</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
-      Your account on the Kayan Token Investor Portal has been created.
+      Your account on the ${b.projectName} Investor Portal has been created.
       You can now log in to begin the verification process.
     </p>
-    <a href="${PORTAL_URL}" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    ${btn(b, `${b.portalUrl}`, "
       Open Investor Portal
-    </a>
+    ")}
     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">
       <strong>How to log in:</strong> Enter the email address associated with your
       account and click the magic link we send you. No password needed.
@@ -56,7 +83,7 @@ export function composeWelcomeEmail(investorName: string) {
 }
 
 /** Compose capital call email HTML + subject */
-export function composeCapitalCallEmail(
+export async function composeCapitalCallEmail(
   investorName: string,
   amountUsd: number,
   roundName: string,
@@ -65,6 +92,7 @@ export function composeCapitalCallEmail(
   /** Payment deadline date for this capital call */
   paymentDeadline?: string | null
 ) {
+  const b = await getBranding();
   const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -109,8 +137,8 @@ export function composeCapitalCallEmail(
       </tr>`;
   }
 
-  const subject = `Kayan Token — Capital Call: ${formatted} for ${roundName}`;
-  const html = wrapHtml(`
+  const subject = `${b.projectName} — Capital Call: ${formatted} for ${roundName}`;
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Capital Call</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
       Dear ${investorName}, your subscription for the <strong>${roundName}</strong>
@@ -143,12 +171,12 @@ export function composeCapitalCallEmail(
       details, and submit your payment. Crypto payments are verified automatically
       on-chain within minutes.
     </p>
-    <a href="${PORTAL_URL}/dashboard#payments" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/dashboard#payments" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Make Payment →
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
     <p style="margin:0;font-size:11px;color:#9ca3af;">
-      This email was sent by the Kayan Token administration team.
+      This email was sent by the ${b.projectName} administration team.
       If you believe this was sent in error, please contact your account representative.
     </p>
   `);
@@ -156,9 +184,10 @@ export function composeCapitalCallEmail(
 }
 
 /** Compose subscription docs package email — sent when KYC is approved */
-export function composeDocsPackageEmail(investorName: string) {
-  const subject = "Kayan Token — Subscription Documents Ready";
-  const html = wrapHtml(`
+export async function composeDocsPackageEmail(investorName: string) {
+  const b = await getBranding();
+  const subject = "${b.projectName} — Subscription Documents Ready";
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Subscription Documents</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
       Dear ${investorName}, congratulations — your identity verification is complete.
@@ -169,13 +198,13 @@ export function composeDocsPackageEmail(investorName: string) {
       <li><strong>SAFT Agreement</strong> — your token purchase contract</li>
       <li><strong>Purchaser Questionnaire (PQ)</strong> — complete directly in the portal</li>
       <li><strong>Private Placement Memorandum (PPM)</strong> — offering details</li>
-      <li><strong>Confidential Information Statement (CIS)</strong> — Kayan project overview</li>
+      <li><strong>Confidential Information Statement (CIS)</strong> — ${b.projectName} project overview</li>
     </ol>
     <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.6;">
       Please log in to the portal to complete your <strong>Purchaser Questionnaire</strong>.
       Your SAFT, PPM, and CIS will be provided by your account representative.
     </p>
-    <a href="${PORTAL_URL}/pq" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/pq" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Complete Purchaser Questionnaire
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
@@ -187,15 +216,16 @@ export function composeDocsPackageEmail(investorName: string) {
 }
 
 /** Compose PQ submission notification — sent to admin when investor submits PQ */
-export function composePqSubmittedEmail(investorName: string, investorEmail: string) {
+export async function composePqSubmittedEmail(investorName: string, investorEmail: string) {
+  const b = await getBranding();
   const subject = `PQ Submitted — ${investorName}`;
-  const html = wrapHtml(`
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">PQ Submission Received</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
       <strong>${investorName}</strong> (${investorEmail}) has submitted their
       Purchaser Questionnaire and is awaiting review.
     </p>
-    <a href="${PORTAL_URL}/admin/investors" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/admin/investors" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Review in Admin Panel
     </a>
   `);
@@ -203,14 +233,15 @@ export function composePqSubmittedEmail(investorName: string, investorEmail: str
 }
 
 /** Compose PQ review result email — sent to investor after admin review */
-export function composePqResultEmail(
+export async function composePqResultEmail(
   investorName: string,
   approved: boolean,
   notes?: string
 ) {
+  const b = await getBranding();
   const subject = approved
-    ? "Kayan Token — Subscription Approved"
-    : "Kayan Token — Purchaser Questionnaire Update";
+    ? "${b.projectName} — Subscription Approved"
+    : "${b.projectName} — Purchaser Questionnaire Update";
   const body = approved
     ? `<h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Subscription Approved</h2>
        <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
@@ -224,9 +255,9 @@ export function composePqResultEmail(
        </p>
        ${notes ? `<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:0 0 16px;font-size:13px;color:#92400e;">${notes}</div>` : ""}`;
 
-  const html = wrapHtml(`
+  const html = wrapHtml(b, `
     ${body}
-    <a href="${PORTAL_URL}/pq" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/pq" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Open Portal
     </a>
   `);
@@ -234,16 +265,17 @@ export function composePqResultEmail(
 }
 
 /** Compose "PQ update prompt" email — sent when a new allocation is added to an investor with an approved PQ */
-export function composePqUpdatePromptEmail(
+export async function composePqUpdatePromptEmail(
   investorName: string,
   roundName: string,
   tokenAmount?: number
 ) {
-  const subject = `Kayan Token — Please Review Your Purchaser Questionnaire`;
+  const b = await getBranding();
+  const subject = `${b.projectName} — Please Review Your Purchaser Questionnaire`;
   const tokenLine = tokenAmount
     ? ` for <strong>${Number(tokenAmount).toLocaleString()} tokens</strong>`
     : "";
-  const html = wrapHtml(`
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">New Allocation Added</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
       Dear ${investorName}, a new allocation has been added to your account
@@ -260,21 +292,22 @@ export function composePqUpdatePromptEmail(
       If your investment details (amount, payment method, source of funds) have not changed,
       you may re-submit the questionnaire as-is for re-approval.
     </p>
-    <a href="${PORTAL_URL}/pq" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/pq" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Update Questionnaire →
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
     <p style="margin:0;font-size:11px;color:#9ca3af;">
-      This email was sent by the Kayan Token administration team.
+      This email was sent by the ${b.projectName} administration team.
     </p>
   `);
   return { subject, html };
 }
 
 /** Compose "documents ready" email — sent when SAFT is generated and ready to sign */
-export function composeDocumentsReadyEmail(investorName: string, roundName: string) {
-  const subject = `Kayan Token — ${roundName} Documents Ready for Signing`;
-  const html = wrapHtml(`
+export async function composeDocumentsReadyEmail(investorName: string, roundName: string) {
+  const b = await getBranding();
+  const subject = `${b.projectName} — ${roundName} Documents Ready for Signing`;
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Documents Ready</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
       Dear ${investorName}, your subscription documents for the <strong>${roundName}</strong>
@@ -286,7 +319,7 @@ export function composeDocumentsReadyEmail(investorName: string, roundName: stri
       <li><strong>Private Placement Memorandum (PPM)</strong> — for your reference</li>
       <li><strong>Confidential Information Statement (CIS)</strong> — for your reference</li>
     </ol>
-    <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/documents" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       Review & Sign Documents
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
@@ -302,7 +335,7 @@ export function composeDocumentsReadyEmail(investorName: string, roundName: stri
  *   - Admin marks payment as "paid" (includes wire ref / tx hash)
  *   - Grant allocations are auto-confirmed (no payment required)
  */
-export function composeAllocationConfirmedEmail(
+export async function composeAllocationConfirmedEmail(
   investorName: string,
   tokenAmount: number,
   roundName: string,
@@ -313,12 +346,13 @@ export function composeAllocationConfirmedEmail(
     amountUsd?: number;
   }
 ) {
+  const b = await getBranding();
   const isGrant = opts?.isGrant || false;
   const formattedTokens = tokenAmount.toLocaleString();
 
   const subject = isGrant
-    ? `Kayan Token — Your ${roundName} Token Grant is Confirmed`
-    : `Kayan Token — Payment Confirmed for ${roundName}`;
+    ? `${b.projectName} — Your ${roundName} Token Grant is Confirmed`
+    : `${b.projectName} — Payment Confirmed for ${roundName}`;
 
   // Payment details row (only for non-grant)
   const paymentDetails = !isGrant
@@ -365,7 +399,7 @@ export function composeAllocationConfirmedEmail(
         </table>
       </div>`;
 
-  const html = wrapHtml(`
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">
       ${isGrant ? "Token Grant Confirmed" : "Payment Confirmed"}
     </h2>
@@ -376,7 +410,7 @@ export function composeAllocationConfirmedEmail(
       }
     </p>
     ${paymentDetails}
-    <a href="${PORTAL_URL}/dashboard" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/dashboard" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       View Your Dashboard
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
@@ -395,7 +429,8 @@ export async function sendEmail(
   html: string
 ): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "Kayan Forest <noreply@kayanforest.com>";
+  const branding = await getBranding();
+  const from = process.env.EMAIL_FROM || branding.fromLine;
 
   if (!apiKey) {
     // No API key — log to console for development
@@ -446,7 +481,7 @@ const PRIORITY_BADGE: Record<string, { bg: string; color: string; label: string 
  * Compose a branded admin alert email for any notification event.
  * Used by the notify() system to email subscribed admins.
  */
-export function composeAdminAlertEmail(params: {
+export async function composeAdminAlertEmail(params: {
   eventType: string;
   priority: string;
   investorName: string;
@@ -454,11 +489,12 @@ export function composeAdminAlertEmail(params: {
   title: string;
   detail?: string;
 }) {
+  const b = await getBranding();
   const label = EVENT_LABELS[params.eventType] || params.eventType;
   const badge = PRIORITY_BADGE[params.priority] || PRIORITY_BADGE.info;
 
-  const subject = `[Kayan Portal] ${label}: ${params.investorName}`;
-  const html = wrapHtml(`
+  const subject = `[${b.projectName}] ${label}: ${params.investorName}`;
+  const html = wrapHtml(b, `
     <div style="margin-bottom:16px;">
       <span style="display:inline-block;background:${badge.bg};color:${badge.color};padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;">
         ${badge.label}
@@ -482,13 +518,13 @@ export function composeAdminAlertEmail(params: {
         </tr>
       </table>
     </div>
-    <a href="${PORTAL_URL}/admin/notifications" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+    <a href="${b.portalUrl}/admin/notifications" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
       View in Portal
     </a>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
     <p style="margin:0;font-size:11px;color:#9ca3af;">
       You're receiving this because you subscribed to ${label} alerts.
-      <a href="${PORTAL_URL}/admin/settings" style="color:#9ca3af;">Manage preferences</a>
+      <a href="${b.portalUrl}/admin/settings" style="color:#9ca3af;">Manage preferences</a>
     </p>
   `);
 
@@ -498,19 +534,20 @@ export function composeAdminAlertEmail(params: {
 // ─── REISSUANCE EMAILS ──────────────────────────────────────
 
 /** Notify investor that their SAFT entity is changing and novation is required */
-export function composeNovationEmail(
+export async function composeNovationEmail(
   investorName: string,
   roundName: string,
   oldEntity: string,
   newEntity: string,
   reason: string
 ) {
+  const b = await getBranding();
   const subject = `Action Required: SAFT Agreement Update — ${roundName}`;
-  const html = wrapHtml(`
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 16px;font-size:20px;color:#111;">SAFT Agreement Update</h2>
     <p>Dear ${investorName},</p>
     <p>We are writing to inform you of an important change to your SAFT Agreement for the
-    <strong>${roundName}</strong> round of the Kayan Token offering.</p>
+    <strong>${roundName}</strong> round of the ${b.projectName} offering.</p>
     <p>The issuing entity is being changed from <strong>${oldEntity}</strong> to
     <strong>${newEntity}</strong>. ${reason ? `Reason: ${reason}` : ""}</p>
     <p>To proceed, you will need to:</p>
@@ -522,7 +559,7 @@ export function composeNovationEmail(
     </div>
     <p>Your investment terms — token amount, price, and vesting schedule — remain unchanged.
     Only the counterparty entity is being updated.</p>
-    <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin:8px 0;">
+    <a href="${b.portalUrl}/documents" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin:8px 0;">
       Review &amp; Sign
     </a>
     <p style="font-size:12px;color:#6b7280;margin-top:16px;">
@@ -533,12 +570,13 @@ export function composeNovationEmail(
 }
 
 /** Notify investor that their replacement SAFT is ready to sign */
-export function composeNewSaftReadyEmail(
+export async function composeNewSaftReadyEmail(
   investorName: string,
   roundName: string
 ) {
+  const b = await getBranding();
   const subject = `Your New SAFT Agreement Is Ready — ${roundName}`;
-  const html = wrapHtml(`
+  const html = wrapHtml(b, `
     <h2 style="margin:0 0 16px;font-size:20px;color:#111;">New SAFT Agreement Ready</h2>
     <p>Dear ${investorName},</p>
     <p>Thank you for signing the Termination &amp; Novation Agreement. Your replacement
@@ -546,7 +584,7 @@ export function composeNewSaftReadyEmail(
     ready for your review and signature.</p>
     <p>Once signed, your payment obligations will resume and any previously issued
     capital calls will be reactivated.</p>
-    <a href="${PORTAL_URL}/documents" style="display:inline-block;background:#1a3c2a;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin:8px 0;">
+    <a href="${b.portalUrl}/documents" style="display:inline-block;background:#${b.color};color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin:8px 0;">
       Sign New SAFT
     </a>
   `);

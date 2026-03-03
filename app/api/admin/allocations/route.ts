@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       // Send email prompting PQ update
       const { sendEmail, composePqUpdatePromptEmail } = await import("@/lib/email");
       const roundName = data.saft_rounds?.name || "a new round";
-      const { subject, html } = composePqUpdatePromptEmail(
+      const { subject, html } = await composePqUpdatePromptEmail(
         investor.full_name,
         roundName,
         body.token_amount

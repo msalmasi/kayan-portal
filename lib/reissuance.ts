@@ -233,7 +233,7 @@ export async function initiateBatchReissuance(
     }
 
     // ── 4. Email the investor ──
-    const { subject, html } = composeNovationEmail(
+    const { subject, html } = await composeNovationEmail(
       investor.full_name,
       round.name,
       input.old_entity_name,
@@ -413,7 +413,7 @@ export async function onNovationSigned(
       .eq("id", item.round_id)
       .single();
 
-    const { subject, html } = composeNewSaftReadyEmail(
+    const { subject, html } = await composeNewSaftReadyEmail(
       investor.full_name,
       round?.name || "Token Purchase"
     );

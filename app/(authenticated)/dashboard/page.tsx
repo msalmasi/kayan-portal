@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { AllocationWithRound, Investor } from "@/lib/types";
+import { getEntityConfig } from "@/lib/entity-config";
 import { StatCards } from "@/components/dashboard/StatCards";
 import { AllocationTable } from "@/components/dashboard/AllocationTable";
 import { VestingChart } from "@/components/dashboard/VestingChart";
@@ -16,6 +17,7 @@ import { PaymentFlow } from "@/components/dashboard/PaymentFlow";
  */
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
+  const entityConfig = await getEntityConfig();
 
   // Get the current user's email
   const {
@@ -57,10 +59,10 @@ export default async function DashboardPage() {
           Your email ({user.email}) is not associated with any SAFT agreement.
           If you believe this is an error, please contact{" "}
           <a
-            href="mailto:support@kayanforest.com"
-            className="text-kayan-500 hover:underline"
+            href={`mailto:${entityConfig.support_email}`}
+            className="text-brand-500 hover:underline"
           >
-            support@kayanforest.com
+            {entityConfig.support_email}
           </a>
           .
         </p>
@@ -163,7 +165,7 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           {(allAllocations || []).length > 0
-            ? "Your $KAYAN token allocation overview"
+            ? `Your $${entityConfig.token_ticker} token allocation overview`
             : "Complete your subscription to see your token allocations"}
         </p>
       </div>
@@ -208,6 +210,7 @@ export default async function DashboardPage() {
       <StatCards
         allocations={typedAllocations}
         kycStatus={typedInvestor.kyc_status}
+        ticker={entityConfig.token_ticker}
       />
 
       {/* Allocation Details — shows ALL allocations with status indicators */}

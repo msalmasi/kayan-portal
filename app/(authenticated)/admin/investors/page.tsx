@@ -83,7 +83,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 // ─── Shared styles ──────────────────────────────────────────
 
 const selectCls =
-  "px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-kayan-500 text-gray-700";
+  "px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-700";
 
 // ─── Doc status badge ───────────────────────────────────────
 
@@ -372,7 +372,7 @@ export default function AdminInvestorsPage() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Jane Doe"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
             <div className="flex-1">
@@ -382,7 +382,7 @@ export default function AdminInvestorsPage() {
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="jane@example.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
             <div className="flex items-end">
@@ -410,7 +410,7 @@ export default function AdminInvestorsPage() {
                 placeholder="Search by name or email...  ( / )"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full px-3 py-2 pl-9 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent placeholder:text-gray-400"
+                className="w-full px-3 py-2 pl-9 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent placeholder:text-gray-400"
               />
               <svg
                 className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
@@ -505,7 +505,7 @@ export default function AdminInvestorsPage() {
                   >
                     {/* Name + email (stacked) */}
                     <td className="py-3 px-2">
-                      <Link href={`/admin/investors/${inv.id}`} className="font-medium text-gray-900 hover:text-kayan-600">
+                      <Link href={`/admin/investors/${inv.id}`} className="font-medium text-gray-900 hover:text-brand-600">
                         {inv.full_name}
                       </Link>
                       <p className="text-xs text-gray-400 mt-0.5">{inv.email}</p>
@@ -552,7 +552,7 @@ export default function AdminInvestorsPage() {
                     <td className="py-3 px-2 text-right">
                       <Link
                         href={`/admin/investors/${inv.id}`}
-                        className="text-kayan-500 hover:text-kayan-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-brand-500 hover:text-brand-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         →
                       </Link>
@@ -592,7 +592,7 @@ export default function AdminInvestorsPage() {
                 return pages.map((p) => (
                   <button key={p} onClick={() => setPage(p)}
                     className={`px-2.5 py-1 text-xs rounded border ${
-                      p === page ? "bg-kayan-600 text-white border-kayan-600" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                      p === page ? "bg-brand-600 text-white border-brand-600" : "border-gray-200 text-gray-600 hover:bg-gray-50"
                     }`}>
                     {p + 1}
                   </button>

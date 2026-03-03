@@ -142,7 +142,7 @@ export default function RoundsPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g., Seed"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -156,7 +156,7 @@ export default function RoundsPage() {
                   value={tokenPrice}
                   onChange={(e) => setTokenPrice(e.target.value)}
                   placeholder="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -169,7 +169,7 @@ export default function RoundsPage() {
                   value={tgeUnlockPct}
                   onChange={(e) => setTgeUnlockPct(e.target.value)}
                   placeholder="10"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -182,7 +182,7 @@ export default function RoundsPage() {
                   value={cliffMonths}
                   onChange={(e) => setCliffMonths(e.target.value)}
                   placeholder="6"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -195,7 +195,7 @@ export default function RoundsPage() {
                   value={vestingMonths}
                   onChange={(e) => setVestingMonths(e.target.value)}
                   placeholder="24"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -207,7 +207,7 @@ export default function RoundsPage() {
                   type="date"
                   value={closingDate}
                   onChange={(e) => setClosingDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
                 <p className="text-[11px] text-gray-400 mt-0.5">Optional. After this date, no new investors, signing, or capital calls for this round.</p>
               </div>
@@ -280,7 +280,7 @@ export default function RoundsPage() {
                             type="date"
                             value={pendingClosing}
                             onChange={(e) => setPendingClosing(e.target.value)}
-                            className="w-32 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-kayan-500"
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
                           />
                           <button
                             onClick={async () => {

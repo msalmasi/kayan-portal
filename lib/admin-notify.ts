@@ -82,7 +82,7 @@ async function emailSubscribedAdmins(
     const { sendEmail } = await import("@/lib/email");
     const { composeAdminAlertEmail } = await import("@/lib/email");
 
-    const { subject, html } = composeAdminAlertEmail(params);
+    const { subject, html } = await composeAdminAlertEmail(params);
 
     await Promise.allSettled(
       subs.map((sub: any) => sendEmail(sub.email, subject, html))

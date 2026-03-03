@@ -6,6 +6,7 @@ import { KycBadge } from "@/components/ui/Badge";
 interface StatCardsProps {
   allocations: AllocationWithRound[];
   kycStatus: string;
+  ticker?: string;
 }
 
 /**
@@ -14,7 +15,7 @@ interface StatCardsProps {
  *   2. Vesting Status (pre-TGE = always 0%)
  *   3. KYC Status
  */
-export function StatCards({ allocations, kycStatus }: StatCardsProps) {
+export function StatCards({ allocations, kycStatus, ticker = "TOKEN" }: StatCardsProps) {
   // Sum tokens across all rounds
   const totalTokens = allocations.reduce(
     (sum, a) => sum + Number(a.token_amount),
@@ -26,7 +27,7 @@ export function StatCards({ allocations, kycStatus }: StatCardsProps) {
       {/* Total Allocation */}
       <Card>
         <p className="text-sm font-medium text-gray-500">
-          Total $KAYAN Allocation
+          Total ${ticker} Allocation
         </p>
         <p className="text-2xl font-bold text-gray-900 mt-1">
           {formatTokenAmount(totalTokens)}

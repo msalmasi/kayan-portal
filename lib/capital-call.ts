@@ -164,7 +164,7 @@ export async function checkAndSendCapitalCall(
         (sum: number, a: any) => sum + Number(a.token_amount), 0
       );
 
-      const { subject, html } = composeAllocationConfirmedEmail(
+      const { subject, html } = await composeAllocationConfirmedEmail(
         investor.full_name,
         totalTokens,
         roundName,
@@ -263,7 +263,7 @@ export async function checkAndSendCapitalCall(
       : null;
 
     // ── Send the capital call email ──
-    const { subject, html } = composeCapitalCallEmail(
+    const { subject, html } = await composeCapitalCallEmail(
       investor.full_name,
       totalDueRound,
       roundName,

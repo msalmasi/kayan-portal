@@ -79,7 +79,7 @@ export async function PATCH(
     const investor = item.investors as any;
     const round = item.saft_rounds as any;
 
-    const { subject, html } = composeNovationEmail(
+    const { subject, html } = await composeNovationEmail(
       investor.full_name,
       round.name,
       batch.old_entity_name,
@@ -126,7 +126,7 @@ export async function PATCH(
       const investor = item.investors as any;
       const round = item.saft_rounds as any;
 
-      const { subject, html } = composeNovationEmail(
+      const { subject, html } = await composeNovationEmail(
         investor.full_name,
         round.name,
         batch.old_entity_name,

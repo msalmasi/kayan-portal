@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { useNotifications } from "@/lib/notification-context";
+import { useEntity } from "@/components/EntityConfigProvider";
 
 // ─── SVG Icons (inline to avoid extra deps) ─────────────────
 
@@ -109,6 +110,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { unreadCount } = useNotifications();
+  const entity = useEntity();
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -126,6 +128,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
     // Manager, admin, and super_admin can see Team page. Staff cannot.
     if (adminRole && adminRole !== "staff") {
       items.push({ href: "/admin/team", label: "Team", icon: TeamIcon });
+      items.push({ href: "/admin/entity", label: "Entity Settings", icon: SettingsIcon });
     }
     // All admins can manage their own alert preferences
     items.push({ href: "/admin/settings", label: "Admin Settings", icon: SettingsIcon });
@@ -134,10 +137,10 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   const NavContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="p-6 border-b border-kayan-700/30">
+      <div className="p-6 border-b border-brand-700/30">
         <img
-          src="https://kayanforest.com/wp-content/uploads/2025/06/kayan-white-logo-01.png"
-          alt="Kayan Forest"
+          src={entity.logoUrl}
+          alt={entity.name}
           className="h-8 w-auto"
         />
       </div>
@@ -157,13 +160,13 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? "bg-white/10 text-white"
-                  : "text-kayan-200 hover:bg-white/5 hover:text-white"
+                  : "text-brand-200 hover:bg-white/5 hover:text-white"
               }`}
             >
               <Icon />
               {item.label}
               {item.href === "/admin/notifications" && unreadCount > 0 && (
-                <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-400 text-kayan-900 text-xs font-bold">
+                <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-400 text-brand-900 text-xs font-bold">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -173,10 +176,10 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
       </nav>
 
       {/* Logout */}
-      <div className="p-4 border-t border-kayan-700/30">
+      <div className="p-4 border-t border-brand-700/30">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-kayan-200 hover:bg-white/5 hover:text-white transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-200 hover:bg-white/5 hover:text-white transition-colors w-full"
         >
           <LogoutIcon />
           Sign Out
@@ -190,7 +193,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
       {/* Mobile hamburger button — fixed top-left */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-kayan-600 text-white shadow-lg lg:hidden"
+        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-brand-600 text-white shadow-lg lg:hidden"
         aria-label="Open menu"
       >
         <MenuIcon />
@@ -206,13 +209,13 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
 
       {/* Mobile sidebar — slides in from left */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-kayan-600 transform transition-transform duration-300 lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-brand-600 transform transition-transform duration-300 lg:hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute top-4 right-4 text-kayan-200 hover:text-white"
+          className="absolute top-4 right-4 text-brand-200 hover:text-white"
           aria-label="Close menu"
         >
           <CloseIcon />
@@ -221,7 +224,7 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
       </aside>
 
       {/* Desktop sidebar — always visible */}
-      <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 bg-kayan-600">
+      <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 bg-brand-600">
         <NavContent />
       </aside>
     </>

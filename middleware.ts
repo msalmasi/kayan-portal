@@ -20,8 +20,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Layer 1: Jurisdiction gate ──
-  // Require kayan_jurisdiction cookie on ALL other routes (including /login)
-  const jurisdictionCleared = request.cookies.get("kayan_jurisdiction");
+  // Require portal_jurisdiction cookie on ALL other routes (including /login)
+  const jurisdictionCleared = request.cookies.get("portal_jurisdiction");
   if (!jurisdictionCleared) {
     return NextResponse.redirect(new URL("/gate", request.url));
   }

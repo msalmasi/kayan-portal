@@ -186,7 +186,7 @@ export function InvestorWorkflowStepper({ investor }: WorkflowStepperProps) {
               {i > 0 && (
                 <div
                   className={`absolute top-3.5 right-1/2 w-full h-0.5 -z-10 ${
-                    isComplete || isCurrent || isWarning ? "bg-kayan-300" : "bg-gray-200"
+                    isComplete || isCurrent || isWarning ? "bg-brand-300" : "bg-gray-200"
                   }`}
                 />
               )}
@@ -195,9 +195,9 @@ export function InvestorWorkflowStepper({ investor }: WorkflowStepperProps) {
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                   isComplete
-                    ? "bg-kayan-600 text-white"
+                    ? "bg-brand-600 text-white"
                     : isCurrent
-                      ? "bg-white border-2 border-kayan-500 text-kayan-600"
+                      ? "bg-white border-2 border-brand-500 text-brand-600"
                       : isWarning
                         ? "bg-amber-100 border-2 border-amber-400 text-amber-600"
                         : "bg-gray-100 border border-gray-200 text-gray-400"
@@ -219,7 +219,7 @@ export function InvestorWorkflowStepper({ investor }: WorkflowStepperProps) {
                 isComplete
                   ? "text-gray-600 font-medium"
                   : isCurrent
-                    ? "text-kayan-700 font-semibold"
+                    ? "text-brand-700 font-semibold"
                     : isWarning
                       ? "text-amber-700 font-semibold"
                       : "text-gray-400"

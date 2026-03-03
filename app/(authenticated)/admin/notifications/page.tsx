@@ -244,7 +244,7 @@ export default function NotificationsPage() {
                   <div className="flex items-center gap-3 mt-2">
                     <Link
                       href={`/admin/investors/${n.investor_id}`}
-                      className="text-xs font-medium text-kayan-600 hover:text-kayan-800"
+                      className="text-xs font-medium text-brand-600 hover:text-brand-800"
                       onClick={() => !n.is_read && markRead(n.id)}
                     >
                       View Investor →

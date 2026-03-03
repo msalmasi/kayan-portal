@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
+import { useEntity } from "@/components/EntityConfigProvider";
 
-const STORAGE_KEY = "kayan_terms_accepted";
+const STORAGE_KEY = "portal_terms_accepted";
 
 /**
  * Full-screen modal disclaimer shown on first visit.
  * User must click "Agree" to proceed — choice is persisted in localStorage.
- * Mirrors the style of the kayanforest.com terms popup.
+ * Full-screen disclaimer modal — style matches the main website terms popup.
  */
 export function DisclaimerModal() {
   const [visible, setVisible] = useState(false);
+  const entity = useEntity();
 
   useEffect(() => {
     // Only show if user hasn't previously accepted
@@ -26,7 +28,7 @@ export function DisclaimerModal() {
 
   const handleDisagree = () => {
     // Redirect away — they can't use the portal without accepting
-    window.location.href = "https://www.kayanforest.com";
+    window.location.href = entity.websiteUrl || "/";
   };
 
   if (!visible) return null;
@@ -37,9 +39,9 @@ export function DisclaimerModal() {
         {/* Header */}
         <div className="p-6 pb-4 text-center border-b border-gray-100">
           {/* Icon */}
-          <div className="w-14 h-14 rounded-full bg-kayan-50 flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-4">
             <svg
-              className="w-7 h-7 text-kayan-600"
+              className="w-7 h-7 text-brand-600"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -64,7 +66,7 @@ export function DisclaimerModal() {
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="prose prose-sm text-gray-600 leading-relaxed space-y-3">
             <p>
-              By utilizing the Kayan Token Investor Portal{" "}
+              By utilizing the {entity.disclaimer}{" "}
               <strong>(&ldquo;Portal&rdquo;)</strong> located at this website and
               any pages thereof, you acknowledge that you have read these terms
               and that you agree to be bound by them.

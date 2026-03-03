@@ -1,3 +1,7 @@
+"use client";
+
+import { useEntity } from "@/components/EntityConfigProvider";
+
 /**
  * /restricted — Dead end for users from restricted jurisdictions.
  *
@@ -5,14 +9,16 @@
  * No way to proceed — user must close the tab.
  */
 export default function RestrictedPage() {
+  const entity = useEntity();
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-lg text-center">
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <img
-            src="https://kayanforest.com/wp-content/uploads/2025/06/kayan-new-logo.png"
-            alt="Kayan Forest"
+            src={entity.logoUrl}
+            alt={entity.name}
             className="h-10 w-auto opacity-40"
           />
         </div>
@@ -79,10 +85,10 @@ export default function RestrictedPage() {
           {/* Exit link */}
           <div className="mt-6 pt-6 border-t border-gray-100">
             <a
-              href="https://www.kayanforest.com"
-              className="text-sm text-kayan-500 hover:text-kayan-600 font-medium"
+              href={entity.websiteUrl}
+              className="text-sm text-brand-500 hover:text-brand-600 font-medium"
             >
-              Return to kayanforest.com
+              Return to main site
             </a>
           </div>
         </div>

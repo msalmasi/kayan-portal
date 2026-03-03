@@ -95,7 +95,7 @@ export default function AdminDocumentsPage() {
   const cis = templates.find((t) => t.doc_type === "cis");
   const novation = templates.find((t) => t.doc_type === "novation");
 
-  const inputCls = "px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 bg-white";
+  const inputCls = "px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white";
 
   if (loading) return <div className="flex items-center justify-center min-h-[40vh]"><p className="text-gray-400">Loading...</p></div>;
 
@@ -300,7 +300,7 @@ export default function AdminDocumentsPage() {
                   type="file"
                   accept={(uploadType === "saft" || uploadType === "novation") ? ".docx" : ".pdf"}
                   onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                  className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-kayan-50 file:text-kayan-700 hover:file:bg-kayan-100"
+                  className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
                 />
               </div>
             </div>

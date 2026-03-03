@@ -126,7 +126,7 @@ export async function PATCH(request: NextRequest) {
         credit_card: "Credit Card",
       };
 
-      const { subject, html } = composeAllocationConfirmedEmail(
+      const { subject, html } = await composeAllocationConfirmedEmail(
         investor.full_name,
         totalTokens,
         data.saft_rounds?.name || "Unknown",
@@ -177,7 +177,7 @@ export async function PATCH(request: NextRequest) {
         (sum: number, a: any) => sum + Number(a.token_amount), 0
       );
 
-      const { subject, html } = composeAllocationConfirmedEmail(
+      const { subject, html } = await composeAllocationConfirmedEmail(
         investor.full_name,
         totalTokens,
         data.saft_rounds?.name || "Unknown",

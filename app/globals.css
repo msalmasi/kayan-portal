@@ -9,7 +9,7 @@
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Custom scrollbar — subtle, matches the Kayan palette */
+/* Custom scrollbar — subtle, matches the brand palette */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -26,7 +26,7 @@
 
 /* Subtle focus ring for accessibility */
 *:focus-visible {
-  outline: 2px solid #2d5f3f;
+  outline: 2px solid var(--brand-500, #2d5f3f);
   outline-offset: 2px;
   border-radius: 4px;
 }

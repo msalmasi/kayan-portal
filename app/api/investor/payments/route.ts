@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { getEntityConfig } from "@/lib/entity-config";
 
 /**
  * Get investor context from session cookie.
@@ -115,10 +116,11 @@ export async function GET() {
   const grantRounds = Object.values(grantMap);
 
   // Personalize wire reference note
+  const entityConfig = await getEntityConfig();
   const wireInstructions = {
     ...settings.wire_instructions,
     reference_note: settings.wire_instructions.reference_note ||
-      `Include "${investor.full_name} — Kayan Token" as wire reference`,
+      `Include "${investor.full_name} — ${entityConfig.project_name}" as wire reference`,
   };
 
   return NextResponse.json({
@@ -645,7 +647,7 @@ async function applyPayment(
       );
 
       const { sendEmail, composeAllocationConfirmedEmail } = await import("@/lib/email");
-      const { subject, html } = composeAllocationConfirmedEmail(
+      const { subject, html } = await composeAllocationConfirmedEmail(
         investor.full_name,
         totalTokens,
         round?.name || "Unknown",

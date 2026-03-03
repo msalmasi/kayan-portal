@@ -243,7 +243,7 @@ async function applyPayment(
       );
 
       const { sendEmail, composeAllocationConfirmedEmail } = await import("@/lib/email");
-      const { subject, html } = composeAllocationConfirmedEmail(
+      const { subject, html } = await composeAllocationConfirmedEmail(
         investor.full_name, totalTokens, round?.name || "Unknown",
         { isGrant: false, txReference: txRef, amountUsd }
       );

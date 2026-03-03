@@ -342,8 +342,8 @@ export default function ReissuancePage() {
                   type="text"
                   value={oldEntity}
                   onChange={(e) => setOldEntity(e.target.value)}
-                  placeholder="e.g., Kayan International Inc."
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-kayan-500 focus:border-kayan-500 outline-none"
+                  placeholder="e.g., Original Entity Inc."
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                 />
               </div>
               <div>
@@ -354,8 +354,8 @@ export default function ReissuancePage() {
                   type="text"
                   value={newEntity}
                   onChange={(e) => setNewEntity(e.target.value)}
-                  placeholder="e.g., Kayan Holdings Ltd."
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-kayan-500 focus:border-kayan-500 outline-none"
+                  placeholder="e.g., New Entity Ltd."
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                 />
               </div>
             </div>
@@ -369,7 +369,7 @@ export default function ReissuancePage() {
                 value={newJurisdiction}
                 onChange={(e) => setNewJurisdiction(e.target.value)}
                 placeholder="e.g., British Virgin Islands"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-kayan-500 focus:border-kayan-500 outline-none"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               />
             </div>
 
@@ -382,7 +382,7 @@ export default function ReissuancePage() {
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Describe why SAFTs are being re-issued..."
                 rows={2}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-kayan-500 focus:border-kayan-500 outline-none resize-none"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-none"
               />
             </div>
 
@@ -401,7 +401,7 @@ export default function ReissuancePage() {
                     onClick={() => toggleRound(round.id)}
                     className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                       selectedRounds.includes(round.id)
-                        ? "bg-kayan-600 text-white border-kayan-600"
+                        ? "bg-brand-600 text-white border-brand-600"
                         : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                     }`}
                   >
@@ -563,7 +563,7 @@ export default function ReissuancePage() {
                                     <button
                                       onClick={() => handleResendItem(batch.id, item.id)}
                                       disabled={resending === item.id}
-                                      className="text-xs text-kayan-600 hover:text-kayan-800 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                      className="text-xs text-brand-600 hover:text-brand-800 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                                     >
                                       {resending === item.id ? "Sending…" : "Resend"}
                                     </button>
@@ -583,7 +583,7 @@ export default function ReissuancePage() {
                             size="sm"
                             onClick={() => handleResendAll(batch.id)}
                             loading={resending === batch.id}
-                            className="!text-kayan-700 hover:!bg-kayan-50"
+                            className="!text-brand-700 hover:!bg-brand-50"
                           >
                             Resend to All Pending ({batch.counts.pending_novation})
                           </Button>

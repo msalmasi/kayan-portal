@@ -114,7 +114,7 @@ export function PaymentSettingsAdmin() {
     return <Card><CardHeader title="Payment Settings" /><p className="text-sm text-gray-400">Loading…</p></Card>;
   }
 
-  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 font-mono";
+  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono";
   const labelCls = "block text-xs font-medium text-gray-500 mb-1";
   // Admin role required to edit (manager can only view)
   const canEdit = isManager; // isManager is true for manager+admin+super_admin from the hook
@@ -137,7 +137,7 @@ export function PaymentSettingsAdmin() {
                 key={id}
                 className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                   m.enabled
-                    ? "border-kayan-200 bg-kayan-50/30"
+                    ? "border-brand-200 bg-brand-50/30"
                     : "border-gray-200 bg-gray-50 opacity-60"
                 }`}
               >
@@ -152,7 +152,7 @@ export function PaymentSettingsAdmin() {
                   <button
                     onClick={() => toggleMethod(id)}
                     className={`relative w-11 h-6 rounded-full transition-colors ${
-                      m.enabled ? "bg-kayan-600" : "bg-gray-300"
+                      m.enabled ? "bg-brand-600" : "bg-gray-300"
                     }`}
                   >
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
@@ -228,7 +228,7 @@ export function PaymentSettingsAdmin() {
               type="text"
               value={settings.wire_instructions.account_name}
               onChange={(e) => updateWire("account_name", e.target.value)}
-              placeholder="e.g. Kayan Forest Ltd"
+              placeholder="e.g. Company Name Ltd"
               className={inputCls.replace("font-mono", "")}
               readOnly={!canEdit}
             />
@@ -272,7 +272,7 @@ export function PaymentSettingsAdmin() {
               type="text"
               value={settings.wire_instructions.reference_note}
               onChange={(e) => updateWire("reference_note", e.target.value)}
-              placeholder='e.g. Include "Your Name — Kayan Token"'
+              placeholder='e.g. Include "Your Name — Token Name"'
               className={inputCls.replace("font-mono", "")}
               readOnly={!canEdit}
             />
@@ -293,7 +293,7 @@ export function PaymentSettingsAdmin() {
               type="number"
               min={1}
               max={90}
-              className="block w-32 rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-kayan-500 focus:ring-kayan-500"
+              className="block w-32 rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-brand-500 focus:ring-brand-500"
               value={settings.capital_call_payment_days ?? 10}
               onChange={(e) => {
                 setSettings({ ...settings, capital_call_payment_days: parseInt(e.target.value) || 10 });

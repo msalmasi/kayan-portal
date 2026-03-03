@@ -61,8 +61,8 @@ function DocStatusBadge({ status }: { status: string }) {
 function DocIcon({ type }: { type: string }) {
   if (type === "saft") {
     return (
-      <div className="w-10 h-10 rounded-lg bg-kayan-50 flex items-center justify-center">
-        <svg className="w-5 h-5 text-kayan-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center">
+        <svg className="w-5 h-5 text-brand-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
         </svg>
       </div>
@@ -339,7 +339,7 @@ export default function DocumentsPage() {
             )}
             {viewingDoc.signed_pdf_url && (
               <a href={viewingDoc.signed_pdf_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-kayan-600 hover:text-kayan-800 underline font-medium">
+                className="text-xs text-brand-600 hover:text-brand-800 underline font-medium">
                 Download Certificate
               </a>
             )}
@@ -475,7 +475,7 @@ export default function DocumentsPage() {
                   value={signatureName}
                   onChange={(e) => setSignatureName(e.target.value)}
                   placeholder="e.g., John Andrew Smith"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg font-serif focus:outline-none focus:ring-2 focus:ring-kayan-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg font-serif focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   autoFocus
                 />
                 {signatureName && (
@@ -557,7 +557,7 @@ export default function DocumentsPage() {
                           needsAction
                             ? doc.doc_type === "novation"
                               ? "bg-amber-500 text-white hover:bg-amber-600"
-                              : "bg-kayan-600 text-white hover:bg-kayan-700"
+                              : "bg-brand-600 text-white hover:bg-brand-700"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >

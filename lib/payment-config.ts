@@ -77,7 +77,7 @@ const DEFAULTS: PaymentSettings = {
     account_number: "",
     routing_number: "",
     swift_code: "",
-    reference_note: "Include your full name and 'Kayan Token' as reference",
+    reference_note: "Include your full name and token name as reference",
   },
   capital_call_payment_days: 10,
 };

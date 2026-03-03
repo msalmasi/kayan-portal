@@ -1,5 +1,5 @@
 // ============================================================
-// Kayan Portal — Type Definitions
+// Investor Portal — Type Definitions
 // All database row types and derived shapes live here.
 // ============================================================
 

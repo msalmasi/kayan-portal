@@ -242,7 +242,7 @@ export async function generateDocsForInvestor(
   }
 
   // ── Send "documents ready" email ──
-  const { subject, html } = composeDocumentsReadyEmail(investor.full_name, round.name);
+  const { subject, html } = await composeDocumentsReadyEmail(investor.full_name, round.name);
   const emailSent = await sendEmail(investor.email, subject, html);
 
   await supabase.from("email_events").insert({

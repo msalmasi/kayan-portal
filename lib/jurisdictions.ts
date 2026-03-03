@@ -224,4 +224,4 @@ export const COUNTRIES: { code: string; name: string; restricted: boolean }[] = 
 ];
 
 /** Cookie name for jurisdiction clearance */
-export const JURISDICTION_COOKIE = "kayan_jurisdiction";
+export const JURISDICTION_COOKIE = "portal_jurisdiction";

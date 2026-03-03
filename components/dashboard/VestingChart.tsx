@@ -13,6 +13,7 @@ import {
 import { AllocationWithRound } from "@/lib/types";
 import { generateVestingSchedule, formatTokenAmount } from "@/lib/vesting";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { useEntity } from "@/components/EntityConfigProvider";
 
 interface VestingChartProps {
   /** Confirmed allocations: paid + grants with completed steps */
@@ -30,6 +31,8 @@ interface VestingChartProps {
  * Y-axis: cumulative tokens unlocked
  */
 export function VestingChart({ confirmed, unconfirmed }: VestingChartProps) {
+  const entity = useEntity();
+  const accent = `#${entity.accent}`;
   const confirmedData = generateVestingSchedule(confirmed);
   const unconfirmedData = generateVestingSchedule(unconfirmed);
 
@@ -83,8 +86,8 @@ export function VestingChart({ confirmed, unconfirmed }: VestingChartProps) {
             <defs>
               {/* Confirmed: solid green gradient */}
               <linearGradient id="confirmedGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2d5f3f" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#2d5f3f" stopOpacity={0.02} />
+                <stop offset="0%" stopColor={accent} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
               </linearGradient>
               {/* Pending: subtle gray gradient */}
               <linearGradient id="pendingGradient" x1="0" y1="0" x2="0" y2="1">
@@ -119,10 +122,10 @@ export function VestingChart({ confirmed, unconfirmed }: VestingChartProps) {
                 fontSize: "13px",
               }}
               formatter={(value: number, name: string) => [
-                `${value.toLocaleString()} $KAYAN`,
+                `${value.toLocaleString()} $${entity.ticker}`,
                 name === "pending" ? "Total (incl. pending)" : "Confirmed",
               ]}
-              labelStyle={{ fontWeight: 600, color: "#1a3c2a" }}
+              labelStyle={{ fontWeight: 600, color: `#${entity.primary}` }}
             />
 
             {/* Pending line: dashed, sits behind confirmed */}
@@ -143,7 +146,7 @@ export function VestingChart({ confirmed, unconfirmed }: VestingChartProps) {
               <Area
                 type="stepAfter"
                 dataKey="confirmed"
-                stroke="#2d5f3f"
+                stroke={accent}
                 strokeWidth={2}
                 fill="url(#confirmedGradient)"
                 name="confirmed"

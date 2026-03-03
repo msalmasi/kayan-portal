@@ -146,7 +146,7 @@ export async function PATCH(
       .single();
 
     if (freshInv && !freshInv.docs_sent_at) {
-      const { subject, html } = composeDocsPackageEmail(freshInv.full_name);
+      const { subject, html } = await composeDocsPackageEmail(freshInv.full_name);
       const sent = await sendEmail(freshInv.email, subject, html);
 
       await auth.client

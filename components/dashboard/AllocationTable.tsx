@@ -311,7 +311,7 @@ export function AllocationTable({ allocations, investorStatus }: AllocationTable
                   {nextAction && (
                     <Link
                       href={nextAction.href}
-                      className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-kayan-600 hover:text-kayan-800"
+                      className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-brand-600 hover:text-brand-800"
                     >
                       Next: {nextAction.label} →
                     </Link>

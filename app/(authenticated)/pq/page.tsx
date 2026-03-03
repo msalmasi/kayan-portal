@@ -20,9 +20,9 @@ import {
 
 // ── Styling helpers ──
 const inputCls =
-  "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 disabled:bg-gray-100 disabled:text-gray-500";
+  "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-100 disabled:text-gray-500";
 const selectCls = `${inputCls} bg-white`;
-const checkCls = "h-4 w-4 text-kayan-600 border-gray-300 rounded focus:ring-kayan-500 disabled:opacity-50";
+const checkCls = "h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500 disabled:opacity-50";
 const labelCls = "block text-sm font-medium text-gray-700 mb-1";
 const sectionCls = "space-y-4";
 
@@ -257,7 +257,7 @@ export default function PurchaserQuestionnairePage() {
           <span>Your Purchaser Questionnaire has been approved.</span>
           <button
             onClick={() => setEditingApproved(true)}
-            className="text-xs font-medium text-kayan-600 hover:text-kayan-800 underline underline-offset-2"
+            className="text-xs font-medium text-brand-600 hover:text-brand-800 underline underline-offset-2"
           >
             Update for re-approval →
           </button>
@@ -382,7 +382,7 @@ export default function PurchaserQuestionnairePage() {
                 checked={sectionC.qualification_type === key}
                 onChange={() => setSectionC({ ...sectionC, qualification_type: key as any })}
                 disabled={readOnly}
-                className="mt-0.5 h-4 w-4 text-kayan-600 border-gray-300 focus:ring-kayan-500"
+                className="mt-0.5 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500"
               />
               <span className="text-sm text-gray-700">{label}</span>
             </label>

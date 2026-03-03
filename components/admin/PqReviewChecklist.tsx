@@ -87,7 +87,7 @@ function SectionReviewBlock({
           onChange={(e) => onUpdate({ ...review, notes: e.target.value })}
           disabled={disabled}
           placeholder="Review notes (optional)..."
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-kayan-500 disabled:bg-gray-50"
+          className="w-full px-2 py-1.5 border border-gray-200 rounded text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50"
         />
       </div>
     </div>
@@ -313,7 +313,7 @@ export function PqReviewChecklist({
             disabled={disabled}
             rows={3}
             placeholder="Add any overall notes, issues, or rejection reasons..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-kayan-500 disabled:bg-gray-100 resize-none"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-100 resize-none"
           />
         </div>
 

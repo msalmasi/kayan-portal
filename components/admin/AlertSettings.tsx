@@ -138,7 +138,7 @@ export function AlertSettings() {
         <button
           onClick={() => setEnabled(!enabled)}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            enabled ? "bg-kayan-600" : "bg-gray-200"
+            enabled ? "bg-brand-600" : "bg-gray-200"
           }`}
         >
           <span
@@ -153,7 +153,7 @@ export function AlertSettings() {
       <div className="flex gap-2 mb-3">
         <button
           onClick={selectAll}
-          className="text-xs text-kayan-600 hover:underline"
+          className="text-xs text-brand-600 hover:underline"
         >
           Select all
         </button>
@@ -177,7 +177,7 @@ export function AlertSettings() {
               type="checkbox"
               checked={subscribed.includes(evt.type)}
               onChange={() => toggleEvent(evt.type)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-kayan-600 focus:ring-kayan-500"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
             />
             <div>
               <p className="text-sm font-medium text-gray-900">{evt.label}</p>
