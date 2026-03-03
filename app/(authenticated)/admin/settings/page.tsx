@@ -6,6 +6,7 @@ import { Tabs, TabPanel } from "@/components/ui/Tabs";
 import { EntityBrandingPanel } from "@/components/admin/EntityBrandingPanel";
 import { PaymentSettingsAdmin } from "@/components/admin/PaymentSettingsAdmin";
 import { PlatformPauseCard } from "@/components/admin/PlatformPauseCard";
+import { ReminderCard } from "@/components/admin/ReminderCard";
 
 // ─── Tab definitions ─────────────────────────────────────────
 
@@ -35,6 +36,7 @@ function SettingsInner() {
         <div className="space-y-8">
           <PlatformPauseCard />
           <PaymentSettingsAdmin />
+          <ReminderCard />
         </div>
       </TabPanel>
 
@@ -50,7 +52,7 @@ function SettingsInner() {
 /**
  * /admin/settings — Platform settings hub
  *
- * Operations tab: platform pause, payment methods, wallets
+ * Operations tab: platform pause, payment methods, wallets, reminders
  * Branding tab: entity name, logos, colors, contact info
  */
 export default function AdminSettingsPage() {

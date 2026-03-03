@@ -588,3 +588,110 @@ export async function composeNewSaftReadyEmail(
   `);
   return { subject, html };
 }
+
+// ─── Reminder Emails ─────────────────────────────────────────
+
+/**
+ * Compose a round-closing reminder when an investor has
+ * pending actions (unsigned docs, incomplete KYC/PQ).
+ */
+export async function composeRoundClosingReminderEmail(
+  investorName: string,
+  roundName: string,
+  closingDate: string,
+  daysLeft: number,
+  pendingActions: string[]
+) {
+  const b = await getBranding();
+  const formattedDate = new Date(closingDate).toLocaleDateString("en-US", {
+    year: "numeric", month: "long", day: "numeric",
+  });
+
+  const urgency = daysLeft <= 1
+    ? `<span style="color:#dc2626;font-weight:700;">Tomorrow</span>`
+    : `<strong>${daysLeft} days</strong> (${formattedDate})`;
+
+  const actionList = pendingActions
+    .map((a) => `<li style="padding:4px 0;">${a}</li>`)
+    .join("");
+
+  const subject = `${b.projectName} — ${daysLeft <= 1 ? "FINAL DAY" : `${daysLeft} days left`}: ${roundName} round closing`;
+  const html = wrapHtml(b, `
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Round Closing Reminder</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      Dear ${investorName}, the <strong>${roundName}</strong> round closes in ${urgency}.
+      You have outstanding items that need to be completed before the deadline.
+    </p>
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:0 0 16px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#92400e;">Pending actions:</p>
+      <ul style="margin:0;padding:0 0 0 20px;font-size:13px;color:#92400e;line-height:1.8;">
+        ${actionList}
+      </ul>
+    </div>
+    ${btn(b, b.portalUrl, "Go to Portal")}
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      After the closing date, new subscriptions and document signing will no longer be available for this round.
+    </p>
+  `);
+  return { subject, html };
+}
+
+/**
+ * Compose a payment deadline reminder for an unpaid
+ * or partially-paid capital call.
+ */
+export async function composePaymentReminderEmail(
+  investorName: string,
+  roundName: string,
+  balanceDue: number,
+  deadline: string,
+  daysLeft: number,
+  isPartial: boolean
+) {
+  const b = await getBranding();
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", maximumFractionDigits: 0,
+  }).format(balanceDue);
+
+  const formattedDate = new Date(deadline).toLocaleDateString("en-US", {
+    year: "numeric", month: "long", day: "numeric",
+  });
+
+  const urgency = daysLeft <= 1
+    ? `<span style="color:#dc2626;font-weight:700;">Tomorrow</span>`
+    : `<strong>${daysLeft} days</strong> (${formattedDate})`;
+
+  const subject = `${b.projectName} — Payment ${daysLeft <= 1 ? "due tomorrow" : `due in ${daysLeft} days`}: ${formatted} for ${roundName}`;
+  const html = wrapHtml(b, `
+    <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Payment Reminder</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
+      Dear ${investorName}, ${isPartial
+        ? "a partial payment was received but your balance is not yet settled."
+        : "your capital call payment has not yet been received."
+      } The deadline is in ${urgency}.
+    </p>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:0 0 16px;">
+      <table style="width:100%;font-size:14px;color:#374151;" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:4px 0;font-weight:600;">Balance Due</td>
+          <td style="padding:4px 0;text-align:right;font-size:20px;font-weight:700;color:#111827;">${formatted}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:600;">Round</td>
+          <td style="padding:4px 0;text-align:right;">${roundName}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:600;">Deadline</td>
+          <td style="padding:4px 0;text-align:right;color:#dc2626;font-weight:600;">${formattedDate}</td>
+        </tr>
+      </table>
+    </div>
+    ${btn(b, `${b.portalUrl}/dashboard#payments`, "Make Payment →")}
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px;"/>
+    <p style="margin:0;font-size:11px;color:#9ca3af;">
+      After the deadline, unpaid allocations may be forfeited. Contact ${b.projectName} support if you need assistance.
+    </p>
+  `);
+  return { subject, html };
+}

@@ -282,6 +282,21 @@ export default function InvestorDetailPage() {
     else { const err = await res.json(); toast.error(err.error || "Failed"); }
   };
 
+  // Send a payment reminder for a specific allocation
+  const handleSendReminder = async (allocationId: string) => {
+    const res = await fetch("/api/admin/reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "payment_reminder",
+        investor_id: investorId,
+        allocation_id: allocationId,
+      }),
+    });
+    if (res.ok) { toast.success("Payment reminder sent"); fetchData(); }
+    else { const err = await res.json(); toast.error(err.error || "Failed to send reminder"); }
+  };
+
   const handleDelete = async () => {
     if (!confirm(`Permanently delete ${investor?.full_name}? This cannot be undone.`)) return;
     const res = await fetch(`/api/admin/investors/${investorId}`, { method: "DELETE" });
@@ -842,9 +857,14 @@ export default function InvestorDetailPage() {
                           <div className="flex items-center gap-2 text-xs text-blue-600 pt-1 border-t border-gray-100">
                             <span>Capital call sent {new Date(capitalCallEvent.sent_at).toLocaleDateString()}</span>
                             {canWrite && (
-                              <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-auto text-[11px] py-0">
-                                Resend
-                              </Button>
+                              <>
+                                <Button variant="ghost" size="sm" onClick={() => handleSendReminder(roundApproved.find(a => a.payment_status === "partial" || a.payment_status === "invoiced")!.id)} className="ml-auto text-[11px] py-0">
+                                  Remind
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="text-[11px] py-0">
+                                  Resend
+                                </Button>
+                              </>
                             )}
                           </div>
                         )}
@@ -861,9 +881,14 @@ export default function InvestorDetailPage() {
                         <span className="text-gray-400">·</span>
                         <span className="text-gray-500">${totalDueRound.toLocaleString()} due</span>
                         {canWrite && (
-                          <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="ml-auto text-[11px] py-0">
-                            Resend
-                          </Button>
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => handleSendReminder(roundApproved.find(a => a.payment_status === "invoiced" || a.payment_status === "partial")!.id)} className="ml-auto text-[11px] py-0">
+                              Remind
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleSendEmail("capital_call")} className="text-[11px] py-0">
+                              Resend
+                            </Button>
+                          </>
                         )}
                       </div>
                     )}
