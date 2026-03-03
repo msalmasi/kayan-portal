@@ -373,3 +373,94 @@ export async function sendPaymentReminderToInvestor(
 
   return { success: true };
 }
+
+/**
+ * Send a round-closing reminder to a specific investor,
+ * listing their pending actions for that round.
+ * Used by the admin manual trigger.
+ */
+export async function sendRoundClosingReminderToInvestor(
+  investorId: string,
+  roundId: string,
+  triggeredBy: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getServiceClient();
+
+  // Fetch investor
+  const { data: investor } = await supabase
+    .from("investors")
+    .select("id, email, full_name, kyc_status, pq_status")
+    .eq("id", investorId)
+    .single();
+
+  if (!investor) return { success: false, error: "Investor not found" };
+
+  // Fetch round
+  const { data: round } = await supabase
+    .from("saft_rounds")
+    .select("id, name, closing_date")
+    .eq("id", roundId)
+    .single();
+
+  if (!round) return { success: false, error: "Round not found" };
+
+  // Build pending actions
+  const actions: string[] = [];
+
+  if (investor.kyc_status !== "verified") {
+    actions.push("Complete identity verification (KYC)");
+  }
+  if (investor.pq_status !== "approved") {
+    if (investor.pq_status === "not_sent" || investor.pq_status === "sent") {
+      actions.push("Complete and submit the Purchaser Questionnaire");
+    } else if (investor.pq_status === "rejected") {
+      actions.push("Resubmit the Purchaser Questionnaire (revisions requested)");
+    }
+  }
+
+  // Check unsigned SAFT
+  const { data: unsignedDocs } = await supabase
+    .from("investor_documents")
+    .select("id")
+    .eq("investor_id", investorId)
+    .eq("round_id", roundId)
+    .eq("doc_type", "saft")
+    .in("status", ["pending", "viewed"])
+    .limit(1);
+
+  if (unsignedDocs && unsignedDocs.length > 0) {
+    actions.push("Review and sign the SAFT agreement");
+  }
+
+  if (actions.length === 0) {
+    return { success: false, error: "No pending actions for this investor" };
+  }
+
+  const daysLeft = round.closing_date
+    ? Math.max(0, Math.ceil(daysUntil(round.closing_date)))
+    : 0;
+
+  const { subject, html } = await composeRoundClosingReminderEmail(
+    investor.full_name,
+    round.name,
+    round.closing_date || new Date().toISOString(),
+    daysLeft,
+    actions
+  );
+
+  await sendEmail(investor.email, subject, html);
+
+  await supabase.from("email_events").insert({
+    investor_id: investorId,
+    email_type: "round_closing_reminder",
+    sent_by: triggeredBy,
+    metadata: {
+      round_id: roundId,
+      round_name: round.name,
+      pending_actions: actions,
+      manual: true,
+    },
+  });
+
+  return { success: true };
+}

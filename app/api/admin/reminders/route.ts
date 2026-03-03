@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
-import { processReminders, sendPaymentReminderToInvestor } from "@/lib/reminders";
+import {
+  processReminders,
+  sendPaymentReminderToInvestor,
+  sendRoundClosingReminderToInvestor,
+} from "@/lib/reminders";
 
 /**
  * POST /api/admin/reminders
@@ -13,6 +17,9 @@ import { processReminders, sendPaymentReminderToInvestor } from "@/lib/reminders
  *
  *   { action: "payment_reminder", investor_id, allocation_id }
  *     — Send a payment reminder to a specific investor
+ *
+ *   { action: "round_closing_reminder", investor_id, round_id }
+ *     — Send a round-closing reminder listing pending actions
  */
 export async function POST(request: NextRequest) {
   const auth = await getAdminAuth();
@@ -25,7 +32,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { action, investor_id, allocation_id } = await request.json();
+  const { action, investor_id, allocation_id, round_id } = await request.json();
 
   if (action === "process_all") {
     const result = await processReminders(auth.email);
@@ -46,6 +53,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
     return NextResponse.json({ success: true, message: "Payment reminder sent" });
+  }
+
+  if (action === "round_closing_reminder" && investor_id && round_id) {
+    const result = await sendRoundClosingReminderToInvestor(
+      investor_id,
+      round_id,
+      auth.email
+    );
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({ success: true, message: "Round closing reminder sent" });
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -297,6 +297,21 @@ export default function InvestorDetailPage() {
     else { const err = await res.json(); toast.error(err.error || "Failed to send reminder"); }
   };
 
+  // Send a round-closing reminder listing pending actions (KYC, PQ, SAFT)
+  const handleSendRoundReminder = async (roundId: string) => {
+    const res = await fetch("/api/admin/reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "round_closing_reminder",
+        investor_id: investorId,
+        round_id: roundId,
+      }),
+    });
+    if (res.ok) { toast.success("Round reminder sent"); fetchData(); }
+    else { const err = await res.json(); toast.error(err.error || "Failed to send reminder"); }
+  };
+
   const handleDelete = async () => {
     if (!confirm(`Permanently delete ${investor?.full_name}? This cannot be undone.`)) return;
     const res = await fetch(`/api/admin/investors/${investorId}`, { method: "DELETE" });
@@ -915,6 +930,15 @@ export default function InvestorDetailPage() {
                           <p className="text-xs text-gray-400 mt-1">
                             Documents not yet generated for this round.
                           </p>
+                        )}
+
+                        {!allGatesMet && canWrite && (
+                          <div className="flex items-center gap-2 mt-1 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-gray-500">Incomplete steps — send the investor a reminder.</p>
+                            <Button variant="ghost" size="sm" onClick={() => handleSendRoundReminder(roundId)} className="ml-auto text-[11px] py-0">
+                              Send Reminder
+                            </Button>
+                          </div>
                         )}
 
                         {allGatesMet && hasUnpaid && (
