@@ -56,16 +56,14 @@ function btn(b: EmailBranding, href: string, label: string): string {
 /** Compose welcome email HTML + subject */
 export async function composeWelcomeEmail(investorName: string) {
   const b = await getBranding();
-  const subject = "Welcome to the ${b.projectName} Investor Portal";
+  const subject = `Welcome to the ${b.projectName} Investor Portal`;
   const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Welcome, ${investorName}</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
       Your account on the ${b.projectName} Investor Portal has been created.
       You can now log in to begin the verification process.
     </p>
-    ${btn(b, `${b.portalUrl}`, "
-      Open Investor Portal
-    ")}
+    ${btn(b, `${b.portalUrl}`, "Open Investor Portal")}
     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">
       <strong>How to log in:</strong> Enter the email address associated with your
       account and click the magic link we send you. No password needed.
@@ -186,7 +184,7 @@ export async function composeCapitalCallEmail(
 /** Compose subscription docs package email — sent when KYC is approved */
 export async function composeDocsPackageEmail(investorName: string) {
   const b = await getBranding();
-  const subject = "${b.projectName} — Subscription Documents Ready";
+  const subject = `${b.projectName} — Subscription Documents Ready`;
   const html = wrapHtml(b, `
     <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Subscription Documents</h2>
     <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.6;">
