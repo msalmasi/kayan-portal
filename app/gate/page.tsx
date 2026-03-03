@@ -86,7 +86,7 @@ export default function JurisdictionGatePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-brand-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-brand-dark px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-8">

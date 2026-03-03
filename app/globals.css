@@ -9,6 +9,28 @@
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/*
+ * Brand color opacity utilities
+ * Tailwind's /XX opacity modifier doesn't work with CSS variable colors,
+ * so we define these manually. Uses brand-700 with alpha channel.
+ */
+.border-brand-700\/30 {
+  border-color: color-mix(in srgb, var(--brand-700, #142e20) 30%, transparent);
+}
+.border-brand-700\/20 {
+  border-color: color-mix(in srgb, var(--brand-700, #142e20) 20%, transparent);
+}
+
+/* Dark brand gradient for login / gate full-page backgrounds */
+.bg-brand-dark {
+  background: linear-gradient(
+    135deg,
+    var(--brand-800, #0f2218) 0%,
+    var(--brand-600, #1a3c2a) 50%,
+    var(--brand-800, #0f2218) 100%
+  );
+}
+
 /* Custom scrollbar — subtle, matches the brand palette */
 ::-webkit-scrollbar {
   width: 6px;
@@ -17,11 +39,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #b3d7c1;
+  background: var(--brand-200, #b3d7c1);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #7dba97;
+  background: var(--brand-300, #7dba97);
 }
 
 /* Subtle focus ring for accessibility */
