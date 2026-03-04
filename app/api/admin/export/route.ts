@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
 
+// ── Fetch all rows (bypasses Supabase 1000 row default) ──
+async function fetchAll(
+  client: any, table: string, select: string,
+  filters?: { column: string; value: any }[]
+): Promise<any[]> {
+  const PAGE = 1000;
+  let offset = 0;
+  let all: any[] = [];
+  while (true) {
+    let q = client.from(table).select(select).range(offset, offset + PAGE - 1);
+    if (filters) { for (const f of filters) q = q.eq(f.column, f.value); }
+    const { data } = await q;
+    const rows = (data || []) as any[];
+    all = all.concat(rows);
+    if (rows.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
+}
+
 // ── CSV helpers ──
 
 /** Escape a value for CSV (wrap in quotes if it contains commas, quotes, or newlines) */
@@ -223,22 +243,19 @@ async function exportCapTable(client: any) {
     .from("saft_rounds")
     .select("id, name, token_price, tge_unlock_pct, cliff_months, vesting_months");
 
-  const { data: allocations } = await client
-    .from("allocations")
-    .select(
-      "id, investor_id, round_id, token_amount, amount_usd, amount_received_usd, " +
-      "payment_status, approval_status, created_at"
-    )
-    .eq("approval_status", "approved")
-    .limit(10000);
+  const allocations = await fetchAll(
+    client, "allocations",
+    "id, investor_id, round_id, token_amount, amount_usd, amount_received_usd, payment_status, approval_status, created_at",
+    [{ column: "approval_status", value: "approved" }]
+  );
 
-  const { data: investors } = await client
-    .from("investors")
-    .select("id, full_name, email, kyc_status, pq_status, created_at")
-    .limit(10000);
+  const investors = await fetchAll(
+    client, "investors",
+    "id, full_name, email, kyc_status, pq_status, created_at"
+  );
 
   const roundMap = new Map<string, any>((rounds || []).map((r: any) => [r.id, r]));
-  const investorMap = new Map<string, any>((investors || []).map((i: any) => [i.id, i]));
+  const investorMap = new Map<string, any>(investors.map((i: any) => [i.id, i]));
 
   const columns = [
     { key: "investor_name", label: "Investor Name" },
@@ -256,7 +273,7 @@ async function exportCapTable(client: any) {
     { key: "registered", label: "Registration Date" },
   ];
 
-  const rows = (allocations || []).map((a: any) => {
+  const rows = allocations.map((a: any) => {
     const inv = investorMap.get(a.investor_id);
     const round = roundMap.get(a.round_id);
     const tokens = Number(a.token_amount) || 0;
