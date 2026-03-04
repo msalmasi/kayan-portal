@@ -84,6 +84,23 @@ function BellIcon() {
   );
 }
 
+function CapTableIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+    </svg>
+  );
+}
+
+function RoundsIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75 6.429 9.75m11.142 0l4.179 2.25-9.75 5.25-9.75-5.25 4.179-2.25" />
+    </svg>
+  );
+}
+
 function RefreshIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -126,6 +143,8 @@ export function Sidebar({ isAdmin = false, adminRole = null }: SidebarProps) {
   if (isAdmin) {
     adminItems.push({ href: "/admin/notifications", label: "Notifications", icon: BellIcon });
     adminItems.push({ href: "/admin/investors", label: "Investors", icon: AdminIcon });
+    adminItems.push({ href: "/admin/cap-table", label: "Cap Table", icon: CapTableIcon });
+    adminItems.push({ href: "/admin/rounds", label: "Rounds", icon: RoundsIcon });
     adminItems.push({ href: "/admin/documents", label: "Documents", icon: DocumentIcon });
     // Manager, admin, and super_admin can see Team page. Staff cannot.
     if (adminRole && adminRole !== "staff") {

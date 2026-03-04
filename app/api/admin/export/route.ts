@@ -54,7 +54,11 @@ export async function GET(request: NextRequest) {
     return exportInvestors(auth.client, sp);
   }
 
-  return NextResponse.json({ error: "Invalid export type. Use ?type=audit_log or ?type=investors" }, { status: 400 });
+  if (type === "cap_table") {
+    return exportCapTable(auth.client);
+  }
+
+  return NextResponse.json({ error: "Invalid export type. Use ?type=audit_log, investors, or cap_table" }, { status: 400 });
 }
 
 // ── Audit Log Export ──
@@ -198,6 +202,87 @@ async function exportInvestors(client: any, sp: URLSearchParams) {
 
   const csv = toCsv(rows, columns);
   const filename = `investors-${new Date().toISOString().split("T")[0]}.csv`;
+
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
+// ── Cap Table Export ──
+
+async function exportCapTable(client: any) {
+  const { getEntityConfig } = await import("@/lib/entity-config");
+  const config = await getEntityConfig(client);
+  const totalSupply = config.total_supply || 100_000_000;
+
+  const { data: rounds } = await client
+    .from("saft_rounds")
+    .select("id, name, token_price, tge_unlock_pct, cliff_months, vesting_months");
+
+  const { data: allocations } = await client
+    .from("allocations")
+    .select(
+      "id, investor_id, round_id, token_amount, amount_usd, amount_received_usd, " +
+      "payment_status, approval_status, created_at"
+    )
+    .eq("approval_status", "approved");
+
+  const { data: investors } = await client
+    .from("investors")
+    .select("id, full_name, email, kyc_status, pq_status, created_at");
+
+  const roundMap = new Map((rounds || []).map((r: any) => [r.id, r]));
+  const investorMap = new Map((investors || []).map((i: any) => [i.id, i]));
+
+  const columns = [
+    { key: "investor_name", label: "Investor Name" },
+    { key: "email", label: "Email" },
+    { key: "round_name", label: "Round" },
+    { key: "token_amount", label: "Token Amount" },
+    { key: "pct_of_supply", label: "% of Supply" },
+    { key: "token_price", label: "Token Price" },
+    { key: "amount_usd", label: "USD Due" },
+    { key: "amount_received_usd", label: "USD Received" },
+    { key: "payment_status", label: "Payment Status" },
+    { key: "vesting_terms", label: "Vesting Terms" },
+    { key: "kyc_status", label: "KYC Status" },
+    { key: "pq_status", label: "PQ Status" },
+    { key: "registered", label: "Registration Date" },
+  ];
+
+  const rows = (allocations || []).map((a: any) => {
+    const inv = investorMap.get(a.investor_id);
+    const round = roundMap.get(a.round_id);
+    const tokens = Number(a.token_amount) || 0;
+
+    return {
+      investor_name: inv?.full_name || "Unknown",
+      email: inv?.email || "",
+      round_name: round?.name || "—",
+      token_amount: tokens,
+      pct_of_supply: totalSupply > 0 ? ((tokens / totalSupply) * 100).toFixed(4) : "0",
+      token_price: round?.token_price ? `$${round.token_price}` : "—",
+      amount_usd: Number(a.amount_usd) || 0,
+      amount_received_usd: Number(a.amount_received_usd) || 0,
+      payment_status: a.payment_status,
+      vesting_terms: round
+        ? `${round.tge_unlock_pct}% TGE / ${round.cliff_months}mo cliff / ${round.vesting_months}mo linear`
+        : "—",
+      kyc_status: inv?.kyc_status || "",
+      pq_status: inv?.pq_status || "",
+      registered: inv?.created_at ? new Date(inv.created_at).toISOString() : "",
+    };
+  });
+
+  // Sort by token amount descending
+  rows.sort((a: any, b: any) => Number(b.token_amount) - Number(a.token_amount));
+
+  const csv = toCsv(rows, columns);
+  const filename = `cap-table-${new Date().toISOString().split("T")[0]}.csv`;
 
   return new NextResponse(csv, {
     status: 200,

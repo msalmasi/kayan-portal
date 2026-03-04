@@ -19,7 +19,7 @@ interface FieldProps {
 function Field({
   label, field, placeholder, hint, type = "text",
   value, onChange,
-}: FieldProps & { value: string; onChange: (field: keyof EntityConfig, val: string) => void }) {
+}: FieldProps & { value: string; onChange: (field: keyof EntityConfig, val: string | number | null) => void }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -75,7 +75,7 @@ export function EntityBrandingPanel() {
       .catch(() => setLoading(false));
   }, []);
 
-  const handleChange = (field: keyof EntityConfig, value: string) => {
+  const handleChange = (field: keyof EntityConfig, value: string | number | null) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -308,6 +308,48 @@ export function EntityBrandingPanel() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Token Supply ── */}
+      <Card>
+        <CardHeader
+          title="Token Supply"
+          subtitle="Total supply, reserved tokens, and TGE date — used by cap table calculations"
+        />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Total Supply</label>
+            <input
+              type="number"
+              value={config.total_supply ?? ""}
+              onChange={(e) => handleChange("total_supply" as keyof EntityConfig, e.target.value ? Number(e.target.value) : 0)}
+              placeholder="100000000"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200"
+            />
+            <p className="text-xs text-gray-400 mt-1">Maximum token supply — denominator for ownership % calculations</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Reserved Tokens</label>
+            <input
+              type="number"
+              value={config.reserved_tokens ?? ""}
+              onChange={(e) => handleChange("reserved_tokens" as keyof EntityConfig, e.target.value ? Number(e.target.value) : 0)}
+              placeholder="0"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200"
+            />
+            <p className="text-xs text-gray-400 mt-1">Treasury, team, ecosystem tokens not available for investor allocation</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">TGE Date</label>
+            <input
+              type="date"
+              value={config.tge_date || ""}
+              onChange={(e) => handleChange("tge_date" as keyof EntityConfig, e.target.value || null)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200"
+            />
+            <p className="text-xs text-gray-400 mt-1">Token Generation Event date — drives vesting timeline projections</p>
           </div>
         </div>
       </Card>

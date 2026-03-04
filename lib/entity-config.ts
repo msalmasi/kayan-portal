@@ -41,6 +41,11 @@ export interface EntityConfig {
   // Legal
   footer_text: string;        // Email footer, e.g. "Kayan International Inc. • Confidential"
   disclaimer_entity: string;  // Entity name in disclaimer modal
+
+  // Token supply (used by cap table)
+  total_supply: number;       // Maximum token supply
+  reserved_tokens: number;    // Tokens reserved (treasury, team, ecosystem)
+  tge_date: string | null;    // Token Generation Event date (ISO string)
 }
 
 // ─── Defaults ────────────────────────────────────────────────
@@ -68,6 +73,10 @@ export const DEFAULT_ENTITY_CONFIG: EntityConfig = {
 
   footer_text: "Kayan International Inc. • Confidential",
   disclaimer_entity: "Kayan Token Investor Portal",
+
+  total_supply: 100_000_000,
+  reserved_tokens: 0,
+  tge_date: null,
 };
 
 // ─── Server-side reader ──────────────────────────────────────
