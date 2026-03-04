@@ -185,6 +185,56 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // ── FORCE RESUBMIT (single investor) ──
+  if (action === "force_resubmit_single") {
+    const { investor_id, message } = body;
+    if (!investor_id) return NextResponse.json({ error: "investor_id required" }, { status: 400 });
+
+    const now = new Date().toISOString();
+
+    const { data: investor, error: fetchErr } = await auth.client
+      .from("investors")
+      .select("id, email, full_name, pq_status")
+      .eq("id", investor_id)
+      .single();
+
+    if (fetchErr || !investor) {
+      return NextResponse.json({ error: "Investor not found" }, { status: 404 });
+    }
+
+    if (investor.pq_status !== "approved" && investor.pq_status !== "submitted") {
+      return NextResponse.json({ error: `PQ status is "${investor.pq_status}" — nothing to reset` }, { status: 400 });
+    }
+
+    await auth.client
+      .from("investors")
+      .update({
+        pq_status: "sent",
+        pq_update_prompted_at: now,
+        pq_notes: message || "Please review and resubmit your Purchaser Questionnaire.",
+      })
+      .eq("id", investor_id);
+
+    // Send notification email
+    try {
+      const { sendEmail, composePqResubmitEmail } = await import("@/lib/email");
+      const { subject, html } = await composePqResubmitEmail(investor.full_name, message);
+      await sendEmail(investor.email, subject, html);
+    } catch (err: any) {
+      console.error("[PQ-TEMPLATE] Single resubmit email failed:", err.message);
+    }
+
+    // Audit log
+    await auth.client.from("email_events").insert({
+      investor_id,
+      email_type: "pq_force_resubmit",
+      sent_by: auth.email,
+      metadata: { message, single: true },
+    });
+
+    return NextResponse.json({ success: true, message: "Investor prompted to resubmit" });
+  }
+
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 }
 

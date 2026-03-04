@@ -313,6 +313,20 @@ export default function InvestorDetailPage() {
     else { const err = await res.json(); toast.error(err.error || "Failed to send reminder"); }
   };
 
+  // Force this investor to resubmit their PQ
+  const handleForcePqResubmit = async () => {
+    const res = await fetch("/api/admin/pq-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "force_resubmit_single",
+        investor_id: investorId,
+      }),
+    });
+    if (res.ok) { toast.success("Investor notified to resubmit PQ"); fetchData(); }
+    else { const err = await res.json(); toast.error(err.error || "Failed to request resubmission"); }
+  };
+
   const handleDelete = async () => {
     if (!confirm(`Permanently delete ${investor?.full_name}? This cannot be undone.`)) return;
     const res = await fetch(`/api/admin/investors/${investorId}`, { method: "DELETE" });
@@ -398,6 +412,16 @@ export default function InvestorDetailPage() {
       </Card>
 
       {/* ── PQ Review Checklist ── */}
+      {canWrite && (investor.pq_status === "approved" || investor.pq_status === "submitted") && (
+        <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5">
+          <p className="text-xs text-gray-600">
+            PQ is <strong>{investor.pq_status}</strong> — you can request the investor to resubmit.
+          </p>
+          <Button variant="secondary" size="sm" onClick={handleForcePqResubmit} className="text-xs">
+            Request PQ Resubmission
+          </Button>
+        </div>
+      )}
       <PqReviewChecklist
         investorId={investorId}
         pqStatus={(investor.pq_status || "not_sent") as PqStatus}
