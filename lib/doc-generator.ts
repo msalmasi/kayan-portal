@@ -262,6 +262,8 @@ export interface SigningData {
   investorEmail: string;
   documentTitle: string;
   roundName: string;
+  offshoreConfirmed: boolean;
+  consentConfirmed: boolean;
 }
 
 /**
@@ -384,6 +386,40 @@ export async function generateSignedPdf(
   });
   y -= 24;
 
+  // ── Certifications ──
+  page.drawText("CERTIFICATIONS", {
+    x: 50, y, size: 12, font: bold, color: brandColor,
+  });
+  y -= 20;
+
+  const checkMark = signing.offshoreConfirmed ? "■" : "□";
+  const consentMark = signing.consentConfirmed ? "■" : "□";
+
+  const certLines = [
+    `${checkMark}  Offshore Certification: The signer certified that they were physically`,
+    `    located outside of the United States at the time of execution and that this`,
+    `    transaction was not conducted on behalf of any U.S. Person under Regulation S.`,
+    "",
+    `${consentMark}  E-Signature Consent: The signer consented to execute this agreement`,
+    `    electronically with full understanding that the electronic signature carries the`,
+    `    same legal force as a handwritten signature under the ESIGN Act, UETA, and`,
+    `    equivalent international regulations.`,
+  ];
+
+  for (const line of certLines) {
+    if (line === "") { y -= 6; continue; }
+    page.drawText(line, { x: 50, y, size: 9, font, color: dark });
+    y -= 13;
+  }
+  y -= 10;
+
+  // ── Divider ──
+  page.drawLine({
+    start: { x: 50, y }, end: { x: 562, y },
+    thickness: 0.5, color: rgb(0.8, 0.8, 0.8),
+  });
+  y -= 24;
+
   // ── Legal attestation ──
   page.drawText("ATTESTATION", {
     x: 50, y, size: 12, font: bold, color: brandColor,
@@ -392,12 +428,14 @@ export async function generateSignedPdf(
 
   const attestation = [
     "This Certificate of Execution confirms that the above-named individual",
-    `electronically signed the referenced SAFT Agreement through the ${entityConfig.project_name}`,
-    "Investor Portal. The signature was captured with the timestamp,",
-    "IP address, and user agent recorded above. The document hash confirms",
-    "the exact version of the document that was presented to and signed by",
-    "the signer. This electronic signature is intended to have the same",
-    "legal force and effect as a handwritten signature pursuant to applicable",
+    `electronically signed the referenced agreement through the ${entityConfig.project_name}`,
+    "Investor Portal. The signer explicitly consented to electronic execution and",
+    "certified their physical location outside the United States at the time of",
+    "signing. The signature was captured with the timestamp, IP address, and",
+    "user agent recorded above. The document hash confirms the exact version of",
+    "the document that was presented to and signed by the signer. This electronic",
+    "signature is intended to have the same legal force and effect as a handwritten",
+    "signature pursuant to the U.S. ESIGN Act, UETA, and applicable international",
     "electronic signature laws.",
   ];
 

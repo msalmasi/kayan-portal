@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
 import { resolveNotifications } from "@/lib/admin-notify";
+import { logClaimDecision, logPaymentChange } from "@/lib/registry-audit";
 
 /**
  * PATCH /api/admin/payments/claims
@@ -89,6 +90,11 @@ export async function PATCH(request: NextRequest) {
       // Resolve the "needs manual review" notification
       await resolveNotifications(auth.client, investor.id, "payment_received", auth.email);
 
+      // Registry audit trail
+      await logClaimDecision(claim_id, investor.id, claim.round_id, "payment_claim_approved", auth.email, {
+        method: "recheck_auto", amount_applied: actualAmount, tx_hash: claim.tx_hash,
+      });
+
       return NextResponse.json({
         success: true,
         action: "recheck",
@@ -134,6 +140,11 @@ export async function PATCH(request: NextRequest) {
     // Resolve the "needs manual review" notification
     await resolveNotifications(auth.client, investor.id, "payment_received", auth.email);
 
+    // Registry audit trail
+    await logClaimDecision(claim_id, investor.id, claim.round_id, "payment_claim_rejected", auth.email, {
+      rejection_reason: rejection_reason || null, method: claim.method,
+    });
+
     return NextResponse.json({ success: true, action: "rejected" });
   }
 
@@ -170,6 +181,12 @@ export async function PATCH(request: NextRequest) {
 
   // Resolve the "needs manual review" notification
   await resolveNotifications(auth.client, investor.id, "payment_received", auth.email);
+
+  // Registry audit trail
+  await logClaimDecision(claim_id, investor.id, claim.round_id, "payment_claim_approved", auth.email, {
+    amount_applied: amountToApply, method: claim.method,
+    tx_ref: claim.tx_hash || claim.wire_reference || `claim-${claim_id}`,
+  });
 
   return NextResponse.json({
     success: true,
@@ -354,6 +371,13 @@ export async function DELETE(request: NextRequest) {
     .from("payment_claims")
     .delete()
     .eq("id", claim_id);
+
+  // Registry audit trail
+  await logClaimDecision(claim_id, claim.investor_id, claim.round_id, "payment_claim_deleted", auth.email, {
+    was_verified: claim.status === "verified",
+    amount_reversed: claim.status === "verified" ? Number(claim.amount_verified_usd ?? claim.amount_usd) : 0,
+    method: claim.method,
+  });
 
   return NextResponse.json({
     success: true,

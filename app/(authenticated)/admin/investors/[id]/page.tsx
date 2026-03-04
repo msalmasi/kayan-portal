@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { KycBadge, PaymentBadge, PqBadge } from "@/components/ui/Badge";
 import { PqReviewChecklist } from "@/components/admin/PqReviewChecklist";
 import { InvestorWorkflowStepper } from "@/components/admin/InvestorWorkflowStepper";
+import RegistryAuditLog from "@/components/admin/RegistryAuditLog";
 import { useAdminRole } from "@/lib/hooks";
 import { formatTokenAmount } from "@/lib/vesting";
 import {
@@ -1306,6 +1307,9 @@ export default function InvestorDetailPage() {
           <p className="text-sm text-gray-400">No emails sent yet.</p>
         )}
       </Card>
+
+      {/* ── Registry Audit Trail ── */}
+      <RegistryAuditLog investorId={investorId} compact />
     </div>
   );
 }

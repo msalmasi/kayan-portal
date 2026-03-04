@@ -330,6 +330,48 @@ export async function POST(request: NextRequest) {
       const walletMismatch = claimedWallet && onChainSender &&
         claimedWallet !== onChainSender;
 
+      // ── Wallet screening (sanctions / illicit address check) ──
+      let walletScreening: any = null;
+      if (onChainSender) {
+        try {
+          const { screenWallet, shouldBlockPayment } = await import("@/lib/wallet-screening");
+          const chainName = method.includes("sol") ? "solana" : "ethereum";
+          walletScreening = await screenWallet(onChainSender, chainName);
+
+          // If flagged, force manual review regardless of on-chain verification
+          if (shouldBlockPayment(walletScreening)) {
+            await adminClient
+              .from("payment_claims")
+              .update({
+                status: "pending",
+                chain_data: { ...result.chainData, wallet_screening: walletScreening },
+              })
+              .eq("id", claim.id);
+
+            const { notify } = await import("@/lib/admin-notify");
+            await notify(adminClient, {
+              eventType: "payment_received",
+              priority: "action_required",
+              investorId: investor.id,
+              investorName: investor.full_name,
+              investorEmail: investor.email,
+              title: `⚠️ ${investor.full_name} payment flagged — wallet screening alert`,
+              detail: `${method.toUpperCase()} · $${Number(amount_usd).toLocaleString()} · Risk: ${walletScreening.riskLevel} · ${walletScreening.details}`,
+              metadata: { method, amount_usd, tx_hash, wallet_screening: walletScreening },
+            });
+
+            return NextResponse.json({
+              ...claim,
+              status: "pending",
+              verification: { verified: false, detail: "Payment under review." },
+            });
+          }
+        } catch (err: any) {
+          // Screening failure is non-fatal — log and continue
+          console.error("[PAYMENT] Wallet screening error:", err.message);
+        }
+      }
+
       if (isOnChainConfirmed && actualAmount > 0) {
         // ── Auto-apply whatever amount was actually transferred ──
 
@@ -347,6 +389,7 @@ export async function POST(request: NextRequest) {
               ...(onChainSender ? { actual_sender: onChainSender } : {}),
               ...(claimedWallet ? { claimed_wallet: claimedWallet } : {}),
               ...(walletMismatch ? { wallet_mismatch: true } : {}),
+              ...(walletScreening ? { wallet_screening: walletScreening } : {}),
             },
           })
           .eq("id", claim.id);

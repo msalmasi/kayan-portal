@@ -113,6 +113,8 @@ export default function DocumentsPage() {
   const [signing, setSigning] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
   const [signatureName, setSignatureName] = useState("");
+  const [offshoreConfirmed, setOffshoreConfirmed] = useState(false);
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const docViewerRef = useRef<HTMLDivElement>(null);
 
@@ -224,7 +226,11 @@ export default function DocumentsPage() {
     const res = await fetch(`/api/investor/documents/${viewingDoc.id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signature_name: signatureName.trim() }),
+      body: JSON.stringify({
+        signature_name: signatureName.trim(),
+        offshore_confirmed: offshoreConfirmed,
+        consent_confirmed: consentConfirmed,
+      }),
     });
     setSigning(false);
     setShowSignModal(false);
@@ -250,6 +256,8 @@ export default function DocumentsPage() {
     setViewingDoc(null);
     setShowSignModal(false);
     setSignatureName("");
+    setOffshoreConfirmed(false);
+    setConsentConfirmed(false);
     setHasScrolledToBottom(false);
     setFilledValues({});
   };
@@ -450,22 +458,58 @@ export default function DocumentsPage() {
         {/* ── Signing Modal ── */}
         {showSignModal && (
           <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-bold text-gray-900 mb-2">
                 Sign {DOC_TYPE_LABELS[viewingDoc.doc_type as keyof typeof DOC_TYPE_LABELS] || "Document"}
               </h3>
-              <p className="text-sm text-gray-500 mb-6">
-                By typing your name below, you are electronically signing this
-                {viewingDoc.doc_type === "novation" ? " Termination & Novation Agreement" : " SAFT Agreement"}
-                {" "}and agree to be bound by its terms. This signature has the same legal force
-                as a handwritten signature.
+              <p className="text-sm text-gray-500 mb-4">
+                Please review the certifications below, type your full legal name, and confirm your signature.
               </p>
 
+              {/* Document hash */}
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
                 <p className="text-xs text-gray-400 mb-1">Document integrity hash (SHA-256)</p>
                 <p className="text-xs font-mono text-gray-500 break-all">{viewingDoc.doc_hash}</p>
               </div>
 
+              {/* ── Offshore certification ── */}
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 mb-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={offshoreConfirmed}
+                  onChange={(e) => setOffshoreConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-xs text-gray-700 leading-relaxed">
+                  I certify that I am <strong>physically located outside of the United States</strong> at
+                  the time of executing this agreement and that this transaction is not being conducted
+                  on behalf of, or for the account of, any U.S. Person as defined under Regulation S
+                  of the U.S. Securities Act of 1933.
+                </span>
+              </label>
+
+              {/* ── E-signature consent ── */}
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 mb-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={consentConfirmed}
+                  onChange={(e) => setConsentConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-xs text-gray-700 leading-relaxed">
+                  I consent to sign this{" "}
+                  {viewingDoc.doc_type === "novation" ? "Termination & Novation Agreement" : "SAFT Agreement"}{" "}
+                  electronically. I understand that by typing my name and clicking &ldquo;Confirm
+                  Signature,&rdquo; my electronic signature will carry the same legal force and effect
+                  as a handwritten signature under applicable law, including the U.S. Electronic
+                  Signatures in Global and National Commerce Act (ESIGN Act), the Uniform Electronic
+                  Transactions Act (UETA), and equivalent international regulations. I acknowledge that
+                  my IP address, browser information, and timestamp will be recorded as part of this
+                  signing event.
+                </span>
+              </label>
+
+              {/* ── Signature input ── */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Type your full legal name as signature
@@ -489,11 +533,12 @@ export default function DocumentsPage() {
                 )}
               </div>
 
+              {/* ── Action buttons ── */}
               <div className="flex gap-3">
                 <Button
                   onClick={handleSign}
                   loading={signing}
-                  disabled={!signatureName.trim()}
+                  disabled={!signatureName.trim() || !offshoreConfirmed || !consentConfirmed}
                   className="flex-1"
                 >
                   Confirm Signature
@@ -502,6 +547,12 @@ export default function DocumentsPage() {
                   Cancel
                 </Button>
               </div>
+
+              {(!offshoreConfirmed || !consentConfirmed) && signatureName.trim() && (
+                <p className="text-xs text-amber-600 text-center mt-2">
+                  Please check both certifications above to proceed.
+                </p>
+              )}
             </div>
           </div>
         )}

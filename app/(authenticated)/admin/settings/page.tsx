@@ -7,6 +7,7 @@ import { EntityBrandingPanel } from "@/components/admin/EntityBrandingPanel";
 import { PaymentSettingsAdmin } from "@/components/admin/PaymentSettingsAdmin";
 import { PlatformPauseCard } from "@/components/admin/PlatformPauseCard";
 import { ReminderCard } from "@/components/admin/ReminderCard";
+import RegistryAuditLog from "@/components/admin/RegistryAuditLog";
 
 // ─── Tab definitions ─────────────────────────────────────────
 
@@ -37,6 +38,7 @@ function SettingsInner() {
           <PlatformPauseCard />
           <PaymentSettingsAdmin />
           <ReminderCard />
+          <RegistryAuditLog />
         </div>
       </TabPanel>
 

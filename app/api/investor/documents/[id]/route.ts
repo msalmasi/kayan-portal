@@ -12,6 +12,7 @@ import {
   MissingVariable,
 } from "@/lib/doc-generator";
 import { pauseGuardWithReissuanceBypass } from "@/lib/platform-pause";
+import { logDocumentSigned } from "@/lib/registry-audit";
 
 /**
  * Helper: verify the request comes from the investor who owns the document.
@@ -307,9 +308,15 @@ export async function POST(
     );
   }
 
-  const { signature_name } = await request.json();
+  const { signature_name, offshore_confirmed, consent_confirmed } = await request.json();
   if (!signature_name?.trim()) {
     return NextResponse.json({ error: "Signature name is required" }, { status: 400 });
+  }
+  if (!offshore_confirmed) {
+    return NextResponse.json({ error: "Offshore location certification is required" }, { status: 400 });
+  }
+  if (!consent_confirmed) {
+    return NextResponse.json({ error: "Electronic signature consent is required" }, { status: 400 });
   }
 
   const signedAt = new Date().toISOString();
@@ -329,6 +336,8 @@ export async function POST(
     investorEmail: investor.email,
     documentTitle: docTitle,
     roundName: doc.saft_rounds?.name || "—",
+    offshoreConfirmed: !!offshore_confirmed,
+    consentConfirmed: !!consent_confirmed,
   };
 
   let signedPdfPath: string | null = null;
@@ -367,6 +376,8 @@ export async function POST(
       document_hash: doc.doc_hash,
       final_variables: doc.variables,
       signed_pdf_path: signedPdfPath,
+      offshore_confirmed: !!offshore_confirmed,
+      consent_confirmed: !!consent_confirmed,
     },
   });
 
@@ -381,6 +392,16 @@ export async function POST(
       signature_name: signature_name.trim(),
       signed_at: signedAt,
     },
+  });
+
+  // ── Registry audit log (transfer agent trail) ──
+  await logDocumentSigned(doc.id, investor.id, doc.round_id, investor.email, {
+    signature_name: signature_name.trim(),
+    document_hash: doc.doc_hash,
+    offshore_confirmed: !!offshore_confirmed,
+    consent_confirmed: !!consent_confirmed,
+    ip_address: ip,
+    round_name: doc.saft_rounds?.name,
   });
 
   // ── Check if capital call should fire ──

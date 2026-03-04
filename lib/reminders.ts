@@ -377,7 +377,7 @@ export async function sendPaymentReminderToInvestor(
 /**
  * Send a round-closing reminder to a specific investor,
  * listing their pending actions for that round.
- * Used by the admin manual trigger.
+ * Used by the admin manual trigger on the investor detail page.
  */
 export async function sendRoundClosingReminderToInvestor(
   investorId: string,
@@ -404,7 +404,7 @@ export async function sendRoundClosingReminderToInvestor(
 
   if (!round) return { success: false, error: "Round not found" };
 
-  // Build pending actions
+  // Build pending actions list
   const actions: string[] = [];
 
   if (investor.kyc_status !== "verified") {
@@ -418,7 +418,7 @@ export async function sendRoundClosingReminderToInvestor(
     }
   }
 
-  // Check unsigned SAFT
+  // Check for unsigned SAFT docs in this round
   const { data: unsignedDocs } = await supabase
     .from("investor_documents")
     .select("id")
