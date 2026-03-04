@@ -718,7 +718,7 @@ export async function composePqResubmitEmail(
     </div>
     ` : ""}
     <div style="text-align: center; margin: 24px 0;">
-      <a href="${b.portalUrl}/pq" style="display: inline-block; background: #${b.brandPrimary}; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+      <a href="${b.portalUrl}/pq" style="display: inline-block; background: #${b.color}; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">
         Open Questionnaire
       </a>
     </div>
