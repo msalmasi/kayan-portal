@@ -48,6 +48,14 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Load active PQ template (if any)
+  const { data: activeTemplate } = await ctx.adminClient
+    .from("pq_templates")
+    .select("id, version, sections")
+    .eq("is_active", true)
+    .limit(1)
+    .single();
+
   return NextResponse.json({
     pq_status: ctx.investor.pq_status,
     pq_data: ctx.investor.pq_data,
@@ -55,9 +63,11 @@ export async function GET() {
     pq_notes: ctx.investor.pq_notes,
     pq_reviewed_at: ctx.investor.pq_reviewed_at,
     pq_update_prompted_at: ctx.investor.pq_update_prompted_at,
+    pq_template_id: ctx.investor.pq_template_id,
     kyc_status: ctx.investor.kyc_status,
     full_name: ctx.investor.full_name,
     email: ctx.investor.email,
+    template: activeTemplate || null,
   });
 }
 
@@ -103,15 +113,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "pq_data is required" }, { status: 400 });
   }
 
-  // Basic validation — ensure all sections present
-  const requiredSections = ["section_a", "section_b", "section_c", "section_d", "section_e", "section_f"];
-  for (const section of requiredSections) {
-    if (!pq_data[section]) {
-      return NextResponse.json(
-        { error: `Missing section: ${section}` },
-        { status: 400 }
-      );
-    }
+  // Load active template for validation
+  const { data: activeTemplate } = await ctx.adminClient
+    .from("pq_templates")
+    .select("id, sections")
+    .eq("is_active", true)
+    .limit(1)
+    .single();
+
+  // If a template is active, validate against it; otherwise use default sections
+  const { validatePqData, DEFAULT_PQ_SECTIONS } = await import("@/lib/pq-template");
+  const sectionsToValidate = activeTemplate?.sections || DEFAULT_PQ_SECTIONS;
+  const errors = validatePqData(sectionsToValidate, pq_data);
+  if (errors.length > 0) {
+    return NextResponse.json(
+      { error: errors[0].message, validation_errors: errors },
+      { status: 400 }
+    );
   }
 
   if (!pq_data.signature_name || !pq_data.signature_date) {
@@ -130,6 +148,7 @@ export async function POST(request: NextRequest) {
       pq_data,
       pq_status: "submitted",
       pq_submitted_at: new Date().toISOString(),
+      pq_template_id: activeTemplate?.id || null,
       // Clear previous review data on resubmission
       pq_review: null,
       pq_notes: null,

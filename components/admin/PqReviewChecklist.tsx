@@ -146,7 +146,58 @@ export function PqReviewChecklist({
     );
   }
 
-  const d = pqData;
+  // Normalize: if data is in flat format (no section_a key), reshape into nested
+  const d: PqFormData = (() => {
+    if (pqData?.section_a) return pqData; // already nested (legacy format)
+    // Flat format → reconstruct nested structure
+    const raw = pqData as Record<string, any> || {};
+    return {
+      section_a: {
+        investor_type: raw.investor_type || "individual",
+        legal_name: raw.legal_name || "",
+        jurisdiction_of_residence: raw.jurisdiction_of_residence || "",
+        entity_type: raw.entity_type,
+        entity_jurisdiction: raw.entity_jurisdiction,
+        beneficial_owner_name: raw.beneficial_owner_name,
+        beneficial_owner_nationality: raw.beneficial_owner_nationality,
+      },
+      section_b: {
+        not_us_citizen: !!raw.not_us_citizen,
+        not_us_resident: !!raw.not_us_resident,
+        not_us_partnership: !!raw.not_us_partnership,
+        not_us_estate: !!raw.not_us_estate,
+        not_us_trust: !!raw.not_us_trust,
+        not_purchasing_for_us_person: !!raw.not_purchasing_for_us_person,
+      },
+      section_c: {
+        qualification_type: raw.qualification_type || "hk_professional_investor",
+        other_jurisdiction_details: raw.other_jurisdiction_details,
+      },
+      section_d: {
+        is_grant: raw.is_grant,
+        investment_amount_usd: raw.investment_amount_usd || 0,
+        payment_method: raw.payment_method || "wire",
+        source_of_funds: raw.source_of_funds || "",
+        sanctions_confirmation: !!raw.sanctions_confirmation,
+      },
+      section_e: {
+        understands_restricted_security: !!raw.understands_restricted_security,
+        understands_holding_period: !!raw.understands_holding_period,
+        understands_transfer_conditions: !!raw.understands_transfer_conditions,
+        understands_no_hedging: !!raw.understands_no_hedging,
+        accepts_indemnification: !!raw.accepts_indemnification,
+      },
+      section_f: {
+        has_read_ppm: !!raw.has_read_ppm,
+        has_read_saft: !!raw.has_read_saft,
+        has_read_cis: !!raw.has_read_cis,
+        has_investment_experience: !!raw.has_investment_experience,
+        no_reliance_on_company: !!raw.no_reliance_on_company,
+      },
+      signature_name: raw.signature_name || "",
+      signature_date: raw.signature_date || "",
+    } as PqFormData;
+  })();
   const allSectionsApproved = Object.keys(PQ_SECTION_LABELS).every(
     (k) => review[k as keyof PqReviewData] && (review[k as keyof PqReviewData] as PqSectionReview).approved
   );

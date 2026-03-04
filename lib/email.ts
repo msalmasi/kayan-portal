@@ -695,3 +695,37 @@ export async function composePaymentReminderEmail(
   `);
   return { subject, html };
 }
+
+/**
+ * PQ Resubmit Notification — sent when admin forces resubmission.
+ */
+export async function composePqResubmitEmail(
+  investorName: string,
+  adminMessage?: string
+) {
+  const b = await getBranding();
+  const subject = `Action Required: Please Resubmit Your Purchaser Questionnaire — ${b.projectName}`;
+  const html = await wrapEmail(b, `
+    <h2 style="color: #111827; margin-bottom: 8px;">Questionnaire Update Required</h2>
+    <p style="color: #4b5563;">Dear ${investorName},</p>
+    <p style="color: #4b5563;">
+      The Purchaser Questionnaire has been updated and your previous submission is no longer current.
+      Please log in to the investor portal and resubmit your questionnaire at your earliest convenience.
+    </p>
+    ${adminMessage ? `
+    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
+      <p style="color: #92400e; font-size: 14px; margin: 0;"><strong>Note from admin:</strong> ${adminMessage}</p>
+    </div>
+    ` : ""}
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${b.portalUrl}/pq" style="display: inline-block; background: #${b.brandPrimary}; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+        Open Questionnaire
+      </a>
+    </div>
+    <p style="color: #6b7280; font-size: 13px;">
+      Your previous answers have been preserved and will be pre-filled for your convenience.
+      Please review all sections and confirm your responses before resubmitting.
+    </p>
+  `);
+  return { subject, html };
+}

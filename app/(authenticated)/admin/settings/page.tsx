@@ -8,11 +8,13 @@ import { PaymentSettingsAdmin } from "@/components/admin/PaymentSettingsAdmin";
 import { PlatformPauseCard } from "@/components/admin/PlatformPauseCard";
 import { ReminderCard } from "@/components/admin/ReminderCard";
 import RegistryAuditLog from "@/components/admin/RegistryAuditLog";
+import PqTemplateEditor from "@/components/admin/PqTemplateEditor";
 
 // ─── Tab definitions ─────────────────────────────────────────
 
 const TABS = [
   { id: "operations", label: "Operations" },
+  { id: "compliance", label: "Compliance" },
   { id: "branding", label: "Branding" },
 ];
 
@@ -40,6 +42,10 @@ function SettingsInner() {
           <ReminderCard />
           <RegistryAuditLog />
         </div>
+      </TabPanel>
+
+      <TabPanel id="compliance" active={activeTab}>
+        <PqTemplateEditor />
       </TabPanel>
 
       <TabPanel id="branding" active={activeTab}>

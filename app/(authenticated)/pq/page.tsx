@@ -7,44 +7,108 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PqBadge, KycBadge } from "@/components/ui/Badge";
 import {
-  PqFormData,
-  PqSectionA,
-  PqSectionB,
-  PqSectionC,
-  PqSectionD,
-  PqSectionE,
-  PqSectionF,
-  PaymentMethod,
-  QUALIFICATION_LABELS,
-} from "@/lib/types";
+  PqTemplateSection,
+  PqTemplateField,
+  PqDynamicFormData,
+  DEFAULT_PQ_SECTIONS,
+  validatePqData,
+} from "@/lib/pq-template";
 
-// ── Styling helpers ──
+// ── Styling ──
 const inputCls =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-100 disabled:text-gray-500";
 const selectCls = `${inputCls} bg-white`;
-const checkCls = "h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500 disabled:opacity-50";
+const checkCls =
+  "h-4 w-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500 disabled:opacity-50";
 const labelCls = "block text-sm font-medium text-gray-700 mb-1";
-const sectionCls = "space-y-4";
 
-/** Styled checkbox row */
-function Check({
-  checked, onChange, label, disabled,
+// ── Dynamic Field Renderer ──
+
+function DynamicField({
+  field, value, onChange, disabled,
 }: {
-  checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean;
+  field: PqTemplateField; value: any; onChange: (val: any) => void; disabled: boolean;
 }) {
-  return (
-    <label className="flex items-start gap-3 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-        className={`${checkCls} mt-0.5`}
-      />
-      <span className="text-sm text-gray-700 leading-snug">{label}</span>
-    </label>
-  );
+  switch (field.type) {
+    case "text":
+      return (
+        <div>
+          <label className={labelCls}>{field.label}</label>
+          <input type="text" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} placeholder={field.placeholder} className={inputCls} />
+          {field.help_text && <p className="text-xs text-gray-400 mt-1">{field.help_text}</p>}
+        </div>
+      );
+    case "textarea":
+      return (
+        <div>
+          <label className={labelCls}>{field.label}</label>
+          <textarea value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} rows={3} placeholder={field.placeholder} className={`${inputCls} resize-none`} />
+          {field.help_text && <p className="text-xs text-gray-400 mt-1">{field.help_text}</p>}
+        </div>
+      );
+    case "number":
+      return (
+        <div>
+          <label className={labelCls}>{field.label}</label>
+          <input type="number" value={value ?? ""} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : "")} disabled={disabled} placeholder={field.placeholder} className={inputCls} />
+          {field.help_text && <p className="text-xs text-gray-400 mt-1">{field.help_text}</p>}
+        </div>
+      );
+    case "date":
+      return (
+        <div>
+          <label className={labelCls}>{field.label}</label>
+          <input type="date" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={inputCls} />
+        </div>
+      );
+    case "select":
+      return (
+        <div>
+          <label className={labelCls}>{field.label}</label>
+          <select value={value || field.options?.[0]?.value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={selectCls}>
+            {field.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+          {field.help_text && <p className="text-xs text-gray-400 mt-1">{field.help_text}</p>}
+        </div>
+      );
+    case "radio":
+      return (
+        <div className="space-y-3">
+          {field.options?.map((opt) => (
+            <label key={opt.value} className="flex items-start gap-3 cursor-pointer">
+              <input type="radio" name={field.id} value={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} disabled={disabled}
+                className="mt-0.5 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500" />
+              <span className="text-sm text-gray-700">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      );
+    case "checkbox":
+      return (
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} disabled={disabled} className={`${checkCls} mt-0.5`} />
+          <div>
+            <span className="text-sm text-gray-700 leading-snug">{field.label}</span>
+            {field.help_text && <p className="text-xs text-gray-400 mt-0.5">{field.help_text}</p>}
+          </div>
+        </label>
+      );
+    default:
+      return null;
+  }
 }
+
+// ── Conditional visibility ──
+function isFieldVisible(field: PqTemplateField, data: PqDynamicFormData): boolean {
+  if (!field.show_when) return true;
+  const depVal = data[field.show_when.field];
+  if (field.show_when.value === false) return !depVal;
+  return depVal === field.show_when.value;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════
 
 export default function PurchaserQuestionnairePage() {
   const [loading, setLoading] = useState(true);
@@ -52,55 +116,21 @@ export default function PurchaserQuestionnairePage() {
   const [pqStatus, setPqStatus] = useState("");
   const [kycStatus, setKycStatus] = useState("");
   const [investorName, setInvestorName] = useState("");
-  const [investorEmail, setInvestorEmail] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [pqUpdatePrompted, setPqUpdatePrompted] = useState(false);
-  const [existingData, setExistingData] = useState<PqFormData | null>(null);
   const [editingApproved, setEditingApproved] = useState(false);
+  const [hasExistingData, setHasExistingData] = useState(false);
 
-  // ── Form state (each section) ──
-  const [sectionA, setSectionA] = useState<PqSectionA>({
-    investor_type: "individual",
-    legal_name: "",
-    jurisdiction_of_residence: "",
-  });
-  const [sectionB, setSectionB] = useState<PqSectionB>({
-    not_us_citizen: false,
-    not_us_resident: false,
-    not_us_partnership: false,
-    not_us_estate: false,
-    not_us_trust: false,
-    not_purchasing_for_us_person: false,
-  });
-  const [sectionC, setSectionC] = useState<PqSectionC>({
-    qualification_type: "hk_professional_investor",
-  });
-  const [sectionD, setSectionD] = useState<PqSectionD>({
-    investment_amount_usd: 0,
-    payment_method: "wire",
-    source_of_funds: "",
-    sanctions_confirmation: false,
-  });
-  const [sectionE, setSectionE] = useState<PqSectionE>({
-    understands_restricted_security: false,
-    understands_holding_period: false,
-    understands_transfer_conditions: false,
-    understands_no_hedging: false,
-    accepts_indemnification: false,
-  });
-  const [sectionF, setSectionF] = useState<PqSectionF>({
-    has_read_ppm: false,
-    has_read_saft: false,
-    has_read_cis: false,
-    has_investment_experience: false,
-    no_reliance_on_company: false,
-  });
+  const [sections, setSections] = useState<PqTemplateSection[]>([]);
+  const [formData, setFormData] = useState<PqDynamicFormData>({});
   const [signatureName, setSignatureName] = useState("");
-  const [signatureDate, setSignatureDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [signatureDate, setSignatureDate] = useState(new Date().toISOString().split("T")[0]);
 
-  // ── Load existing data ──
+  const setField = (fieldId: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [fieldId]: value }));
+  };
+
+  // ── Load ──
   useEffect(() => {
     fetch("/api/investor/pq")
       .then((r) => r.json())
@@ -108,78 +138,59 @@ export default function PurchaserQuestionnairePage() {
         setPqStatus(data.pq_status || "not_sent");
         setKycStatus(data.kyc_status || "unverified");
         setInvestorName(data.full_name || "");
-        setInvestorEmail(data.email || "");
         setReviewNotes(data.pq_notes || "");
         setPqUpdatePrompted(!!data.pq_update_prompted_at);
 
-        // Pre-fill form if data exists (resubmission after rejection)
+        // Template: DB or fallback
+        setSections(data.template?.sections || DEFAULT_PQ_SECTIONS);
+
+        // Pre-fill from existing data
         if (data.pq_data) {
-          setExistingData(data.pq_data);
-          const d = data.pq_data as PqFormData;
-          if (d.section_a) setSectionA(d.section_a);
-          if (d.section_b) setSectionB(d.section_b);
-          if (d.section_c) setSectionC(d.section_c);
-          if (d.section_d) setSectionD(d.section_d);
-          if (d.section_e) setSectionE(d.section_e);
-          if (d.section_f) setSectionF(d.section_f);
-          if (d.signature_name) setSignatureName(d.signature_name);
-          if (d.signature_date) setSignatureDate(d.signature_date);
+          setHasExistingData(true);
+          const d = data.pq_data;
+          if (d.section_a) {
+            // Legacy nested → flatten
+            const flat: PqDynamicFormData = {};
+            for (const val of Object.values(d)) {
+              if (typeof val === "object" && val !== null && !Array.isArray(val)) Object.assign(flat, val);
+            }
+            setFormData(flat);
+            setSignatureName(d.signature_name || data.full_name || "");
+            setSignatureDate(d.signature_date || new Date().toISOString().split("T")[0]);
+          } else {
+            setFormData(d);
+            setSignatureName(d.signature_name || data.full_name || "");
+            setSignatureDate(d.signature_date || new Date().toISOString().split("T")[0]);
+          }
         } else {
-          // Auto-fill name from investor record
           setSignatureName(data.full_name || "");
-          setSectionA((a) => ({ ...a, legal_name: data.full_name || "" }));
+          setFormData({
+            legal_name: data.full_name || "",
+            investor_type: "individual",
+            qualification_type: "hk_professional_investor",
+            payment_method: "wire",
+          });
         }
       })
       .catch(() => toast.error("Failed to load PQ data"))
       .finally(() => setLoading(false));
   }, []);
 
-  // ── Validation ──
+  // ── Validate ──
   const validate = (): string | null => {
-    if (!sectionA.legal_name) return "Section A: Legal name is required";
-    if (!sectionA.jurisdiction_of_residence) return "Section A: Jurisdiction of residence is required";
-
-    const bChecks = Object.values(sectionB);
-    if (bChecks.some((v) => !v)) return "Section B: All Non-U.S. Person certifications must be checked";
-
-    // Section D: skip investment/payment/source checks for grants
-    if (!sectionD.is_grant) {
-      if (!sectionD.investment_amount_usd || sectionD.investment_amount_usd <= 0)
-        return "Section D: Investment amount is required";
-      if (!sectionD.source_of_funds) return "Section D: Source of funds description is required";
-    }
-    if (!sectionD.sanctions_confirmation)
-      return "Section D: Sanctions confirmation is required";
-
-    const eChecks = Object.values(sectionE);
-    if (eChecks.some((v) => !v)) return "Section E: All transfer restriction acknowledgments must be checked";
-
-    const fChecks = Object.values(sectionF);
-    if (fChecks.some((v) => !v)) return "Section F: All general representations must be checked";
-
-    if (!signatureName) return "Signature name is required";
+    const errors = validatePqData(sections, formData);
+    if (errors.length > 0) return errors[0].message;
+    if (!signatureName?.trim()) return "Signature name is required";
     return null;
   };
 
   // ── Submit ──
   const handleSubmit = async () => {
     const error = validate();
-    if (error) {
-      toast.error(error);
-      return;
-    }
+    if (error) { toast.error(error); return; }
 
     setSubmitting(true);
-    const pq_data: PqFormData = {
-      section_a: sectionA,
-      section_b: sectionB,
-      section_c: sectionC,
-      section_d: sectionD,
-      section_e: sectionE,
-      section_f: sectionF,
-      signature_name: signatureName,
-      signature_date: signatureDate,
-    };
+    const pq_data = { ...formData, signature_name: signatureName.trim(), signature_date: signatureDate };
 
     const res = await fetch("/api/investor/pq", {
       method: "POST",
@@ -189,10 +200,7 @@ export default function PurchaserQuestionnairePage() {
 
     setSubmitting(false);
     if (res.ok) {
-      toast.success(editingApproved
-        ? "Questionnaire resubmitted for re-approval"
-        : "Purchaser Questionnaire submitted successfully"
-      );
+      toast.success(editingApproved ? "Questionnaire resubmitted for re-approval" : "Purchaser Questionnaire submitted successfully");
       setPqStatus("submitted");
       setEditingApproved(false);
     } else {
@@ -201,16 +209,9 @@ export default function PurchaserQuestionnairePage() {
     }
   };
 
-  // ── Loading state ──
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center min-h-[40vh]"><p className="text-gray-400">Loading...</p></div>;
 
-  // ── KYC not verified — can't fill PQ yet ──
+  // ── KYC gate ──
   if (kycStatus !== "verified") {
     return (
       <div className="space-y-6">
@@ -227,8 +228,7 @@ export default function PurchaserQuestionnairePage() {
             </div>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">KYC Verification Required</h2>
             <p className="text-sm text-gray-500 max-w-md mx-auto">
-              Your identity verification must be completed before you can fill out
-              the Purchaser Questionnaire. Current status: <KycBadge status={kycStatus} />
+              Complete identity verification first. Current status: <KycBadge status={kycStatus} />
             </p>
           </div>
         </Card>
@@ -236,7 +236,6 @@ export default function PurchaserQuestionnairePage() {
     );
   }
 
-  // ── Already approved — read-only by default, but can opt to edit ──
   const readOnly = pqStatus === "submitted" || (pqStatus === "approved" && !editingApproved);
   const canEdit = pqStatus === "sent" || pqStatus === "rejected" || pqStatus === "not_sent" || editingApproved;
 
@@ -251,14 +250,11 @@ export default function PurchaserQuestionnairePage() {
         <PqBadge status={pqStatus} />
       </div>
 
-      {/* Status messages */}
-      {pqStatus === "approved" && !editingApproved && (
+      {/* Status banners */}
+      {pqStatus === "approved" && !editingApproved && !pqUpdatePrompted && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800 flex items-center justify-between">
           <span>Your Purchaser Questionnaire has been approved.</span>
-          <button
-            onClick={() => setEditingApproved(true)}
-            className="text-xs font-medium text-brand-600 hover:text-brand-800 underline underline-offset-2"
-          >
+          <button onClick={() => setEditingApproved(true)} className="text-xs font-medium text-brand-600 hover:text-brand-800 underline underline-offset-2">
             Update for re-approval →
           </button>
         </div>
@@ -267,30 +263,27 @@ export default function PurchaserQuestionnairePage() {
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-800 flex items-center gap-3">
           <span className="text-lg">📋</span>
           <div className="flex-1">
-            <p className="font-medium">New allocation added — please update your questionnaire</p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              A new allocation has been added to your account. Please review and resubmit your
-              Purchaser Questionnaire so our compliance team can re-approve it.
-            </p>
+            <p className="font-medium">Questionnaire update required — please resubmit</p>
+            <p className="text-xs text-amber-600 mt-0.5">{reviewNotes || "The questionnaire has been updated. Please review and resubmit."}</p>
           </div>
-          <button
-            onClick={() => setEditingApproved(true)}
-            className="shrink-0 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors"
-          >
+          <button onClick={() => setEditingApproved(true)} className="shrink-0 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors">
             Update Now
           </button>
+        </div>
+      )}
+      {(pqStatus === "sent" || pqStatus === "not_sent") && pqUpdatePrompted && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-800 flex items-center gap-3">
+          <span className="text-lg">📋</span>
+          <div className="flex-1">
+            <p className="font-medium">Questionnaire update required — please complete and submit</p>
+            <p className="text-xs text-amber-600 mt-0.5">{reviewNotes || "The questionnaire has been updated. Please review and submit."}</p>
+          </div>
         </div>
       )}
       {editingApproved && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
           <strong>Editing mode:</strong> Your changes will require re-approval by an admin.
-          Previously approved data will be preserved until the new submission is reviewed.
-          <button
-            onClick={() => setEditingApproved(false)}
-            className="ml-3 text-xs font-medium text-amber-600 hover:text-amber-800 underline underline-offset-2"
-          >
-            Cancel editing
-          </button>
+          <button onClick={() => setEditingApproved(false)} className="ml-3 text-xs font-medium text-amber-600 hover:text-amber-800 underline underline-offset-2">Cancel editing</button>
         </div>
       )}
       {pqStatus === "submitted" && (
@@ -304,190 +297,24 @@ export default function PurchaserQuestionnairePage() {
         </div>
       )}
 
-      {/* ═══ SECTION A: Investor Identification ═══ */}
-      <Card>
-        <CardHeader title="Section A — Investor Identification" subtitle="Individual or entity information" />
-        <div className={sectionCls}>
-          <div>
-            <label className={labelCls}>Investor Type</label>
-            <select value={sectionA.investor_type} onChange={(e) => setSectionA({ ...sectionA, investor_type: e.target.value as "individual" | "entity" })} disabled={readOnly} className={selectCls}>
-              <option value="individual">Individual</option>
-              <option value="entity">Entity (Corporation, Fund, Trust, etc.)</option>
-            </select>
+      {/* ═══ DYNAMIC SECTIONS ═══ */}
+      {sections.map((section) => (
+        <Card key={section.id}>
+          <CardHeader title={section.title} subtitle={section.subtitle} />
+          {section.description && <p className="text-xs text-gray-500 mb-4">{section.description}</p>}
+          <div className="space-y-4">
+            {section.fields.map((field) => {
+              if (!isFieldVisible(field, formData)) return null;
+              return <DynamicField key={field.id} field={field} value={formData[field.id]} onChange={(val) => setField(field.id, val)} disabled={readOnly} />;
+            })}
           </div>
-          <div>
-            <label className={labelCls}>Legal Name</label>
-            <input type="text" value={sectionA.legal_name} onChange={(e) => setSectionA({ ...sectionA, legal_name: e.target.value })} disabled={readOnly} placeholder="Full legal name as it appears on identification" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Jurisdiction of Residence / Incorporation</label>
-            <input type="text" value={sectionA.jurisdiction_of_residence} onChange={(e) => setSectionA({ ...sectionA, jurisdiction_of_residence: e.target.value })} disabled={readOnly} placeholder="e.g., Hong Kong, Singapore, British Virgin Islands" className={inputCls} />
-          </div>
-          {sectionA.investor_type === "entity" && (
-            <>
-              <div>
-                <label className={labelCls}>Entity Type</label>
-                <input type="text" value={sectionA.entity_type || ""} onChange={(e) => setSectionA({ ...sectionA, entity_type: e.target.value })} disabled={readOnly} placeholder="e.g., Limited Company, Limited Partnership, Trust" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Entity Jurisdiction of Incorporation</label>
-                <input type="text" value={sectionA.entity_jurisdiction || ""} onChange={(e) => setSectionA({ ...sectionA, entity_jurisdiction: e.target.value })} disabled={readOnly} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Beneficial Owner Name</label>
-                <input type="text" value={sectionA.beneficial_owner_name || ""} onChange={(e) => setSectionA({ ...sectionA, beneficial_owner_name: e.target.value })} disabled={readOnly} placeholder="Name of ultimate beneficial owner (25%+ ownership)" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Beneficial Owner Nationality</label>
-                <input type="text" value={sectionA.beneficial_owner_nationality || ""} onChange={(e) => setSectionA({ ...sectionA, beneficial_owner_nationality: e.target.value })} disabled={readOnly} className={inputCls} />
-              </div>
-            </>
-          )}
-        </div>
-      </Card>
+        </Card>
+      ))}
 
-      {/* ═══ SECTION B: Non-U.S. Person Certification ═══ */}
+      {/* ═══ SIGNATURE ═══ */}
       <Card>
-        <CardHeader title="Section B — Non-U.S. Person Certification" subtitle="Rule 902(k) under Regulation S" />
-        <p className="text-xs text-gray-500 mb-4">
-          I certify that I am not a "U.S. Person" as defined under Rule 902(k) of Regulation S.
-          All of the following must be true:
-        </p>
-        <div className="space-y-3">
-          <Check checked={sectionB.not_us_citizen} onChange={(v) => setSectionB({ ...sectionB, not_us_citizen: v })} disabled={readOnly}
-            label="I am not a natural person resident in the United States or a U.S. citizen" />
-          <Check checked={sectionB.not_us_resident} onChange={(v) => setSectionB({ ...sectionB, not_us_resident: v })} disabled={readOnly}
-            label="I am not a person whose principal residence or domicile is in the United States" />
-          <Check checked={sectionB.not_us_partnership} onChange={(v) => setSectionB({ ...sectionB, not_us_partnership: v })} disabled={readOnly}
-            label="I am not a partnership or corporation organized or incorporated under the laws of the United States" />
-          <Check checked={sectionB.not_us_estate} onChange={(v) => setSectionB({ ...sectionB, not_us_estate: v })} disabled={readOnly}
-            label="I am not an estate of which any executor or administrator is a U.S. Person" />
-          <Check checked={sectionB.not_us_trust} onChange={(v) => setSectionB({ ...sectionB, not_us_trust: v })} disabled={readOnly}
-            label="I am not a trust of which any trustee is a U.S. Person" />
-          <Check checked={sectionB.not_purchasing_for_us_person} onChange={(v) => setSectionB({ ...sectionB, not_purchasing_for_us_person: v })} disabled={readOnly}
-            label="I am not purchasing for the account or benefit of any U.S. Person" />
-        </div>
-      </Card>
-
-      {/* ═══ SECTION C: Investor Qualification ═══ */}
-      <Card>
-        <CardHeader title="Section C — Investor Qualification" subtitle="Select the category that applies to you" />
-        <div className="space-y-3">
-          {Object.entries(QUALIFICATION_LABELS).map(([key, label]) => (
-            <label key={key} className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="qualification"
-                value={key}
-                checked={sectionC.qualification_type === key}
-                onChange={() => setSectionC({ ...sectionC, qualification_type: key as any })}
-                disabled={readOnly}
-                className="mt-0.5 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500"
-              />
-              <span className="text-sm text-gray-700">{label}</span>
-            </label>
-          ))}
-          {sectionC.qualification_type === "other_qualified" && (
-            <div className="ml-7">
-              <input type="text" value={sectionC.other_jurisdiction_details || ""} onChange={(e) => setSectionC({ ...sectionC, other_jurisdiction_details: e.target.value })} disabled={readOnly} placeholder="Specify jurisdiction and qualification category" className={inputCls} />
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* ═══ SECTION D: Source of Funds & AML ═══ */}
-      <Card>
-        <CardHeader title="Section D — Source of Funds & AML" subtitle="Investment amount, payment method, and compliance" />
-        <div className={sectionCls}>
-          <Check
-            checked={!!sectionD.is_grant}
-            onChange={(v) => setSectionD({ ...sectionD, is_grant: v })}
-            disabled={readOnly}
-            label="This allocation is a grant (no investment payment required)"
-          />
-          {sectionD.is_grant && (
-            <p className="text-xs text-gray-400 ml-7 -mt-2">
-              Investment amount, payment method, and source of funds do not apply for grants.
-            </p>
-          )}
-          {!sectionD.is_grant && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>Investment Amount (USD)</label>
-                  <input type="number" value={sectionD.investment_amount_usd || ""} onChange={(e) => setSectionD({ ...sectionD, investment_amount_usd: Number(e.target.value) })} disabled={readOnly} placeholder="50000" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Payment Method</label>
-                  <select value={sectionD.payment_method} onChange={(e) => setSectionD({ ...sectionD, payment_method: e.target.value as PaymentMethod })} disabled={readOnly} className={selectCls}>
-                    <option value="wire">USD Wire Transfer</option>
-                    <option value="usdt">USDT (Tether)</option>
-                    <option value="usdc">USDC (USD Coin)</option>
-                    <option value="credit_card">Credit Card</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>Source of Funds</label>
-                <textarea value={sectionD.source_of_funds} onChange={(e) => setSectionD({ ...sectionD, source_of_funds: e.target.value })} disabled={readOnly} rows={3} placeholder="Describe the origin of the funds being used for this investment (e.g., employment income, business profits, investment returns, family wealth)" className={`${inputCls} resize-none`} />
-              </div>
-            </>
-          )}
-          <Check checked={sectionD.sanctions_confirmation} onChange={(v) => setSectionD({ ...sectionD, sanctions_confirmation: v })} disabled={readOnly}
-            label="I confirm that I am not subject to any sanctions administered by OFAC, the UN Security Council, the EU, or HM Treasury, and that the funds used for this investment are not derived from or connected to any sanctioned person, entity, or jurisdiction." />
-        </div>
-      </Card>
-
-      {/* ═══ SECTION E: Transfer Restrictions ═══ */}
-      <Card>
-        <CardHeader title="Section E — Transfer Restrictions" subtitle="Acknowledgment of restricted security status and resale limitations" />
-        <p className="text-xs text-gray-500 mb-2">
-          I acknowledge and agree to the following transfer restrictions:
-        </p>
-        <p className="text-[11px] text-gray-400 mb-4 leading-relaxed">
-          <strong>Note:</strong> The Tokens are being offered under Regulation S of the U.S. Securities Act, which
-          permits sales to non-U.S. persons in offshore transactions. An <em>&quot;offshore transaction&quot;</em> is one
-          in which (i) the offer is not made to a person in the United States and (ii) either the buyer is outside
-          the United States at the time of the buy order or the transaction is executed on an established foreign
-          securities exchange. Rule 144 holding periods referenced below apply specifically to any future resale
-          of the Tokens into the U.S. market or to U.S. persons, and do not restrict compliant offshore
-          resales under Regulation S.
-        </p>
-        <div className="space-y-3">
-          <Check checked={sectionE.understands_restricted_security} onChange={(v) => setSectionE({ ...sectionE, understands_restricted_security: v })} disabled={readOnly}
-            label="I understand the Tokens are &quot;restricted securities&quot; as defined under U.S. securities law and have not been registered under the Securities Act" />
-          <Check checked={sectionE.understands_holding_period} onChange={(v) => setSectionE({ ...sectionE, understands_holding_period: v })} disabled={readOnly}
-            label="I understand that under Rule 144, any resale of the Tokens to U.S. persons or into the U.S. market is subject to a minimum one-year holding period from the date of issuance. This restriction does not apply to compliant offshore resales under Regulation S." />
-          <Check checked={sectionE.understands_transfer_conditions} onChange={(v) => setSectionE({ ...sectionE, understands_transfer_conditions: v })} disabled={readOnly}
-            label="I understand any transfer must comply with applicable securities laws (including Regulation S for offshore transactions and Rule 144 for U.S. resales) and may require prior written consent from the Company" />
-          <Check checked={sectionE.understands_no_hedging} onChange={(v) => setSectionE({ ...sectionE, understands_no_hedging: v })} disabled={readOnly}
-            label="I agree not to engage in hedging transactions with respect to the Tokens prior to the end of the applicable Regulation S distribution compliance period" />
-          <Check checked={sectionE.accepts_indemnification} onChange={(v) => setSectionE({ ...sectionE, accepts_indemnification: v })} disabled={readOnly}
-            label="I agree to indemnify the Company against any losses arising from a breach of these representations" />
-        </div>
-      </Card>
-
-      {/* ═══ SECTION F: General Representations ═══ */}
-      <Card>
-        <CardHeader title="Section F — General Representations" subtitle="Acknowledgment of offering documents and investment experience" />
-        <div className="space-y-3">
-          <Check checked={sectionF.has_read_ppm} onChange={(v) => setSectionF({ ...sectionF, has_read_ppm: v })} disabled={readOnly}
-            label="I have received and read the Private Placement Memorandum (PPM)" />
-          <Check checked={sectionF.has_read_saft} onChange={(v) => setSectionF({ ...sectionF, has_read_saft: v })} disabled={readOnly}
-            label="I have received and read the Simple Agreement for Future Tokens (SAFT)" />
-          <Check checked={sectionF.has_read_cis} onChange={(v) => setSectionF({ ...sectionF, has_read_cis: v })} disabled={readOnly}
-            label="I have received and read the Confidential Information Statement (CIS)" />
-          <Check checked={sectionF.has_investment_experience} onChange={(v) => setSectionF({ ...sectionF, has_investment_experience: v })} disabled={readOnly}
-            label="I have sufficient knowledge and experience in financial and business matters to evaluate the merits and risks of this investment" />
-          <Check checked={sectionF.no_reliance_on_company} onChange={(v) => setSectionF({ ...sectionF, no_reliance_on_company: v })} disabled={readOnly}
-            label="I have not relied on any representation or warranty by the Company or its agents other than those contained in the offering documents" />
-        </div>
-      </Card>
-
-      {/* ═══ SECTION G: Execution ═══ */}
-      <Card>
-        <CardHeader title="Section G — Execution" subtitle="Electronic signature" />
-        <div className={sectionCls}>
+        <CardHeader title="Execution" subtitle="Electronic signature" />
+        <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Full Legal Name (as signature)</label>
@@ -509,16 +336,12 @@ export default function PurchaserQuestionnairePage() {
       {canEdit && (
         <div className="flex items-center gap-4 pb-8">
           <Button onClick={handleSubmit} loading={submitting}>
-            {editingApproved ? "Resubmit for Re-Approval" : existingData ? "Resubmit Questionnaire" : "Submit Questionnaire"}
+            {editingApproved ? "Resubmit for Re-Approval" : hasExistingData ? "Resubmit Questionnaire" : "Submit Questionnaire"}
           </Button>
           {editingApproved ? (
-            <button onClick={() => setEditingApproved(false)} className="text-sm text-gray-500 hover:text-gray-700">
-              Cancel
-            </button>
+            <button onClick={() => setEditingApproved(false)} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
           ) : (
-            <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
-              Back to Dashboard
-            </Link>
+            <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">Back to Dashboard</Link>
           )}
         </div>
       )}
