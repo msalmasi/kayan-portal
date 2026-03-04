@@ -50,8 +50,8 @@ export async function GET() {
   const investorList = (investors || []) as any[];
 
   // ── Build investor lookup ──
-  const investorMap = new Map(investorList.map((i: any) => [i.id, i]));
-  const roundMap = new Map(roundList.map((r: any) => [r.id, r]));
+  const investorMap = new Map<string, any>(investorList.map((i: any) => [i.id, i]));
+  const roundMap = new Map<string, any>(roundList.map((r: any) => [r.id, r]));
 
   // ── Per-round aggregates ──
   const roundAggregates = roundList.map((r: any) => {

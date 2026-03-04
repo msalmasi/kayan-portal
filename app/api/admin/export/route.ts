@@ -235,8 +235,8 @@ async function exportCapTable(client: any) {
     .from("investors")
     .select("id, full_name, email, kyc_status, pq_status, created_at");
 
-  const roundMap = new Map((rounds || []).map((r: any) => [r.id, r]));
-  const investorMap = new Map((investors || []).map((i: any) => [i.id, i]));
+  const roundMap = new Map<string, any>((rounds || []).map((r: any) => [r.id, r]));
+  const investorMap = new Map<string, any>((investors || []).map((i: any) => [i.id, i]));
 
   const columns = [
     { key: "investor_name", label: "Investor Name" },
