@@ -729,3 +729,59 @@ export async function composePqResubmitEmail(
   `);
   return { subject, html };
 }
+
+// ── Transfer Emails ──
+
+export async function composeTransferEmail(
+  recipientName: string,
+  event: "approved" | "rejected" | "completed" | "received" | "admin_request",
+  tokenAmount: number,
+  reason?: string
+) {
+  const b = await getBranding();
+  const formatted = tokenAmount.toLocaleString();
+
+  const titles: Record<string, string> = {
+    approved: "Transfer Consent Granted",
+    rejected: "Transfer Consent Denied",
+    completed: "Transfer Completed",
+    received: "Tokens Received",
+    admin_request: "New Transfer Consent Request",
+  };
+
+  const bodies: Record<string, string> = {
+    approved: `
+      <p style="color: #4b5563;">Your request to transfer <strong>${formatted} ${b.projectName} tokens</strong> has been approved.</p>
+      <p style="color: #4b5563;">You may now execute the transfer on-chain. Once the on-chain transfer is confirmed, please notify the administration team so the cap table can be updated.</p>
+    `,
+    rejected: `
+      <p style="color: #4b5563;">Your request to transfer <strong>${formatted} ${b.projectName} tokens</strong> has been denied.</p>
+      ${reason ? `<p style="color: #4b5563;"><strong>Reason:</strong> ${reason}</p>` : ""}
+      <p style="color: #4b5563;">If you have questions, please contact the administration team.</p>
+    `,
+    completed: `
+      <p style="color: #4b5563;">The transfer of <strong>${formatted} ${b.projectName} tokens</strong> from your account has been confirmed and the cap table has been updated.</p>
+    `,
+    received: `
+      <p style="color: #4b5563;">You have received <strong>${formatted} ${b.projectName} tokens</strong> via a secondary transfer. Your investor dashboard has been updated to reflect this allocation.</p>
+    `,
+    admin_request: `
+      <p style="color: #4b5563;"><strong>${recipientName}</strong> has submitted a consent request to transfer <strong>${formatted} tokens</strong>.</p>
+      <p style="color: #4b5563;">Please review the request and run compliance checks before approving or rejecting.</p>
+    `,
+  };
+
+  const subject = `${b.projectName} — ${titles[event]}`;
+  const html = wrapHtml(b, `
+    <h2 style="color: #111827; margin-bottom: 8px;">${titles[event]}</h2>
+    <p style="color: #4b5563;">Dear ${recipientName},</p>
+    ${bodies[event]}
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${b.portalUrl}/${event === "admin_request" ? "admin/transfers" : "dashboard"}" style="display: inline-block; background: #${b.color}; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+        ${event === "admin_request" ? "Review Transfer" : "Open Dashboard"}
+      </a>
+    </div>
+  `);
+
+  return { subject, html };
+}

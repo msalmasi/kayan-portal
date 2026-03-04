@@ -38,7 +38,7 @@ export interface SaftRound {
 }
 
 /** Payment status for an allocation */
-export type PaymentStatus = "unpaid" | "invoiced" | "partial" | "paid" | "grant";
+export type PaymentStatus = "unpaid" | "invoiced" | "partial" | "paid" | "grant" | "transferred_out";
 
 /** Accepted payment methods (matches PQ Section D) */
 export type PaymentMethod = "wire" | "usdt" | "usdc" | "credit_card";

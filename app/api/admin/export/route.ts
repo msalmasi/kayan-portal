@@ -78,7 +78,11 @@ export async function GET(request: NextRequest) {
     return exportCapTable(auth.client);
   }
 
-  return NextResponse.json({ error: "Invalid export type. Use ?type=audit_log, investors, or cap_table" }, { status: 400 });
+  if (type === "transfers") {
+    return exportTransfers(auth.client);
+  }
+
+  return NextResponse.json({ error: "Invalid export type. Use ?type=audit_log, investors, cap_table, or transfers" }, { status: 400 });
 }
 
 // ── Audit Log Export ──
@@ -302,6 +306,88 @@ async function exportCapTable(client: any) {
 
   const csv = toCsv(rows, columns);
   const filename = `cap-table-${new Date().toISOString().split("T")[0]}.csv`;
+
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
+// ── Transfers Export ──
+
+async function exportTransfers(client: any) {
+  const { data: transfers } = await client
+    .from("transfers")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(10000);
+
+  const investorIds = new Set<string>();
+  (transfers || []).forEach((t: any) => {
+    if (t.from_investor_id) investorIds.add(t.from_investor_id);
+    if (t.to_investor_id) investorIds.add(t.to_investor_id);
+  });
+
+  const { data: investors } = await client
+    .from("investors")
+    .select("id, full_name, email")
+    .in("id", Array.from(investorIds));
+
+  const { data: rounds } = await client.from("saft_rounds").select("id, name");
+
+  const invMap = new Map<string, any>((investors || []).map((i: any) => [i.id, i]));
+  const roundMap = new Map<string, any>((rounds || []).map((r: any) => [r.id, r]));
+
+  const columns = [
+    { key: "created_at", label: "Date" },
+    { key: "status", label: "Status" },
+    { key: "direction", label: "Direction" },
+    { key: "transfer_type", label: "Type" },
+    { key: "from_name", label: "From (Name)" },
+    { key: "from_email", label: "From (Email)" },
+    { key: "to_name", label: "To (Name)" },
+    { key: "to_email", label: "To (Email)" },
+    { key: "round_name", label: "Round" },
+    { key: "token_amount", label: "Token Amount" },
+    { key: "price_per_token", label: "Price/Token" },
+    { key: "total_consideration", label: "Consideration" },
+    { key: "tx_hash", label: "Tx Hash" },
+    { key: "from_wallet", label: "From Wallet" },
+    { key: "to_wallet", label: "To Wallet" },
+    { key: "reason", label: "Reason" },
+    { key: "reviewed_by", label: "Reviewed By" },
+  ];
+
+  const rows = (transfers || []).map((t: any) => {
+    const fromInv = invMap.get(t.from_investor_id);
+    const toInv = invMap.get(t.to_investor_id);
+    const round = roundMap.get(t.round_id);
+    return {
+      created_at: t.created_at ? new Date(t.created_at).toISOString() : "",
+      status: t.status,
+      direction: t.direction,
+      transfer_type: t.transfer_type,
+      from_name: fromInv?.full_name || "Unknown",
+      from_email: fromInv?.email || "",
+      to_name: toInv?.full_name || "—",
+      to_email: toInv?.email || "",
+      round_name: round?.name || "—",
+      token_amount: Number(t.token_amount) || 0,
+      price_per_token: t.price_per_token || "",
+      total_consideration: t.total_consideration || "",
+      tx_hash: t.tx_hash || "",
+      from_wallet: t.from_wallet || "",
+      to_wallet: t.to_wallet || "",
+      reason: t.reason || "",
+      reviewed_by: t.reviewed_by || "",
+    };
+  });
+
+  const csv = toCsv(rows, columns);
+  const filename = `transfers-${new Date().toISOString().split("T")[0]}.csv`;
 
   return new NextResponse(csv, {
     status: 200,

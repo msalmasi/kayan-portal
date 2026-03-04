@@ -8,6 +8,7 @@ import { VestingChart } from "@/components/dashboard/VestingChart";
 import { WalletSection } from "@/components/dashboard/Placeholders";
 import { SumsubKycWidget } from "@/components/dashboard/SumsubKycWidget";
 import { PaymentFlow } from "@/components/dashboard/PaymentFlow";
+import { TransferSection } from "@/components/dashboard/TransferSection";
 
 /**
  * /dashboard — Main investor view
@@ -227,6 +228,14 @@ export default async function DashboardPage() {
 
       {/* Vesting Schedule Chart */}
       <VestingChart confirmed={typedAllocations} unconfirmed={unconfirmedAllocations} />
+
+      {/* Token Transfers */}
+      <TransferSection
+        allocations={typedAllocations}
+        kycStatus={typedInvestor.kyc_status}
+        pqStatus={typedInvestor.pq_status || "not_sent"}
+        ticker={entityConfig.token_ticker}
+      />
 
       {/* KYC Verification */}
       <SumsubKycWidget

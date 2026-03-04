@@ -42,6 +42,7 @@ export function PaymentBadge({ status }: { status: string }) {
     partial: { variant: "yellow", label: "Partial" },
     invoiced: { variant: "yellow", label: "Invoiced" },
     unpaid: { variant: "gray", label: "Unpaid" },
+    transferred_out: { variant: "gray", label: "Transferred" },
   };
   const { variant, label } = map[status] || map.unpaid;
   return <Badge variant={variant}>{label}</Badge>;

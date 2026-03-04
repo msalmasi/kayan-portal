@@ -39,7 +39,13 @@ export type RegistryAction =
   | "investor_kyc_changed"
   | "investor_pq_changed"
   | "round_created"
-  | "round_updated";
+  | "round_updated"
+  | "transfer_requested"
+  | "transfer_approved"
+  | "transfer_rejected"
+  | "transfer_cancelled"
+  | "transfer_completed"
+  | "transfer_recorded";
 
 export interface AuditLogEntry {
   action: RegistryAction;
