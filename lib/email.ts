@@ -705,7 +705,7 @@ export async function composePqResubmitEmail(
 ) {
   const b = await getBranding();
   const subject = `Action Required: Please Resubmit Your Purchaser Questionnaire — ${b.projectName}`;
-  const html = await wrapEmail(b, `
+  const html = wrapHtml(b, `
     <h2 style="color: #111827; margin-bottom: 8px;">Questionnaire Update Required</h2>
     <p style="color: #4b5563;">Dear ${investorName},</p>
     <p style="color: #4b5563;">
