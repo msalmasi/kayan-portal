@@ -45,9 +45,9 @@ export async function GET() {
     .from("investors")
     .select("id, full_name, email, kyc_status, pq_status");
 
-  const allocs = allocations || [];
-  const roundList = rounds || [];
-  const investorList = investors || [];
+  const allocs = (allocations || []) as any[];
+  const roundList = (rounds || []) as any[];
+  const investorList = (investors || []) as any[];
 
   // ── Build investor lookup ──
   const investorMap = new Map(investorList.map((i: any) => [i.id, i]));
