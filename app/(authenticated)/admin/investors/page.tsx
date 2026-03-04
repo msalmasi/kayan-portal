@@ -430,6 +430,13 @@ export default function AdminInvestorsPage() {
               <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting}>
                 {exporting ? "Exporting..." : "Export CSV"}
               </Button>
+              <a
+                href={`/api/admin/export?type=investors${kycFilter ? `&kyc=${kycFilter}` : ""}${pqFilter ? `&pq=${pqFilter}` : ""}`}
+                download
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors border border-brand-200"
+              >
+                ↓ Full Profile Export
+              </a>
             </div>
           </div>
 

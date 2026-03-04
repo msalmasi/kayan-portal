@@ -363,9 +363,25 @@ export default function InvestorDetailPage() {
           <PqBadge status={investor.pq_status || "not_sent"} />
         </div>
         {canWrite && (
-          <Button variant="ghost" size="sm" onClick={handleDelete} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-            Delete
-          </Button>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/admin/export?type=investors&investor_id=${investorId}`}
+              download
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            >
+              ↓ Profile
+            </a>
+            <a
+              href={`/api/admin/export?type=audit_log&investor_id=${investorId}`}
+              download
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            >
+              ↓ Audit Log
+            </a>
+            <Button variant="ghost" size="sm" onClick={handleDelete} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+              Delete
+            </Button>
+          </div>
         )}
       </div>
 

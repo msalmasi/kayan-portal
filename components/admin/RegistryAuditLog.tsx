@@ -97,9 +97,18 @@ export default function RegistryAuditLog({ investorId, roundId, compact }: Props
             Immutable record of ownership-affecting changes · {total} entries
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={fetchData} className="text-xs">
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/admin/export?type=audit_log${investorId ? `&investor_id=${investorId}` : ""}${roundId ? `&round_id=${roundId}` : ""}`}
+            download
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+          >
+            ↓ Export CSV
+          </a>
+          <Button variant="ghost" size="sm" onClick={fetchData} className="text-xs">
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {loading && entries.length === 0 ? (
