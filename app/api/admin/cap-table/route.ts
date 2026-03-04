@@ -3,6 +3,30 @@ import { getAdminAuth } from "@/lib/admin-auth";
 import { getEntityConfig } from "@/lib/entity-config";
 import { calculateUnlocked } from "@/lib/vesting";
 
+// ── Fetch all rows from a Supabase table (bypasses 1000 row default) ──
+async function fetchAll(
+  client: any,
+  table: string,
+  select: string,
+  filters?: { column: string; value: any }[]
+): Promise<any[]> {
+  const PAGE = 1000;
+  let offset = 0;
+  let all: any[] = [];
+  while (true) {
+    let q = client.from(table).select(select).range(offset, offset + PAGE - 1);
+    if (filters) {
+      for (const f of filters) q = q.eq(f.column, f.value);
+    }
+    const { data } = await q;
+    const rows = (data || []) as any[];
+    all = all.concat(rows);
+    if (rows.length < PAGE) break; // last page
+    offset += PAGE;
+  }
+  return all;
+}
+
 /**
  * GET /api/admin/cap-table
  *
@@ -33,15 +57,11 @@ export async function GET(request: NextRequest) {
     .select("*")
     .order("created_at", { ascending: true });
 
-  const { data: allocations } = await auth.client
-    .from("allocations")
-    .select(
-      "id, investor_id, round_id, token_amount, amount_usd, amount_received_usd, " +
-      "payment_status, approval_status, payment_method"
-    )
-    .eq("approval_status", "approved");
-
-  const allocs = (allocations || []) as any[];
+  const allocs = await fetchAll(
+    auth.client, "allocations",
+    "id, investor_id, round_id, token_amount, amount_usd, amount_received_usd, payment_status, approval_status, payment_method",
+    [{ column: "approval_status", value: "approved" }]
+  );
   const roundList = (rounds || []) as any[];
   const roundMap = new Map<string, any>(roundList.map((r: any) => [r.id, r]));
 
@@ -131,12 +151,8 @@ async function handleInvestorList(
   const sortKey = sp.get("sort") || "tokens"; // tokens | pct | due | received | name
   const sortDir = sp.get("dir") || "desc";
 
-  // Load investors
-  const { data: investors } = await client
-    .from("investors")
-    .select("id, full_name, email, kyc_status, pq_status");
-
-  const investorList = (investors || []) as any[];
+  // Load all investors (paginated to bypass 1000 row limit)
+  const investorList = await fetchAll(client, "investors", "id, full_name, email, kyc_status, pq_status");
   const investorMap = new Map<string, any>(investorList.map((i: any) => [i.id, i]));
 
   // Group allocations by investor

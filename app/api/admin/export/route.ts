@@ -229,11 +229,13 @@ async function exportCapTable(client: any) {
       "id, investor_id, round_id, token_amount, amount_usd, amount_received_usd, " +
       "payment_status, approval_status, created_at"
     )
-    .eq("approval_status", "approved");
+    .eq("approval_status", "approved")
+    .limit(10000);
 
   const { data: investors } = await client
     .from("investors")
-    .select("id, full_name, email, kyc_status, pq_status, created_at");
+    .select("id, full_name, email, kyc_status, pq_status, created_at")
+    .limit(10000);
 
   const roundMap = new Map<string, any>((rounds || []).map((r: any) => [r.id, r]));
   const investorMap = new Map<string, any>((investors || []).map((i: any) => [i.id, i]));
