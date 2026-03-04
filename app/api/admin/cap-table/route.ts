@@ -96,7 +96,7 @@ export async function GET() {
     const statuses = new Set(invAllocs.map((a: any) => a.payment_status));
     let paymentSummary = "unpaid";
     if (statuses.size === 1) {
-      paymentSummary = [...statuses][0];
+      paymentSummary = Array.from(statuses)[0];
     } else if (statuses.has("paid") && statuses.size === 1) {
       paymentSummary = "paid";
     } else {
