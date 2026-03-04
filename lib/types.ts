@@ -229,6 +229,7 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   partial: "Partial",
   paid: "Paid",
   grant: "Grant",
+  transferred_out: "Transferred",
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
