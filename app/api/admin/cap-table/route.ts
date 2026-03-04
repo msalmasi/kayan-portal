@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/admin-auth";
 import { getEntityConfig } from "@/lib/entity-config";
 import { calculateUnlocked } from "@/lib/vesting";
@@ -6,32 +6,33 @@ import { calculateUnlocked } from "@/lib/vesting";
 /**
  * GET /api/admin/cap-table
  *
- * Returns the complete cap table:
- *   - Token supply config
- *   - Per-round breakdown
- *   - Per-investor ownership
- *   - Aggregated vesting schedule
+ * Two modes controlled by query params:
  *
- * All joins and math happen server-side so the frontend just renders.
+ *   No params → returns summary cards, round breakdown, vesting schedule
+ *   ?investors=true&page=0&limit=25&search=&round=&view=&sort=tokens&dir=desc
+ *     → returns paginated investor ownership rows
+ *
+ * This split keeps the initial load fast (aggregates only)
+ * while the investor table paginates independently.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await getAdminAuth();
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // ── Load config ──
+  const sp = request.nextUrl.searchParams;
+
+  // ── Shared data (always needed) ──
   const config = await getEntityConfig(auth.client);
   const totalSupply = config.total_supply || 100_000_000;
   const reservedTokens = config.reserved_tokens || 0;
   const tgeDate = config.tge_date || null;
   const ticker = config.token_ticker || "TOKEN";
 
-  // ── Load rounds ──
   const { data: rounds } = await auth.client
     .from("saft_rounds")
     .select("*")
     .order("created_at", { ascending: true });
 
-  // ── Load all approved allocations with investor data ──
   const { data: allocations } = await auth.client
     .from("allocations")
     .select(
@@ -40,44 +41,105 @@ export async function GET() {
     )
     .eq("approval_status", "approved");
 
-  // ── Load investors ──
-  const { data: investors } = await auth.client
-    .from("investors")
-    .select("id, full_name, email, kyc_status, pq_status");
-
   const allocs = (allocations || []) as any[];
   const roundList = (rounds || []) as any[];
-  const investorList = (investors || []) as any[];
-
-  // ── Build investor lookup ──
-  const investorMap = new Map<string, any>(investorList.map((i: any) => [i.id, i]));
   const roundMap = new Map<string, any>(roundList.map((r: any) => [r.id, r]));
 
-  // ── Per-round aggregates ──
-  const roundAggregates = roundList.map((r: any) => {
-    const roundAllocs = allocs.filter((a: any) => a.round_id === r.id);
-    const tokensAllocated = roundAllocs.reduce((s: number, a: any) => s + (Number(a.token_amount) || 0), 0);
-    const capitalDue = roundAllocs.reduce((s: number, a: any) => s + (Number(a.amount_usd) || 0), 0);
-    const capitalReceived = roundAllocs.reduce((s: number, a: any) => s + (Number(a.amount_received_usd) || 0), 0);
-    const investorIds = new Set(roundAllocs.map((a: any) => a.investor_id));
+  // ── INVESTOR LIST MODE ──
+  if (sp.get("investors") === "true") {
+    return handleInvestorList(auth.client, sp, allocs, roundMap, totalSupply);
+  }
+
+  // ── SUMMARY MODE (default) ──
+  const roundAggregates = roundList.map((r: any, i: number) => {
+    const ra = allocs.filter((a: any) => a.round_id === r.id);
+    const tokensAllocated = ra.reduce((s: number, a: any) => s + (Number(a.token_amount) || 0), 0);
+    const capitalDue = ra.reduce((s: number, a: any) => s + (Number(a.amount_usd) || 0), 0);
+    const capitalReceived = ra.reduce((s: number, a: any) => s + (Number(a.amount_received_usd) || 0), 0);
+    const invIds = new Set<string>();
+    ra.forEach((a: any) => invIds.add(a.investor_id));
 
     return {
-      id: r.id,
-      name: r.name,
-      token_price: r.token_price,
+      id: r.id, name: r.name, token_price: r.token_price,
       tokens_allocated: tokensAllocated,
       pct_of_supply: totalSupply > 0 ? (tokensAllocated / totalSupply) * 100 : 0,
-      investor_count: investorIds.size,
-      capital_due: capitalDue,
-      capital_received: capitalReceived,
-      tge_unlock_pct: r.tge_unlock_pct,
-      cliff_months: r.cliff_months,
-      vesting_months: r.vesting_months,
-      closing_date: r.closing_date,
+      investor_count: invIds.size,
+      capital_due: capitalDue, capital_received: capitalReceived,
+      tge_unlock_pct: r.tge_unlock_pct, cliff_months: r.cliff_months,
+      vesting_months: r.vesting_months, closing_date: r.closing_date,
     };
   });
 
-  // ── Per-investor aggregates ──
+  // Totals
+  const totalAllocated = allocs.reduce((s: number, a: any) => s + (Number(a.token_amount) || 0), 0);
+  const totalCapitalDue = allocs.reduce((s: number, a: any) => s + (Number(a.amount_usd) || 0), 0);
+  const totalCapitalReceived = allocs.reduce((s: number, a: any) => s + (Number(a.amount_received_usd) || 0), 0);
+  const investorIds = new Set<string>();
+  allocs.forEach((a: any) => investorIds.add(a.investor_id));
+
+  // Vesting schedule (aggregated)
+  const maxMonth = roundList.reduce((max: number, r: any) =>
+    Math.max(max, (r.cliff_months || 0) + (r.vesting_months || 0)), 0
+  );
+
+  const vestingSchedule = [];
+  for (let month = 0; month <= maxMonth; month++) {
+    const perRound: Record<string, number> = {};
+    let totalUnlocked = 0;
+    for (const r of roundList) {
+      const ra = allocs.filter((a: any) => a.round_id === r.id);
+      const roundUnlocked = ra.reduce((sum: number, a: any) =>
+        sum + calculateUnlocked(
+          Number(a.token_amount) || 0,
+          r.tge_unlock_pct || 0, r.cliff_months || 0, r.vesting_months || 1, month
+        ), 0);
+      perRound[r.id] = Math.round(roundUnlocked);
+      totalUnlocked += roundUnlocked;
+    }
+    vestingSchedule.push({ month, total_unlocked: Math.round(totalUnlocked), per_round: perRound });
+  }
+
+  return NextResponse.json({
+    total_supply: totalSupply, reserved_tokens: reservedTokens,
+    tge_date: tgeDate, token_ticker: ticker,
+    total_allocated: totalAllocated,
+    total_available: totalSupply - totalAllocated - reservedTokens,
+    total_capital_due: totalCapitalDue,
+    total_capital_received: totalCapitalReceived,
+    investor_count: investorIds.size,
+    rounds: roundAggregates,
+    vesting_schedule: vestingSchedule,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGINATED INVESTOR LIST
+// ═══════════════════════════════════════════════════════════
+
+async function handleInvestorList(
+  client: any,
+  sp: URLSearchParams,
+  allocs: any[],
+  roundMap: Map<string, any>,
+  totalSupply: number
+) {
+  const page = Number(sp.get("page") || "0");
+  const limit = Math.min(Number(sp.get("limit") || "25"), 100);
+  const search = (sp.get("search") || "").toLowerCase();
+  const roundFilter = sp.get("round") || "";
+  const viewMode = sp.get("view") || "all"; // all | confirmed | pending
+  const sortKey = sp.get("sort") || "tokens"; // tokens | pct | due | received | name
+  const sortDir = sp.get("dir") || "desc";
+
+  // Load investors
+  const { data: investors } = await client
+    .from("investors")
+    .select("id, full_name, email, kyc_status, pq_status");
+
+  const investorList = (investors || []) as any[];
+  const investorMap = new Map<string, any>(investorList.map((i: any) => [i.id, i]));
+
+  // Group allocations by investor
   const investorAllocMap = new Map<string, any[]>();
   for (const a of allocs) {
     const arr = investorAllocMap.get(a.investor_id) || [];
@@ -85,20 +147,19 @@ export async function GET() {
     investorAllocMap.set(a.investor_id, arr);
   }
 
-  const investorRows = Array.from(investorAllocMap.entries()).map(([invId, invAllocs]) => {
+  // Build investor rows
+  let rows = Array.from(investorAllocMap.entries()).map(([invId, invAllocs]) => {
     const inv = investorMap.get(invId);
     const totalTokens = invAllocs.reduce((s: number, a: any) => s + (Number(a.token_amount) || 0), 0);
     const totalDue = invAllocs.reduce((s: number, a: any) => s + (Number(a.amount_usd) || 0), 0);
     const totalReceived = invAllocs.reduce((s: number, a: any) => s + (Number(a.amount_received_usd) || 0), 0);
     const hasGrant = invAllocs.some((a: any) => a.payment_status === "grant");
 
-    // Determine aggregate payment status
-    const statuses = new Set(invAllocs.map((a: any) => a.payment_status));
+    const statuses = new Set<string>();
+    invAllocs.forEach((a: any) => statuses.add(a.payment_status));
     let paymentSummary = "unpaid";
     if (statuses.size === 1) {
       paymentSummary = Array.from(statuses)[0];
-    } else if (statuses.has("paid") && statuses.size === 1) {
-      paymentSummary = "paid";
     } else {
       paymentSummary = "mixed";
     }
@@ -123,67 +184,54 @@ export async function GET() {
         amount_usd: Number(a.amount_usd) || 0,
         amount_received_usd: Number(a.amount_received_usd) || 0,
         payment_status: a.payment_status,
-        approval_status: a.approval_status,
       })),
     };
   });
 
-  // Sort by ownership descending
-  investorRows.sort((a, b) => b.total_tokens - a.total_tokens);
-
-  // ── Totals ──
-  const totalAllocated = allocs.reduce((s: number, a: any) => s + (Number(a.token_amount) || 0), 0);
-  const totalCapitalDue = allocs.reduce((s: number, a: any) => s + (Number(a.amount_usd) || 0), 0);
-  const totalCapitalReceived = allocs.reduce((s: number, a: any) => s + (Number(a.amount_received_usd) || 0), 0);
-
-  // ── Vesting schedule (aggregated) ──
-  // Find longest vesting timeline
-  const maxMonth = roundList.reduce((max: number, r: any) =>
-    Math.max(max, (r.cliff_months || 0) + (r.vesting_months || 0)), 0
-  );
-
-  const vestingSchedule = [];
-  for (let month = 0; month <= maxMonth; month++) {
-    const perRound: Record<string, number> = {};
-    let totalUnlocked = 0;
-
-    for (const r of roundList) {
-      const roundAllocs = allocs.filter((a: any) => a.round_id === r.id);
-      const roundUnlocked = roundAllocs.reduce((sum: number, a: any) => {
-        return sum + calculateUnlocked(
-          Number(a.token_amount) || 0,
-          r.tge_unlock_pct || 0,
-          r.cliff_months || 0,
-          r.vesting_months || 1,
-          month
-        );
-      }, 0);
-
-      perRound[r.id] = Math.round(roundUnlocked);
-      totalUnlocked += roundUnlocked;
-    }
-
-    vestingSchedule.push({
-      month,
-      total_unlocked: Math.round(totalUnlocked),
-      per_round: perRound,
-    });
+  // ── Filters ──
+  if (viewMode === "confirmed") {
+    rows = rows.filter((i) =>
+      i.allocations.every((a: any) => a.payment_status === "paid" || a.payment_status === "grant")
+    );
+  } else if (viewMode === "pending") {
+    rows = rows.filter((i) =>
+      i.allocations.some((a: any) => ["unpaid", "invoiced", "partial"].includes(a.payment_status))
+    );
   }
 
-  return NextResponse.json({
-    total_supply: totalSupply,
-    reserved_tokens: reservedTokens,
-    tge_date: tgeDate,
-    token_ticker: ticker,
+  if (roundFilter) {
+    rows = rows.filter((i) => i.allocations.some((a: any) => a.round_id === roundFilter));
+  }
 
-    total_allocated: totalAllocated,
-    total_available: totalSupply - totalAllocated - reservedTokens,
-    total_capital_due: totalCapitalDue,
-    total_capital_received: totalCapitalReceived,
-    investor_count: investorAllocMap.size,
+  if (search) {
+    rows = rows.filter((i) =>
+      i.full_name.toLowerCase().includes(search) || i.email.toLowerCase().includes(search)
+    );
+  }
 
-    rounds: roundAggregates,
-    investors: investorRows,
-    vesting_schedule: vestingSchedule,
+  // ── Totals (computed before pagination, after filters) ──
+  const totals = {
+    tokens: rows.reduce((s, i) => s + i.total_tokens, 0),
+    pct: rows.reduce((s, i) => s + i.pct_ownership, 0),
+    due: rows.reduce((s, i) => s + i.total_usd_due, 0),
+    received: rows.reduce((s, i) => s + i.total_usd_received, 0),
+  };
+
+  // ── Sort ──
+  rows.sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case "name": cmp = a.full_name.localeCompare(b.full_name); break;
+      case "tokens": cmp = a.total_tokens - b.total_tokens; break;
+      case "pct": cmp = a.pct_ownership - b.pct_ownership; break;
+      case "due": cmp = a.total_usd_due - b.total_usd_due; break;
+      case "received": cmp = a.total_usd_received - b.total_usd_received; break;
+    }
+    return sortDir === "asc" ? cmp : -cmp;
   });
+
+  const total = rows.length;
+  const paged = rows.slice(page * limit, page * limit + limit);
+
+  return NextResponse.json({ investors: paged, total, totals });
 }
