@@ -94,10 +94,8 @@ export function generateVestingSchedule(
 }
 
 /**
- * Format large token numbers for display (e.g., 1,250,000 → "1.25M")
+ * Format token numbers for display with full precision (e.g., 10,000)
  */
 export function formatTokenAmount(amount: number): string {
-  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2)}M`;
-  if (amount >= 1_000) return `${(amount / 1_000).toFixed(1)}K`;
   return amount.toLocaleString();
 }
