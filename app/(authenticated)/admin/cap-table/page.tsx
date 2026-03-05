@@ -36,6 +36,11 @@ interface RoundData {
 
 interface VestingPoint { month: number; total_unlocked: number; per_round: Record<string, number>; }
 
+interface PoolSummary {
+  id: string; name: string; color: string; token_budget: number;
+  tokens_granted: number; tokens_vested: number;
+}
+
 interface SummaryData {
   total_supply: number; reserved_tokens: number;
   tge_date: string | null; token_ticker: string;
@@ -44,6 +49,8 @@ interface SummaryData {
   investor_count: number;
   rounds: RoundData[];
   vesting_schedule: VestingPoint[];
+  pools?: PoolSummary[];
+  pool_vesting_schedule?: { month: number; per_pool: Record<string, number> }[];
 }
 
 interface InvestorAlloc {
@@ -159,12 +166,30 @@ export default function CapTablePage() {
   const donutData = useMemo(() => {
     if (!summary) return [];
     const slices: { name: string; value: number; color: string }[] = [];
+    // Investor rounds
     summary.rounds.forEach((r, i) => {
       if (r.tokens_allocated > 0) {
         slices.push({ name: r.name, value: r.tokens_allocated, color: ROUND_COLORS[i % ROUND_COLORS.length] });
       }
     });
-    if (summary.reserved_tokens > 0) slices.push({ name: "Reserved", value: summary.reserved_tokens, color: RESERVED_COLOR });
+    // Token pools (break out reserved into individual pools)
+    const pools = summary.pools || [];
+    if (pools.length > 0) {
+      pools.forEach((p) => {
+        if (p.token_budget > 0) {
+          slices.push({ name: p.name, value: p.token_budget, color: `#${p.color}` });
+        }
+      });
+      // Unallocated reserve (reserved - pool budgets)
+      const poolBudgetTotal = pools.reduce((s, p) => s + p.token_budget, 0);
+      const unallocatedReserve = summary.reserved_tokens - poolBudgetTotal;
+      if (unallocatedReserve > 0) {
+        slices.push({ name: "Unallocated Reserve", value: unallocatedReserve, color: RESERVED_COLOR });
+      }
+    } else if (summary.reserved_tokens > 0) {
+      // No pools configured — show as single reserved slice
+      slices.push({ name: "Reserved", value: summary.reserved_tokens, color: RESERVED_COLOR });
+    }
     if (summary.total_available > 0) slices.push({ name: "Available", value: summary.total_available, color: AVAILABLE_COLOR });
     return slices;
   }, [summary]);
@@ -172,11 +197,22 @@ export default function CapTablePage() {
   // ── Vesting chart data ──
   const vestingChartData = useMemo(() => {
     if (!summary) return [];
-    return summary.vesting_schedule.map((v) => ({
-      month: v.month === 0 ? "TGE" : `M${v.month}`,
-      ...v.per_round,
-      total: v.total_unlocked,
-    }));
+    const poolSchedule = summary.pool_vesting_schedule || [];
+    const maxLen = Math.max(summary.vesting_schedule.length, poolSchedule.length);
+    const data = [];
+    for (let i = 0; i < maxLen; i++) {
+      const entry: any = { month: i === 0 ? "TGE" : `M${i}` };
+      // Investor rounds
+      if (i < summary.vesting_schedule.length) {
+        Object.assign(entry, summary.vesting_schedule[i].per_round);
+      }
+      // Pool grants
+      if (i < poolSchedule.length) {
+        Object.assign(entry, poolSchedule[i].per_pool);
+      }
+      data.push(entry);
+    }
+    return data;
   }, [summary]);
 
   // ── Sort header helper ──
@@ -220,7 +256,22 @@ export default function CapTablePage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard label="Total Supply" value={fmt(summary.total_supply)} sub={ticker} />
         <StatCard label="Allocated" value={fmt(summary.total_allocated)} sub={fmtPct((summary.total_allocated / summary.total_supply) * 100)} pct={(summary.total_allocated / summary.total_supply) * 100} color="#1a3c2a" />
-        <StatCard label="Reserved" value={fmt(summary.reserved_tokens)} sub={summary.reserved_tokens > 0 ? fmtPct((summary.reserved_tokens / summary.total_supply) * 100) : "Not set"} pct={(summary.reserved_tokens / summary.total_supply) * 100} color="#6b7280" />
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Reserved</p>
+          <p className="text-xl font-bold text-gray-900">{fmt(summary.reserved_tokens)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{summary.reserved_tokens > 0 ? fmtPct((summary.reserved_tokens / summary.total_supply) * 100) : "Not set"}</p>
+          {(summary.pools || []).length > 0 && (
+            <div className="mt-2 space-y-1">
+              {(summary.pools || []).map((p) => (
+                <div key={p.id} className="flex items-center gap-1.5 text-[10px]">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: `#${p.color}` }} />
+                  <span className="text-gray-600 truncate">{p.name}</span>
+                  <span className="text-gray-400 ml-auto">{fmt(p.tokens_granted)}/{fmt(p.token_budget)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <StatCard label="Available" value={fmt(summary.total_available)} sub={fmtPct((summary.total_available / summary.total_supply) * 100)} pct={(summary.total_available / summary.total_supply) * 100} color="#52b788" />
         <StatCard label="Capital Raised" value={fmtUsd(summary.total_capital_received)} sub={summary.total_capital_due > 0 ? `of ${fmtUsd(summary.total_capital_due)} due` : "No capital due"} />
       </div>
@@ -512,13 +563,21 @@ export default function CapTablePage() {
                 <Tooltip
                   formatter={(value: number, name: string) => {
                     const round = summary.rounds.find((r) => r.id === name);
-                    return [fmt(Math.round(value)), round?.name || name];
+                    const pool = (summary.pools || []).find((p) => p.id === name);
+                    return [fmt(Math.round(value)), round?.name || pool?.name || name];
                   }}
                   contentStyle={{ fontSize: "12px", borderRadius: "8px", border: "1px solid #e5e7eb" }}
                 />
-                <Legend formatter={(value) => { const r = summary.rounds.find((r) => r.id === value); return r?.name || value; }} wrapperStyle={{ fontSize: "11px" }} />
+                <Legend formatter={(value) => {
+                  const r = summary.rounds.find((r) => r.id === value);
+                  const p = (summary.pools || []).find((p) => p.id === value);
+                  return r?.name || p?.name || value;
+                }} wrapperStyle={{ fontSize: "11px" }} />
                 {summary.rounds.map((r, i) => (
                   <Area key={r.id} type="monotone" dataKey={r.id} stackId="1" fill={ROUND_COLORS[i % ROUND_COLORS.length]} stroke={ROUND_COLORS[i % ROUND_COLORS.length]} fillOpacity={0.7} />
+                ))}
+                {(summary.pools || []).map((p) => (
+                  <Area key={p.id} type="monotone" dataKey={p.id} stackId="1" fill={`#${p.color}`} stroke={`#${p.color}`} fillOpacity={0.5} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>

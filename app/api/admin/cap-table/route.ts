@@ -119,6 +119,64 @@ export async function GET(request: NextRequest) {
     vestingSchedule.push({ month, total_unlocked: Math.round(totalUnlocked), per_round: perRound });
   }
 
+  // Compute months since TGE (for pool vesting)
+  const monthsSinceTGE = tgeDate
+    ? Math.max(0, Math.floor((new Date().getTime() - new Date(tgeDate).getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
+    : 0;
+
+  // ── Pool data (breaks down reserved bucket) ──
+  const { data: pools } = await auth.client
+    .from("token_pools")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  const { data: poolGrants } = await auth.client
+    .from("pool_grants")
+    .select("*")
+    .neq("status", "cancelled");
+
+  const allPoolGrants = (poolGrants || []) as any[];
+  const allPools = (pools || []) as any[];
+
+  const poolSummary = allPools.map((p: any) => {
+    const pGrants = allPoolGrants.filter((g: any) => g.pool_id === p.id);
+    const tokensGranted = pGrants.reduce((s: number, g: any) => s + (Number(g.token_amount) || 0), 0);
+    const tokensVested = pGrants.reduce((s: number, g: any) => {
+      const months = getPoolGrantMonths(g, tgeDate, monthsSinceTGE);
+      return s + calculateUnlocked(
+        Number(g.token_amount) || 0, Number(g.tge_unlock_pct) || 0,
+        Number(g.cliff_months) || 0, Number(g.vesting_months) || 1, months
+      );
+    }, 0);
+    return {
+      id: p.id, name: p.name, color: p.color,
+      token_budget: Number(p.token_budget),
+      tokens_granted: tokensGranted,
+      tokens_vested: Math.round(tokensVested),
+    };
+  });
+
+  // Pool vesting schedule (for chart)
+  const poolMaxMonth = allPoolGrants.reduce((max: number, g: any) =>
+    Math.max(max, (Number(g.cliff_months) || 0) + (Number(g.vesting_months) || 0)), 0
+  );
+  const poolVestingSchedule = [];
+  for (let month = 0; month <= Math.max(maxMonth, poolMaxMonth); month++) {
+    const perPool: Record<string, number> = {};
+    for (const p of allPools) {
+      const pGrants = allPoolGrants.filter((g: any) => g.pool_id === p.id);
+      const poolUnlocked = pGrants.reduce((sum: number, g: any) => {
+        const m = getPoolGrantMonths(g, tgeDate, month);
+        return sum + calculateUnlocked(
+          Number(g.token_amount) || 0, Number(g.tge_unlock_pct) || 0,
+          Number(g.cliff_months) || 0, Number(g.vesting_months) || 1, m
+        );
+      }, 0);
+      perPool[p.id] = Math.round(poolUnlocked);
+    }
+    poolVestingSchedule.push({ month, per_pool: perPool });
+  }
+
   return NextResponse.json({
     total_supply: totalSupply, reserved_tokens: reservedTokens,
     tge_date: tgeDate, token_ticker: ticker,
@@ -129,6 +187,8 @@ export async function GET(request: NextRequest) {
     investor_count: investorIds.size,
     rounds: roundAggregates,
     vesting_schedule: vestingSchedule,
+    pools: poolSummary,
+    pool_vesting_schedule: poolVestingSchedule,
   });
 }
 
@@ -250,4 +310,22 @@ async function handleInvestorList(
   const paged = rows.slice(page * limit, page * limit + limit);
 
   return NextResponse.json({ investors: paged, total, totals });
+}
+
+// ── Pool grant vesting month helper ──
+
+function getPoolGrantMonths(grant: any, tgeDate: string | null, defaultMonths: number): number {
+  if (grant.status === "terminated" && grant.termination_date) {
+    if (grant.termination_handling === "accelerated") {
+      return (Number(grant.cliff_months) || 0) + (Number(grant.vesting_months) || 0);
+    }
+    const termDate = new Date(grant.termination_date);
+    const startDate = tgeDate ? new Date(tgeDate) : new Date(grant.grant_date);
+    const months = Math.max(0, Math.floor((termDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+    if (grant.termination_handling === "cliff_forfeit" && months < (Number(grant.cliff_months) || 0)) {
+      return 0;
+    }
+    return months;
+  }
+  return defaultMonths;
 }

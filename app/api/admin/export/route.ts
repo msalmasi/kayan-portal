@@ -82,7 +82,11 @@ export async function GET(request: NextRequest) {
     return exportTransfers(auth.client);
   }
 
-  return NextResponse.json({ error: "Invalid export type. Use ?type=audit_log, investors, cap_table, or transfers" }, { status: 400 });
+  if (type === "pool_grants") {
+    return exportPoolGrants(auth.client);
+  }
+
+  return NextResponse.json({ error: "Invalid export type. Use ?type=audit_log, investors, cap_table, transfers, or pool_grants" }, { status: 400 });
 }
 
 // ── Audit Log Export ──
@@ -388,6 +392,101 @@ async function exportTransfers(client: any) {
 
   const csv = toCsv(rows, columns);
   const filename = `transfers-${new Date().toISOString().split("T")[0]}.csv`;
+
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
+// ── Pool Grants Export ──
+
+async function exportPoolGrants(client: any) {
+  const { getEntityConfig } = await import("@/lib/entity-config");
+  const { calculateUnlocked } = await import("@/lib/vesting");
+
+  const config = await getEntityConfig(client);
+  const tgeDate = config.tge_date || null;
+  const now = new Date();
+  const monthsSinceTGE = tgeDate
+    ? Math.max(0, Math.floor((now.getTime() - new Date(tgeDate).getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
+    : 0;
+
+  const { data: pools } = await client.from("token_pools").select("id, name");
+  const { data: grants } = await client
+    .from("pool_grants")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  const poolMap = new Map<string, any>((pools || []).map((p: any) => [p.id, p]));
+
+  const columns = [
+    { key: "pool_name", label: "Pool" },
+    { key: "recipient_name", label: "Recipient" },
+    { key: "recipient_email", label: "Email" },
+    { key: "recipient_role", label: "Role" },
+    { key: "recipient_type", label: "Type" },
+    { key: "token_amount", label: "Token Amount" },
+    { key: "grant_date", label: "Grant Date" },
+    { key: "tge_unlock_pct", label: "TGE %" },
+    { key: "cliff_months", label: "Cliff (mo)" },
+    { key: "vesting_months", label: "Vesting (mo)" },
+    { key: "exercise_price", label: "Exercise Price" },
+    { key: "status", label: "Status" },
+    { key: "tokens_vested", label: "Tokens Vested" },
+    { key: "tokens_unvested", label: "Tokens Unvested" },
+    { key: "termination_date", label: "Termination Date" },
+    { key: "termination_handling", label: "Termination Handling" },
+    { key: "wallet_address", label: "Wallet" },
+  ];
+
+  const rows = ((grants || []) as any[]).map((g: any) => {
+    const pool = poolMap.get(g.pool_id);
+    const tokenAmount = Number(g.token_amount) || 0;
+    let months = monthsSinceTGE;
+    if (g.status === "terminated" && g.termination_date) {
+      if (g.termination_handling === "accelerated") {
+        months = (Number(g.cliff_months) || 0) + (Number(g.vesting_months) || 0);
+      } else {
+        const termDate = new Date(g.termination_date);
+        const startDate = tgeDate ? new Date(tgeDate) : new Date(g.grant_date);
+        months = Math.max(0, Math.floor((termDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+        if (g.termination_handling === "cliff_forfeit" && months < (Number(g.cliff_months) || 0)) {
+          months = 0;
+        }
+      }
+    }
+    const vested = calculateUnlocked(
+      tokenAmount, Number(g.tge_unlock_pct) || 0,
+      Number(g.cliff_months) || 0, Number(g.vesting_months) || 1, months
+    );
+
+    return {
+      pool_name: pool?.name || "—",
+      recipient_name: g.recipient_name,
+      recipient_email: g.recipient_email || "",
+      recipient_role: g.recipient_role || "",
+      recipient_type: g.recipient_type,
+      token_amount: tokenAmount,
+      grant_date: g.grant_date || "",
+      tge_unlock_pct: g.tge_unlock_pct,
+      cliff_months: g.cliff_months,
+      vesting_months: g.vesting_months,
+      exercise_price: g.exercise_price || "",
+      status: g.status,
+      tokens_vested: Math.round(vested),
+      tokens_unvested: Math.round(tokenAmount - vested),
+      termination_date: g.termination_date || "",
+      termination_handling: g.termination_handling || "",
+      wallet_address: g.wallet_address || "",
+    };
+  });
+
+  const csv = toCsv(rows, columns);
+  const filename = `pool-grants-${new Date().toISOString().split("T")[0]}.csv`;
 
   return new NextResponse(csv, {
     status: 200,
