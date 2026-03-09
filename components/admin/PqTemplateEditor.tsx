@@ -22,6 +22,7 @@ const FIELD_TYPES: { value: PqFieldType; label: string }[] = [
   { value: "select", label: "Dropdown" },
   { value: "radio", label: "Radio" },
   { value: "checkbox", label: "Checkbox" },
+  { value: "file", label: "File Upload" },
 ];
 
 const inputCls = "w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";

@@ -46,6 +46,13 @@ export interface EntityConfig {
   total_supply: number;       // Maximum token supply
   reserved_tokens: number;    // Tokens reserved (treasury, team, ecosystem)
   tge_date: string | null;    // Token Generation Event date (ISO string)
+
+  // Labuan FSA
+  labuan_net_worth_min: number;       // Minimum net worth (USD) for Labuan FSA qualification
+  labuan_annual_income_min: number;   // Minimum annual income (USD) for Labuan FSA qualification
+
+  // Compliance
+  annual_recert_date: string | null;  // "MM-DD" for annual re-certification trigger
 }
 
 // ─── Defaults ────────────────────────────────────────────────
@@ -77,6 +84,10 @@ export const DEFAULT_ENTITY_CONFIG: EntityConfig = {
   total_supply: 100_000_000,
   reserved_tokens: 0,
   tge_date: null,
+
+  labuan_net_worth_min: 0,
+  labuan_annual_income_min: 0,
+  annual_recert_date: null,
 };
 
 // ─── Server-side reader ──────────────────────────────────────

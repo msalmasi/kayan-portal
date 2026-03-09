@@ -124,6 +124,11 @@ export async function PATCH(
     updates.pq_reviewed_at = new Date().toISOString();
   }
 
+  // Track certification date for annual re-certification
+  if (updates.pq_status === "approved") {
+    updates.pq_last_certified_at = new Date().toISOString();
+  }
+
   const { data, error } = await auth.client
     .from("investors")
     .update(updates)

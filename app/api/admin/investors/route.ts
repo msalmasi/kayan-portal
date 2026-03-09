@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
   const paymentFilter = searchParams.get("payment") || "";
   const docsFilter = searchParams.get("docs") || "";
   const actionFilter = searchParams.get("action") === "true";
+  const jurisdictionFilter = searchParams.get("jurisdiction") || "";
   const isExport = searchParams.get("export") === "csv";
 
   // ── Fetch ALL matching investors in batches ──
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
     let query = auth.client
       .from("investors")
       .select(
-        "id, email, full_name, kyc_status, pq_status, created_at, " +
+        "id, email, full_name, kyc_status, pq_status, pq_data, created_at, " +
         "allocations(token_amount, payment_status, approval_status, round_id), " +
         "investor_documents(doc_type, status, round_id)"
       )
@@ -142,12 +143,18 @@ export async function GET(request: NextRequest) {
     if (inv.pq_status === "submitted") actionReasons.push("PQ needs review");
     if (pendingAllocations > 0) actionReasons.push(`${pendingAllocations} allocation(s) pending`);
 
+    // Extract jurisdiction from PQ data
+    const pq = inv.pq_data || {};
+    const isNested = !!pq.section_a;
+    const jurisdiction = isNested ? pq.section_a?.jurisdiction_of_residence : pq.jurisdiction_of_residence;
+
     return {
       id: inv.id,
       email: inv.email,
       full_name: inv.full_name,
       kyc_status: inv.kyc_status,
       pq_status: inv.pq_status || "not_sent",
+      jurisdiction: jurisdiction || null,
       total_tokens: totalTokens,
       round_count: approved.length,
       pending_allocations: pendingAllocations,
@@ -168,6 +175,9 @@ export async function GET(request: NextRequest) {
   }
   if (actionFilter) {
     investors = investors.filter((inv: any) => inv.action_needed);
+  }
+  if (jurisdictionFilter) {
+    investors = investors.filter((inv: any) => inv.jurisdiction === jurisdictionFilter);
   }
 
   // ── Sort ──
@@ -211,13 +221,14 @@ export async function GET(request: NextRequest) {
 
   // ── CSV Export ──
   if (isExport) {
-    const headers = "Name,Email,KYC,PQ,Payment,Tokens,Docs,Action Needed,Date Added";
+    const headers = "Name,Email,KYC,PQ,Jurisdiction,Payment,Tokens,Docs,Action Needed,Date Added";
     const rows = investors.map((inv: any) =>
       [
         `"${inv.full_name}"`,
         inv.email,
         inv.kyc_status,
         inv.pq_status,
+        inv.jurisdiction || "",
         inv.payment_summary,
         inv.total_tokens,
         inv.doc_status,

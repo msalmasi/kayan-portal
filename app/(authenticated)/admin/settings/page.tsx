@@ -9,6 +9,9 @@ import { PlatformPauseCard } from "@/components/admin/PlatformPauseCard";
 import { ReminderCard } from "@/components/admin/ReminderCard";
 import RegistryAuditLog from "@/components/admin/RegistryAuditLog";
 import PqTemplateEditor from "@/components/admin/PqTemplateEditor";
+import { MaterialEventsCard } from "@/components/admin/MaterialEventsCard";
+import { FsaReportCard } from "@/components/admin/FsaReportCard";
+import { RecertificationCard } from "@/components/admin/RecertificationCard";
 
 // ─── Tab definitions ─────────────────────────────────────────
 
@@ -45,7 +48,12 @@ function SettingsInner() {
       </TabPanel>
 
       <TabPanel id="compliance" active={activeTab}>
-        <PqTemplateEditor />
+        <div className="space-y-8">
+          <PqTemplateEditor />
+          <RecertificationCard />
+          <MaterialEventsCard />
+          <FsaReportCard />
+        </div>
       </TabPanel>
 
       <TabPanel id="branding" active={activeTab}>

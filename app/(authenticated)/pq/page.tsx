@@ -93,6 +93,36 @@ function DynamicField({
           </div>
         </label>
       );
+    case "file":
+      return (
+        <div>
+          <label className={labelCls}>{field.label}</label>
+          {value && <p className="text-xs text-emerald-600 mb-1">File uploaded ✓</p>}
+          <input
+            type="file"
+            accept={field.accept || ".pdf,.jpg,.jpeg,.png"}
+            disabled={disabled}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const formPayload = new FormData();
+              formPayload.append("file", file);
+              formPayload.append("field_id", field.id);
+              try {
+                const res = await fetch("/api/investor/pq/upload", { method: "POST", body: formPayload });
+                if (res.ok) {
+                  const { path } = await res.json();
+                  onChange(path);
+                } else {
+                  alert("Upload failed. Please try again.");
+                }
+              } catch { alert("Upload failed."); }
+            }}
+            className="text-sm text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+          />
+          {field.help_text && <p className="text-xs text-gray-400 mt-1">{field.help_text}</p>}
+        </div>
+      );
     default:
       return null;
   }
@@ -102,7 +132,13 @@ function DynamicField({
 function isFieldVisible(field: PqTemplateField, data: PqDynamicFormData): boolean {
   if (!field.show_when) return true;
   const depVal = data[field.show_when.field];
+  // value_not: visible when dep != value
+  if (field.show_when.value_not !== undefined) return depVal !== field.show_when.value_not;
+  // value_in: visible when dep is in array
+  if (field.show_when.value_in !== undefined) return field.show_when.value_in.includes(depVal);
+  // value === false: visible when dep is falsy
   if (field.show_when.value === false) return !depVal;
+  // value equals
   return depVal === field.show_when.value;
 }
 

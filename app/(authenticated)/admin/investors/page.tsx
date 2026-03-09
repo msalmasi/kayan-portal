@@ -17,6 +17,7 @@ interface InvestorRow {
   full_name: string;
   kyc_status: string;
   pq_status: string;
+  jurisdiction: string | null;
   total_tokens: number;
   round_count: number;
   pending_allocations: number;
@@ -166,6 +167,7 @@ export default function AdminInvestorsPage() {
   const [paymentFilter, setPaymentFilter] = useState("");
   const [docsFilter, setDocsFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState("");
 
   // Sort
   const [sortBy, setSortBy] = useState<SortCol>("created_at");
@@ -223,7 +225,7 @@ export default function AdminInvestorsPage() {
     setInvestors(data.investors || []);
     setTotal(data.total || 0);
     setLoading(false);
-  }, [debouncedSearch, page, pageSize, sortBy, sortDir, kycFilter, pqFilter, paymentFilter, docsFilter, actionFilter]);
+  }, [debouncedSearch, page, pageSize, sortBy, sortDir, kycFilter, pqFilter, paymentFilter, docsFilter, actionFilter, jurisdictionFilter]);
 
   useEffect(() => {
     fetchInvestors();
@@ -232,7 +234,7 @@ export default function AdminInvestorsPage() {
   // Reset to page 0 when filters/search/sort change
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch, kycFilter, pqFilter, paymentFilter, docsFilter, actionFilter, sortBy, sortDir, pageSize]);
+  }, [debouncedSearch, kycFilter, pqFilter, paymentFilter, docsFilter, actionFilter, jurisdictionFilter, sortBy, sortDir, pageSize]);
 
   // ── Sort handler ──
   const handleSort = (col: SortCol) => {
@@ -245,7 +247,7 @@ export default function AdminInvestorsPage() {
   };
 
   // ── Clear all filters ──
-  const hasActiveFilters = kycFilter || pqFilter || paymentFilter || docsFilter || actionFilter || debouncedSearch;
+  const hasActiveFilters = kycFilter || pqFilter || paymentFilter || docsFilter || actionFilter || jurisdictionFilter || debouncedSearch;
   const clearFilters = () => {
     setSearch("");
     setKycFilter("");
@@ -253,6 +255,7 @@ export default function AdminInvestorsPage() {
     setPaymentFilter("");
     setDocsFilter("");
     setActionFilter("");
+    setJurisdictionFilter("");
   };
 
   // ── CSV Export ──
@@ -270,6 +273,7 @@ export default function AdminInvestorsPage() {
       if (paymentFilter) params.set("payment", paymentFilter);
       if (docsFilter) params.set("docs", docsFilter);
       if (actionFilter) params.set("action", actionFilter);
+      if (jurisdictionFilter) params.set("jurisdiction", jurisdictionFilter);
 
       const res = await fetch(`/api/admin/investors?${params}`);
       if (!res.ok) throw new Error("Export failed");
@@ -457,6 +461,15 @@ export default function AdminInvestorsPage() {
             <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectCls}>
               {ACTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+            <select value={jurisdictionFilter} onChange={(e) => setJurisdictionFilter(e.target.value)} className={selectCls}>
+              <option value="">All Jurisdictions</option>
+              <option value="MY">Malaysia (MY)</option>
+              <option value="HK">Hong Kong (HK)</option>
+              <option value="SG">Singapore (SG)</option>
+              <option value="AE">UAE (AE)</option>
+              <option value="GB">UK (GB)</option>
+              <option value="VG">BVI (VG)</option>
+            </select>
 
             {hasActiveFilters && (
               <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-gray-700 underline ml-1">
@@ -477,6 +490,7 @@ export default function AdminInvestorsPage() {
                 <SortHeader label="Name"    column="full_name"       current={sortBy} dir={sortDir} onSort={handleSort} />
                 <SortHeader label="KYC"     column="kyc_status"      current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
                 <SortHeader label="PQ"      column="pq_status"       current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
+                <th className="py-2.5 px-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Juris.</th>
                 <SortHeader label="Payment" column="payment_summary" current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
                 <SortHeader label="Docs"    column="doc_status"      current={sortBy} dir={sortDir} onSort={handleSort} align="center" />
                 <SortHeader label="Tokens"  column="total_tokens"    current={sortBy} dir={sortDir} onSort={handleSort} align="right" />
@@ -498,7 +512,7 @@ export default function AdminInvestorsPage() {
                 ))
               ) : investors.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-gray-400">
+                  <td colSpan={10} className="py-12 text-center text-gray-400">
                     {hasActiveFilters ? "No investors match your filters" : "No investors yet"}
                   </td>
                 </tr>
@@ -519,6 +533,7 @@ export default function AdminInvestorsPage() {
                     </td>
                     <td className="py-3 px-2 text-center"><KycBadge status={inv.kyc_status} /></td>
                     <td className="py-3 px-2 text-center"><PqBadge status={inv.pq_status} /></td>
+                    <td className="py-3 px-2 text-center text-xs text-gray-500 font-mono">{inv.jurisdiction || "—"}</td>
                     <td className="py-3 px-2 text-center">
                       {inv.payment_summary !== "none" ? (
                         <PaymentBadge status={inv.payment_summary} />

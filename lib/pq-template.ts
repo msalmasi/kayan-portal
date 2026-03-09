@@ -15,11 +15,19 @@ export type PqFieldType =
   | "select"
   | "radio"
   | "checkbox"
-  | "date";
+  | "date"
+  | "file";
 
 export interface PqFieldOption {
   value: string;
   label: string;
+}
+
+export interface PqShowWhen {
+  field: string;
+  value?: any;         // equals
+  value_not?: any;     // not equals
+  value_in?: any[];    // value is one of
 }
 
 export interface PqTemplateField {
@@ -29,8 +37,9 @@ export interface PqTemplateField {
   placeholder?: string;
   required?: boolean;                  // true = must be filled / checked
   options?: PqFieldOption[];           // for select / radio
-  show_when?: { field: string; value: any }; // conditional visibility
+  show_when?: PqShowWhen;             // conditional visibility
   help_text?: string;                  // small text below field
+  accept?: string;                     // for file fields, e.g. ".pdf,.jpg,.png"
 }
 
 export interface PqTemplateSection {
@@ -78,10 +87,21 @@ export function validatePqData(
       // Check conditional visibility
       if (field.show_when) {
         const depVal = data[field.show_when.field];
-        // Special handling for "show when X is false" (e.g., show investment fields when is_grant is unchecked)
-        if (field.show_when.value === false) {
+
+        // value_not: field visible when dependency != value
+        if (field.show_when.value_not !== undefined) {
+          if (depVal === field.show_when.value_not) continue; // hidden
+        }
+        // value_in: field visible when dependency is one of the values
+        else if (field.show_when.value_in !== undefined) {
+          if (!field.show_when.value_in.includes(depVal)) continue; // hidden
+        }
+        // value === false: show when dependency is falsy
+        else if (field.show_when.value === false) {
           if (depVal) continue; // field hidden because dependency is truthy
-        } else {
+        }
+        // value equals
+        else {
           if (depVal !== field.show_when.value) continue; // field not visible, skip
         }
       }
@@ -189,6 +209,63 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     ],
   },
 
+  // ── Section B-2: Non-Malaysian Person Certification ──
+  {
+    id: "section_b2",
+    title: "Section B-2 — Non-Malaysian Person Certification",
+    subtitle: "Required for non-Malaysian investors",
+    description: "As the issuing entity is incorporated in Labuan, Malaysia, I certify that I am not a Malaysian person:",
+    fields: [
+      { id: "not_my_citizen", type: "checkbox", required: true, label: "I am not a citizen or permanent resident of Malaysia", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
+      { id: "not_my_resident", type: "checkbox", required: true, label: "I am not ordinarily resident in Malaysia", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
+      { id: "not_my_entity", type: "checkbox", required: true, label: "I am not a corporation or entity incorporated or registered in Malaysia", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
+      { id: "not_purchasing_for_my_person", type: "checkbox", required: true, label: "I am not purchasing for the account or benefit of any Malaysian person", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
+    ],
+  },
+
+  // ── Section B-3: Malaysian Sophisticated Investor ──
+  {
+    id: "section_b3",
+    title: "Section B-3 — Malaysian Sophisticated Investor",
+    subtitle: "Capital Markets and Services Act 2007 (CMSA), Schedule 6 & 7",
+    description: "Malaysian investors must qualify as a sophisticated investor under the CMSA. Select the category that applies and provide supporting documentation.",
+    fields: [
+      {
+        id: "my_sophisticated_category",
+        type: "radio",
+        label: "Sophisticated Investor Category",
+        required: true,
+        show_when: { field: "jurisdiction_of_residence", value: "MY" },
+        options: [
+          { value: "individual_net_assets", label: "Individual with net personal assets ≥ RM3 million (or USD equivalent)" },
+          { value: "individual_income", label: "Individual with gross annual income ≥ RM300,000 (or USD equivalent)" },
+          { value: "corporation_net_assets", label: "Corporation with net assets ≥ RM10 million" },
+          { value: "licensed_institution", label: "Licensed institution / bank / insurer" },
+          { value: "unit_trust", label: "Unit trust / prescribed investment scheme" },
+          { value: "private_retirement", label: "Private retirement scheme" },
+          { value: "closed_end_fund", label: "Closed-end fund approved by the SC" },
+          { value: "my_other", label: "Other (specify)" },
+        ],
+      },
+      {
+        id: "my_sophisticated_other",
+        type: "text",
+        label: "Specify Category",
+        placeholder: "Describe your qualifying basis",
+        show_when: { field: "my_sophisticated_category", value: "my_other" },
+      },
+      {
+        id: "my_supporting_doc_path",
+        type: "file",
+        label: "Supporting Documentation",
+        help_text: "Upload bank statement, audited accounts, or tax assessment evidencing qualification threshold",
+        required: true,
+        accept: ".pdf,.jpg,.jpeg,.png",
+        show_when: { field: "jurisdiction_of_residence", value: "MY" },
+      },
+    ],
+  },
+
   // ── Section C: Investor Qualification ──
   {
     id: "section_c",
@@ -201,6 +278,8 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
         label: "Qualification Category",
         required: true,
         options: [
+          { value: "labuan_fsa_sophisticated", label: "Labuan FSA Sophisticated Investor" },
+          { value: "my_sc_sophisticated", label: "Malaysian SC Sophisticated Investor (Schedule 6/7)" },
           { value: "hk_professional_investor", label: "Hong Kong Professional Investor" },
           { value: "sg_accredited_investor", label: "Singapore Accredited Investor" },
           { value: "bvi_qualified", label: "BVI Qualified Purchaser" },
@@ -214,6 +293,41 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
         label: "Jurisdiction & Qualification Details",
         placeholder: "Specify jurisdiction and qualification category",
         show_when: { field: "qualification_type", value: "other_qualified" },
+      },
+    ],
+  },
+
+  // ── Section C-2: Labuan FSA Financial Thresholds ──
+  {
+    id: "section_c2",
+    title: "Section C-2 — Labuan FSA Financial Qualification",
+    subtitle: "Required for Labuan FSA Sophisticated Investors",
+    description: "Per the Labuan Financial Services Authority requirements, please provide your financial information in USD.",
+    fields: [
+      {
+        id: "labuan_net_worth_usd",
+        type: "number",
+        label: "Net Worth (USD)",
+        placeholder: "0",
+        required: true,
+        help_text: "Your total net worth in US Dollars",
+        show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
+      },
+      {
+        id: "labuan_annual_income_usd",
+        type: "number",
+        label: "Annual Income (USD)",
+        placeholder: "0",
+        required: true,
+        help_text: "Your gross annual income in US Dollars",
+        show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
+      },
+      {
+        id: "labuan_financial_certification",
+        type: "checkbox",
+        label: "I certify the above figures are accurate as of the date of this questionnaire and meet the minimum thresholds required by the Labuan Financial Services Authority",
+        required: true,
+        show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
       },
     ],
   },
