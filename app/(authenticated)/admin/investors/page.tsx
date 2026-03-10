@@ -463,12 +463,17 @@ export default function AdminInvestorsPage() {
             </select>
             <select value={jurisdictionFilter} onChange={(e) => setJurisdictionFilter(e.target.value)} className={selectCls}>
               <option value="">All Jurisdictions</option>
-              <option value="MY">Malaysia (MY)</option>
-              <option value="HK">Hong Kong (HK)</option>
-              <option value="SG">Singapore (SG)</option>
-              <option value="AE">UAE (AE)</option>
-              <option value="GB">UK (GB)</option>
-              <option value="VG">BVI (VG)</option>
+              <option value="MY">Malaysia</option>
+              <option value="HK">Hong Kong</option>
+              <option value="SG">Singapore</option>
+              <option value="VG">BVI</option>
+              <option value="KY">Cayman Islands</option>
+              <option value="AE">UAE</option>
+              <option value="GB">UK</option>
+              <option value="AU">Australia</option>
+              <option value="JP">Japan</option>
+              <option value="CH">Switzerland</option>
+              <option value="OTHER">Other</option>
             </select>
 
             {hasActiveFilters && (
