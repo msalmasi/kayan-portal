@@ -9,9 +9,11 @@ import { PqBadge, KycBadge } from "@/components/ui/Badge";
 import {
   PqTemplateSection,
   PqTemplateField,
+  PqShowWhen,
   PqDynamicFormData,
   DEFAULT_PQ_SECTIONS,
   validatePqData,
+  checkShowWhen,
 } from "@/lib/pq-template";
 
 // ── Styling ──
@@ -128,18 +130,13 @@ function DynamicField({
   }
 }
 
-// ── Conditional visibility ──
+// ── Conditional visibility (delegates to lib/pq-template) ──
 function isFieldVisible(field: PqTemplateField, data: PqDynamicFormData): boolean {
-  if (!field.show_when) return true;
-  const depVal = data[field.show_when.field];
-  // value_not: visible when dep != value
-  if (field.show_when.value_not !== undefined) return depVal !== field.show_when.value_not;
-  // value_in: visible when dep is in array
-  if (field.show_when.value_in !== undefined) return field.show_when.value_in.includes(depVal);
-  // value === false: visible when dep is falsy
-  if (field.show_when.value === false) return !depVal;
-  // value equals
-  return depVal === field.show_when.value;
+  return checkShowWhen(field.show_when, data);
+}
+
+function isSectionVisible(section: PqTemplateSection, data: PqDynamicFormData): boolean {
+  return checkShowWhen(section.show_when, data);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -334,18 +331,21 @@ export default function PurchaserQuestionnairePage() {
       )}
 
       {/* ═══ DYNAMIC SECTIONS ═══ */}
-      {sections.map((section) => (
-        <Card key={section.id}>
-          <CardHeader title={section.title} subtitle={section.subtitle} />
-          {section.description && <p className="text-xs text-gray-500 mb-4">{section.description}</p>}
-          <div className="space-y-4">
-            {section.fields.map((field) => {
-              if (!isFieldVisible(field, formData)) return null;
-              return <DynamicField key={field.id} field={field} value={formData[field.id]} onChange={(val) => setField(field.id, val)} disabled={readOnly} />;
-            })}
-          </div>
-        </Card>
-      ))}
+      {sections.map((section) => {
+        if (!isSectionVisible(section, formData)) return null;
+        return (
+          <Card key={section.id}>
+            <CardHeader title={section.title} subtitle={section.subtitle} />
+            {section.description && <p className="text-xs text-gray-500 mb-4">{section.description}</p>}
+            <div className="space-y-4">
+              {section.fields.map((field) => {
+                if (!isFieldVisible(field, formData)) return null;
+                return <DynamicField key={field.id} field={field} value={formData[field.id]} onChange={(val) => setField(field.id, val)} disabled={readOnly} />;
+              })}
+            </div>
+          </Card>
+        );
+      })}
 
       {/* ═══ SIGNATURE ═══ */}
       <Card>

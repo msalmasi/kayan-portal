@@ -47,6 +47,7 @@ export interface PqTemplateSection {
   title: string;
   subtitle?: string;
   description?: string;                // longer explanatory block
+  show_when?: PqShowWhen;              // section-level conditional visibility
   fields: PqTemplateField[];
 }
 
@@ -76,6 +77,16 @@ export interface PqValidationError {
  * Validate investor form data against a template.
  * Returns array of errors (empty = valid).
  */
+/** Check if a show_when condition is satisfied */
+export function checkShowWhen(sw: PqShowWhen | undefined, data: PqDynamicFormData): boolean {
+  if (!sw) return true;
+  const depVal = data[sw.field];
+  if (sw.value_not !== undefined) return depVal !== sw.value_not;
+  if (sw.value_in !== undefined) return sw.value_in.includes(depVal);
+  if (sw.value === false) return !depVal;
+  return depVal === sw.value;
+}
+
 export function validatePqData(
   template: PqTemplateSection[],
   data: PqDynamicFormData
@@ -83,28 +94,12 @@ export function validatePqData(
   const errors: PqValidationError[] = [];
 
   for (const section of template) {
-    for (const field of section.fields) {
-      // Check conditional visibility
-      if (field.show_when) {
-        const depVal = data[field.show_when.field];
+    // Skip hidden sections entirely
+    if (!checkShowWhen(section.show_when, data)) continue;
 
-        // value_not: field visible when dependency != value
-        if (field.show_when.value_not !== undefined) {
-          if (depVal === field.show_when.value_not) continue; // hidden
-        }
-        // value_in: field visible when dependency is one of the values
-        else if (field.show_when.value_in !== undefined) {
-          if (!field.show_when.value_in.includes(depVal)) continue; // hidden
-        }
-        // value === false: show when dependency is falsy
-        else if (field.show_when.value === false) {
-          if (depVal) continue; // field hidden because dependency is truthy
-        }
-        // value equals
-        else {
-          if (depVal !== field.show_when.value) continue; // field not visible, skip
-        }
-      }
+    for (const field of section.fields) {
+      // Check field-level conditional visibility
+      if (!checkShowWhen(field.show_when, data)) continue;
 
       if (!field.required) continue;
 
@@ -215,11 +210,12 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     title: "Section B-2 — Non-Malaysian Person Certification",
     subtitle: "Required for non-Malaysian investors",
     description: "As the issuing entity is incorporated in Labuan, Malaysia, I certify that I am not a Malaysian person:",
+    show_when: { field: "jurisdiction_of_residence", value_not: "MY" },
     fields: [
-      { id: "not_my_citizen", type: "checkbox", required: true, label: "I am not a citizen or permanent resident of Malaysia", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
-      { id: "not_my_resident", type: "checkbox", required: true, label: "I am not ordinarily resident in Malaysia", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
-      { id: "not_my_entity", type: "checkbox", required: true, label: "I am not a corporation or entity incorporated or registered in Malaysia", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
-      { id: "not_purchasing_for_my_person", type: "checkbox", required: true, label: "I am not purchasing for the account or benefit of any Malaysian person", show_when: { field: "jurisdiction_of_residence", value_not: "MY" } },
+      { id: "not_my_citizen", type: "checkbox", required: true, label: "I am not a citizen or permanent resident of Malaysia" },
+      { id: "not_my_resident", type: "checkbox", required: true, label: "I am not ordinarily resident in Malaysia" },
+      { id: "not_my_entity", type: "checkbox", required: true, label: "I am not a corporation or entity incorporated or registered in Malaysia" },
+      { id: "not_purchasing_for_my_person", type: "checkbox", required: true, label: "I am not purchasing for the account or benefit of any Malaysian person" },
     ],
   },
 
@@ -229,13 +225,13 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     title: "Section B-3 — Malaysian Sophisticated Investor",
     subtitle: "Capital Markets and Services Act 2007 (CMSA), Schedule 6 & 7",
     description: "Malaysian investors must qualify as a sophisticated investor under the CMSA. Select the category that applies and provide supporting documentation.",
+    show_when: { field: "jurisdiction_of_residence", value: "MY" },
     fields: [
       {
         id: "my_sophisticated_category",
         type: "radio",
         label: "Sophisticated Investor Category",
         required: true,
-        show_when: { field: "jurisdiction_of_residence", value: "MY" },
         options: [
           { value: "individual_net_assets", label: "Individual with net personal assets ≥ RM3 million (or USD equivalent)" },
           { value: "individual_income", label: "Individual with gross annual income ≥ RM300,000 (or USD equivalent)" },
@@ -261,7 +257,6 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
         help_text: "Upload bank statement, audited accounts, or tax assessment evidencing qualification threshold",
         required: true,
         accept: ".pdf,.jpg,.jpeg,.png",
-        show_when: { field: "jurisdiction_of_residence", value: "MY" },
       },
     ],
   },
@@ -303,6 +298,7 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     title: "Section C-2 — Labuan FSA Financial Qualification",
     subtitle: "Required for Labuan FSA Sophisticated Investors",
     description: "Per the Labuan Financial Services Authority requirements, please provide your financial information in USD.",
+    show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
     fields: [
       {
         id: "labuan_net_worth_usd",
@@ -311,7 +307,6 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
         placeholder: "0",
         required: true,
         help_text: "Your total net worth in US Dollars",
-        show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
       },
       {
         id: "labuan_annual_income_usd",
@@ -320,14 +315,12 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
         placeholder: "0",
         required: true,
         help_text: "Your gross annual income in US Dollars",
-        show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
       },
       {
         id: "labuan_financial_certification",
         type: "checkbox",
         label: "I certify the above figures are accurate as of the date of this questionnaire and meet the minimum thresholds required by the Labuan Financial Services Authority",
         required: true,
-        show_when: { field: "qualification_type", value: "labuan_fsa_sophisticated" },
       },
     ],
   },
