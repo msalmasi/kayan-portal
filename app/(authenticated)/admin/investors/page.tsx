@@ -219,6 +219,7 @@ export default function AdminInvestorsPage() {
     if (paymentFilter) params.set("payment", paymentFilter);
     if (docsFilter) params.set("docs", docsFilter);
     if (actionFilter) params.set("action", actionFilter);
+    if (jurisdictionFilter) params.set("jurisdiction", jurisdictionFilter);
 
     const res = await fetch(`/api/admin/investors?${params}`);
     const data = await res.json();
