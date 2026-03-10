@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Tabs, TabPanel } from "@/components/ui/Tabs";
 import { EntityBrandingPanel } from "@/components/admin/EntityBrandingPanel";
@@ -12,7 +12,6 @@ import PqTemplateEditor from "@/components/admin/PqTemplateEditor";
 import { MaterialEventsCard } from "@/components/admin/MaterialEventsCard";
 import { FsaReportCard } from "@/components/admin/FsaReportCard";
 import { RecertificationCard } from "@/components/admin/RecertificationCard";
-import { useEntity } from "@/components/EntityConfigProvider";
 
 // ─── Tab definitions ─────────────────────────────────────────
 
@@ -40,16 +39,23 @@ const JURISDICTION_LABELS: Record<string, string> = {
 function SettingsInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const entity = useEntity();
   const initialTab = searchParams.get("tab") || "operations";
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [jurisdiction, setJurisdiction] = useState<string>("");
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     router.replace(`/admin/settings?tab=${tab}`, { scroll: false });
   };
 
-  const jurisdiction = entity?.issuer_jurisdiction || "";
+  // Fetch jurisdiction directly from API (not cached provider)
+  // Cache-bust with timestamp so it reflects saves made in the Issuer tab
+  useEffect(() => {
+    fetch(`/api/entity-config?t=${Date.now()}`)
+      .then((r) => r.json())
+      .then((d) => setJurisdiction(d.issuer_jurisdiction || ""))
+      .catch(() => {});
+  }, [activeTab]); // re-fetch when switching tabs
 
   return (
     <>
