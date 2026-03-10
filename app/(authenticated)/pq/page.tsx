@@ -63,20 +63,33 @@ function DynamicField({
           <input type="date" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={inputCls} />
         </div>
       );
-    case "select":
+    case "select": {
+      const options = field.options || [];
+      const hasMatch = options.some((o) => o.value === value);
       return (
         <div>
           <label className={labelCls}>{field.label}</label>
-          <select value={value || field.options?.[0]?.value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={selectCls}>
-            {field.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          <select value={hasMatch ? value : ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={selectCls}>
+            <option value="" disabled>— Select —</option>
+            {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
+          {!hasMatch && value && (
+            <p className="text-xs text-amber-600 mt-1">Previous value "{value}" needs to be re-selected from the dropdown.</p>
+          )}
           {field.help_text && <p className="text-xs text-gray-400 mt-1">{field.help_text}</p>}
         </div>
       );
-    case "radio":
+    }
+    case "radio": {
+      const radioOptions = field.options || [];
+      const radioHasMatch = !value || radioOptions.some((o) => o.value === value);
       return (
         <div className="space-y-3">
-          {field.options?.map((opt) => (
+          <label className={labelCls}>{field.label}</label>
+          {!radioHasMatch && value && (
+            <p className="text-xs text-amber-600">Previous value &quot;{value}&quot; is no longer available. Please re-select.</p>
+          )}
+          {radioOptions.map((opt) => (
             <label key={opt.value} className="flex items-start gap-3 cursor-pointer">
               <input type="radio" name={field.id} value={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} disabled={disabled}
                 className="mt-0.5 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500" />
@@ -85,6 +98,7 @@ function DynamicField({
           ))}
         </div>
       );
+    }
     case "checkbox":
       return (
         <label className="flex items-start gap-3 cursor-pointer">

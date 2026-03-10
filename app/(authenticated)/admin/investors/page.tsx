@@ -539,7 +539,16 @@ export default function AdminInvestorsPage() {
                     </td>
                     <td className="py-3 px-2 text-center"><KycBadge status={inv.kyc_status} /></td>
                     <td className="py-3 px-2 text-center"><PqBadge status={inv.pq_status} /></td>
-                    <td className="py-3 px-2 text-center text-xs text-gray-500 font-mono">{inv.jurisdiction || "—"}</td>
+                    <td className="py-3 px-2 text-center text-xs text-gray-500">{
+                      inv.jurisdiction === "MY" ? "Malaysia" :
+                      inv.jurisdiction === "HK" ? "Hong Kong" :
+                      inv.jurisdiction === "SG" ? "Singapore" :
+                      inv.jurisdiction === "VG" ? "BVI" :
+                      inv.jurisdiction === "KY" ? "Cayman" :
+                      inv.jurisdiction === "AE" ? "UAE" :
+                      inv.jurisdiction === "GB" ? "UK" :
+                      inv.jurisdiction || "—"
+                    }</td>
                     <td className="py-3 px-2 text-center">
                       {inv.payment_summary !== "none" ? (
                         <PaymentBadge status={inv.payment_summary} />

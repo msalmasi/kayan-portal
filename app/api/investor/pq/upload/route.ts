@@ -59,6 +59,16 @@ export async function POST(request: NextRequest) {
   const storagePath = `${investor.id}/${fieldId}_${timestamp}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
+  // Ensure the storage bucket exists (auto-create on first upload)
+  const { data: buckets } = await adminClient.storage.listBuckets();
+  const bucketExists = (buckets || []).some((b: any) => b.name === "pq-documents");
+  if (!bucketExists) {
+    await adminClient.storage.createBucket("pq-documents", {
+      public: false,
+      fileSizeLimit: 10 * 1024 * 1024, // 10MB
+    });
+  }
+
   const { error: uploadErr } = await adminClient.storage
     .from("pq-documents")
     .upload(storagePath, buffer, {

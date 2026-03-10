@@ -36,6 +36,16 @@ interface PqReviewChecklistProps {
 
 // ─── Helpers ────────────────────────────────────────────────
 
+const JURISDICTION_LABELS: Record<string, string> = {
+  MY: "Malaysia", HK: "Hong Kong", SG: "Singapore", VG: "BVI",
+  KY: "Cayman Islands", AE: "UAE", GB: "United Kingdom", AU: "Australia",
+  JP: "Japan", KR: "South Korea", TW: "Taiwan", TH: "Thailand",
+  ID: "Indonesia", PH: "Philippines", IN: "India", CN: "China",
+  CH: "Switzerland", DE: "Germany", FR: "France", NL: "Netherlands",
+  LU: "Luxembourg", IE: "Ireland", CA: "Canada", NZ: "New Zealand",
+  BN: "Brunei", MO: "Macau", OTHER: "Other",
+};
+
 const checkCls =
   "h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 disabled:opacity-50";
 
@@ -259,7 +269,7 @@ export function PqReviewChecklist({
         >
           <p><strong>Type:</strong> {d.section_a.investor_type}</p>
           <p><strong>Name:</strong> {d.section_a.legal_name}</p>
-          <p><strong>Jurisdiction:</strong> {d.section_a.jurisdiction_of_residence}</p>
+          <p><strong>Jurisdiction:</strong> {JURISDICTION_LABELS[d.section_a.jurisdiction_of_residence] || d.section_a.jurisdiction_of_residence}</p>
           {d.section_a.investor_type === "entity" && (
             <>
               <p><strong>Entity Type:</strong> {d.section_a.entity_type || "—"}</p>
