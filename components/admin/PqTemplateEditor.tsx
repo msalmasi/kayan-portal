@@ -9,8 +9,9 @@ import {
   PqTemplateField,
   PqFieldType,
   PqFieldOption,
-  DEFAULT_PQ_SECTIONS,
+  getDefaultPqSections,
 } from "@/lib/pq-template";
+import { useEntity } from "@/components/EntityConfigProvider";
 
 // ── Helpers ──
 
@@ -308,6 +309,7 @@ interface TemplateListItem {
 }
 
 export default function PqTemplateEditor() {
+  const entity = useEntity();
   const [templates, setTemplates] = useState<TemplateListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -348,7 +350,7 @@ export default function PqTemplateEditor() {
       setEditingFromId(template.id);
     } else {
       // New from default
-      setEditingSections(JSON.parse(JSON.stringify(DEFAULT_PQ_SECTIONS)));
+      setEditingSections(JSON.parse(JSON.stringify(getDefaultPqSections(entity.issuer_jurisdiction))));
       setEditingName("Purchaser Questionnaire");
       setEditingNotes("Initial template from default");
       setEditingFromId(null);

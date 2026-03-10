@@ -440,3 +440,36 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     ],
   },
 ];
+
+// ── Labuan-specific section IDs ──
+const LABUAN_SECTION_IDS = new Set(["section_b2", "section_b3", "section_c2"]);
+const LABUAN_QUALIFICATION_VALUES = new Set(["labuan_fsa_sophisticated", "my_sc_sophisticated"]);
+
+/**
+ * Get default PQ sections appropriate for the issuer jurisdiction.
+ *
+ * Labuan (LB): Full template including Malaysian/Labuan sections (B-2, B-3, C-2)
+ * Other jurisdictions: Base template without Labuan-specific sections
+ */
+export function getDefaultPqSections(issuerJurisdiction?: string): PqTemplateSection[] {
+  // Labuan: return full template as-is
+  if (issuerJurisdiction === "LB") return DEFAULT_PQ_SECTIONS;
+
+  // Other jurisdictions: strip Labuan-specific sections and qualification options
+  return DEFAULT_PQ_SECTIONS
+    .filter((s) => !LABUAN_SECTION_IDS.has(s.id))
+    .map((s) => {
+      if (s.id !== "section_c") return s;
+      // Remove Labuan/Malaysian qualification options from Section C
+      return {
+        ...s,
+        fields: s.fields.map((f) => {
+          if (f.id !== "qualification_type" || !f.options) return f;
+          return {
+            ...f,
+            options: f.options.filter((o) => !LABUAN_QUALIFICATION_VALUES.has(o.value)),
+          };
+        }),
+      };
+    });
+}

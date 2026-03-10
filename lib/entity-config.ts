@@ -19,6 +19,7 @@ export interface EntityConfig {
   project_name: string;       // Product/token name, e.g. "Kayan Token"
   token_ticker: string;       // Token symbol, e.g. "KAYAN"
   portal_title: string;       // Browser tab title
+  issuer_jurisdiction: string; // ISO code, e.g. "LB" (Labuan), "KY" (Cayman), "VG" (BVI)
 
   // URLs
   portal_url: string;         // Full portal URL
@@ -62,6 +63,7 @@ export const DEFAULT_ENTITY_CONFIG: EntityConfig = {
   project_name: "Kayan Token",
   token_ticker: "KAYAN",
   portal_title: "Kayan Token — Investor Portal",
+  issuer_jurisdiction: "LB",
 
   portal_url: "https://kayan.panoptes.io",
   website_url: "https://www.kayanforest.com",

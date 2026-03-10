@@ -39,6 +39,7 @@ export function useEntity() {
     accent: config?.brand_accent ?? "2d5f3f",
     disclaimer: config?.disclaimer_entity ?? "Investor Portal",
     footer: config?.footer_text ?? "",
+    issuer_jurisdiction: config?.issuer_jurisdiction ?? "",
     loaded: !!config,
   };
 }

@@ -156,6 +156,26 @@ export function EntityBrandingPanel() {
             value={config.disclaimer_entity}
             onChange={handleChange}
           />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Issuer Jurisdiction</label>
+            <select
+              value={config.issuer_jurisdiction || ""}
+              onChange={(e) => handleChange("issuer_jurisdiction" as keyof EntityConfig, e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 bg-white"
+            >
+              <option value="">Not set</option>
+              <option value="LB">Labuan, Malaysia (LB)</option>
+              <option value="KY">Cayman Islands (KY)</option>
+              <option value="VG">British Virgin Islands (VG)</option>
+              <option value="SG">Singapore (SG)</option>
+              <option value="HK">Hong Kong (HK)</option>
+              <option value="AE">UAE / DIFC (AE)</option>
+              <option value="GB">United Kingdom (GB)</option>
+              <option value="CH">Switzerland (CH)</option>
+              <option value="OTHER">Other</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Determines jurisdiction-specific compliance features and PQ sections</p>
+          </div>
         </div>
       </Card>
 
