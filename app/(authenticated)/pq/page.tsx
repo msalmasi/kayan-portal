@@ -11,7 +11,6 @@ import {
   PqTemplateField,
   PqShowWhen,
   PqDynamicFormData,
-  DEFAULT_PQ_SECTIONS,
   validatePqData,
   checkShowWhen,
 } from "@/lib/pq-template";
@@ -189,7 +188,7 @@ export default function PurchaserQuestionnairePage() {
         setPqUpdatePrompted(!!data.pq_update_prompted_at);
 
         // Template: DB or fallback
-        setSections(data.template?.sections || DEFAULT_PQ_SECTIONS);
+        setSections(data.template?.sections || []);
 
         // Pre-fill from existing data
         if (data.pq_data) {

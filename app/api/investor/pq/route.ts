@@ -56,6 +56,15 @@ export async function GET() {
     .limit(1)
     .single();
 
+  // If no DB template, build jurisdiction-aware defaults
+  let templateSections = activeTemplate?.sections || null;
+  if (!templateSections) {
+    const { getDefaultPqSections } = await import("@/lib/pq-template");
+    const { getEntityConfig } = await import("@/lib/entity-config");
+    const config = await getEntityConfig(ctx.adminClient);
+    templateSections = getDefaultPqSections(config.issuer_jurisdiction);
+  }
+
   return NextResponse.json({
     pq_status: ctx.investor.pq_status,
     pq_data: ctx.investor.pq_data,
@@ -67,7 +76,7 @@ export async function GET() {
     kyc_status: ctx.investor.kyc_status,
     full_name: ctx.investor.full_name,
     email: ctx.investor.email,
-    template: activeTemplate || null,
+    template: activeTemplate || { sections: templateSections },
   });
 }
 
@@ -121,9 +130,14 @@ export async function POST(request: NextRequest) {
     .limit(1)
     .single();
 
-  // If a template is active, validate against it; otherwise use default sections
-  const { validatePqData, DEFAULT_PQ_SECTIONS } = await import("@/lib/pq-template");
-  const sectionsToValidate = activeTemplate?.sections || DEFAULT_PQ_SECTIONS;
+  // If a template is active, validate against it; otherwise use jurisdiction-aware defaults
+  const { validatePqData, getDefaultPqSections } = await import("@/lib/pq-template");
+  const { getEntityConfig } = await import("@/lib/entity-config");
+  let sectionsToValidate = activeTemplate?.sections;
+  if (!sectionsToValidate) {
+    const config = await getEntityConfig(ctx.adminClient);
+    sectionsToValidate = getDefaultPqSections(config.issuer_jurisdiction);
+  }
   const errors = validatePqData(sectionsToValidate, pq_data);
   if (errors.length > 0) {
     return NextResponse.json(

@@ -63,7 +63,7 @@ export const DEFAULT_ENTITY_CONFIG: EntityConfig = {
   project_name: "Kayan Token",
   token_ticker: "KAYAN",
   portal_title: "Kayan Token — Investor Portal",
-  issuer_jurisdiction: "LB",
+  issuer_jurisdiction: "",
 
   portal_url: "https://kayan.panoptes.io",
   website_url: "https://www.kayanforest.com",
