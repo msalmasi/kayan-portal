@@ -63,11 +63,16 @@ function StatCard({ label, value, sub, warn }: { label: string; value: string; s
 // POOL MODAL (create / edit)
 // ═══════════════════════════════════════════════════════════
 
-function PoolModal({ pool, onClose, onSaved }: { pool?: Pool; onClose: () => void; onSaved: () => void }) {
+function PoolModal({ pool, onClose, onSaved, poolCount }: { pool?: Pool; onClose: () => void; onSaved: () => void; poolCount?: number }) {
+  const PRESET_COLORS = [
+    "8b5cf6", "6366f1", "3b82f6", "06b6d4", "14b8a6",
+    "10b981", "84cc16", "eab308", "f59e0b", "f97316",
+    "ef4444", "ec4899", "a855f7", "6b7280", "1a3c2a",
+  ];
   const [name, setName] = useState(pool?.name || "");
   const [description, setDescription] = useState(pool?.description || "");
   const [budget, setBudget] = useState(pool ? String(pool.token_budget) : "");
-  const [color, setColor] = useState(pool?.color || "8b5cf6");
+  const [color, setColor] = useState(pool?.color || PRESET_COLORS[(poolCount || 0) % PRESET_COLORS.length]);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -107,10 +112,21 @@ function PoolModal({ pool, onClose, onSaved }: { pool?: Pool; onClose: () => voi
             <input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="0" className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Color (hex)</label>
-            <div className="flex items-center gap-2">
-              <input type="text" value={color} onChange={(e) => setColor(e.target.value.replace("#", ""))} placeholder="8b5cf6" className={`${inputCls} font-mono`} />
-              <div className="w-8 h-8 rounded-lg border border-gray-200 flex-shrink-0" style={{ backgroundColor: `#${color}` }} />
+            <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c ? "border-gray-900 scale-110" : "border-transparent hover:border-gray-300"}`}
+                  style={{ backgroundColor: `#${c}` }}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-6 h-6 rounded border border-gray-200 flex-shrink-0" style={{ backgroundColor: `#${color}` }} />
+              <input type="text" value={color} onChange={(e) => setColor(e.target.value.replace("#", ""))} placeholder="custom hex" className={`${inputCls} w-24 text-xs font-mono`} />
             </div>
           </div>
         </div>
@@ -562,7 +578,7 @@ export default function AdminPoolsPage() {
       ))}
 
       {/* Modals */}
-      {showPoolModal && <PoolModal onClose={() => setShowPoolModal(false)} onSaved={fetchPools} />}
+      {showPoolModal && <PoolModal onClose={() => setShowPoolModal(false)} onSaved={fetchPools} poolCount={pools.length} />}
       {editPool && <PoolModal pool={editPool} onClose={() => setEditPool(null)} onSaved={fetchPools} />}
     </div>
   );
