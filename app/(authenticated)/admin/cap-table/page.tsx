@@ -330,7 +330,7 @@ export default function CapTablePage() {
                 <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="55%" outerRadius="85%" paddingAngle={1}>
                   {donutData.map((d, i) => <Cell key={i} fill={d.color} stroke="white" strokeWidth={2} />)}
                 </Pie>
-                <Tooltip formatter={(value: number) => [fmt(value), "Tokens"]} contentStyle={{ fontSize: "12px", borderRadius: "8px", border: "1px solid #e5e7eb" }} />
+                <Tooltip formatter={(value: number, name: string) => [fmt(value), name]} contentStyle={{ fontSize: "12px", borderRadius: "8px", border: "1px solid #e5e7eb" }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
