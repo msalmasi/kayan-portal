@@ -268,6 +268,21 @@ export function EntityBrandingPanel() {
             value={config.footer_text}
             onChange={handleChange}
           />
+          <Field
+            label="Registered Address"
+            field="entity_address"
+            hint="Legal registered address — shown in portal footer for entity verification"
+            value={config.entity_address}
+            onChange={handleChange}
+          />
+          <Field
+            label="Privacy Policy URL"
+            field="privacy_url"
+            type="url"
+            hint="Link to your privacy policy / privacy notice — shown in portal footer"
+            value={config.privacy_url}
+            onChange={handleChange}
+          />
         </div>
       </Card>
 

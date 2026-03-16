@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { NotificationProvider } from "@/lib/notification-context";
 import { PauseBanner } from "@/components/admin/PauseBanner";
+import { LegalFooter } from "@/components/ui/LegalFooter";
 
 /**
  * Client-side shell for the authenticated layout.
@@ -28,6 +29,7 @@ export function AuthenticatedShell({
         <div className="p-6 lg:p-8 pt-16 lg:pt-8 max-w-6xl">
           {children}
         </div>
+        <LegalFooter className="py-6 px-8 border-t border-gray-100 mt-8" />
       </main>
     </NotificationProvider>
   );

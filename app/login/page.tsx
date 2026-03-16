@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
 import { useEntity } from "@/components/EntityConfigProvider";
+import { LegalFooter } from "@/components/ui/LegalFooter";
 
 /**
  * Inner login component — uses useSearchParams() which requires Suspense.
@@ -171,16 +172,19 @@ function LoginForm() {
           )}
         </div>
 
-        {/* Footer note */}
-        <p className="text-xs text-gray-400 text-center mt-6">
-          Don&apos;t have an account?{" "}
-          <a
-            href={`mailto:${entity.supportEmail}`}
-            className="text-brand-500 hover:text-brand-600"
-          >
-            Contact support
-          </a>
-        </p>
+        {/* Footer */}
+        <div className="mt-6 space-y-3">
+          <p className="text-xs text-gray-400 text-center">
+            Don&apos;t have an account?{" "}
+            <a
+              href={`mailto:${entity.supportEmail}`}
+              className="text-brand-500 hover:text-brand-600"
+            >
+              Contact support
+            </a>
+          </p>
+          <LegalFooter />
+        </div>
       </div>
     </div>
   );
