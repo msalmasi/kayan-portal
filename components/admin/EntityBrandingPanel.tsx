@@ -287,7 +287,6 @@ export function EntityBrandingPanel() {
           />
           <p className="text-xs text-gray-400 mt-1">Displayed at /privacy — linked from the portal footer. Plain text with paragraph breaks.</p>
         </div>
-        </div>
       </Card>
 
       {/* Brand Colors */}
