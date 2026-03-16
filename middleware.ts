@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // ── Public routes: always accessible, no checks ──
-  if (path === "/gate" || path === "/restricted") {
+  if (path === "/gate" || path === "/restricted" || path === "/privacy") {
     return response;
   }
 

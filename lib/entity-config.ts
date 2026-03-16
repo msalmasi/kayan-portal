@@ -43,7 +43,7 @@ export interface EntityConfig {
   footer_text: string;        // Email footer, e.g. "Kayan International Inc. • Confidential"
   disclaimer_entity: string;  // Entity name in disclaimer modal
   entity_address: string;     // Registered address for legal footer
-  privacy_url: string;        // Privacy policy URL
+  privacy_text: string;       // Privacy policy / privacy notice content (markdown or plain text)
 
   // Token supply (used by cap table)
   total_supply: number;       // Maximum token supply
@@ -85,7 +85,7 @@ export const DEFAULT_ENTITY_CONFIG: EntityConfig = {
   footer_text: "Kayan International Inc. • Confidential",
   disclaimer_entity: "Kayan Token Investor Portal",
   entity_address: "",
-  privacy_url: "",
+  privacy_text: "",
 
   total_supply: 100_000_000,
   reserved_tokens: 0,

@@ -40,7 +40,7 @@ export function useEntity() {
     disclaimer: config?.disclaimer_entity ?? "Investor Portal",
     footer: config?.footer_text ?? "",
     entity_address: config?.entity_address ?? "",
-    privacy_url: config?.privacy_url ?? "",
+    privacy_text: config?.privacy_text ?? "",
     issuer_jurisdiction: config?.issuer_jurisdiction ?? "",
     loaded: !!config,
   };

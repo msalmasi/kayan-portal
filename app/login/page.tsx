@@ -183,7 +183,7 @@ function LoginForm() {
               Contact support
             </a>
           </p>
-          <LegalFooter />
+          <LegalFooter hideSupport />
         </div>
       </div>
     </div>

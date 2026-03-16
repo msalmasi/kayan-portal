@@ -275,14 +275,18 @@ export function EntityBrandingPanel() {
             value={config.entity_address}
             onChange={handleChange}
           />
-          <Field
-            label="Privacy Policy URL"
-            field="privacy_url"
-            type="url"
-            hint="Link to your privacy policy / privacy notice — shown in portal footer"
-            value={config.privacy_url}
-            onChange={handleChange}
+        </div>
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Privacy Policy / Privacy Notice</label>
+          <textarea
+            value={config.privacy_text || ""}
+            onChange={(e) => handleChange("privacy_text" as keyof EntityConfig, e.target.value)}
+            rows={8}
+            placeholder="Enter your privacy policy or privacy notice text here. This will be accessible via a Privacy Policy link in the portal footer."
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 font-mono"
           />
+          <p className="text-xs text-gray-400 mt-1">Displayed at /privacy — linked from the portal footer. Plain text with paragraph breaks.</p>
+        </div>
         </div>
       </Card>
 
