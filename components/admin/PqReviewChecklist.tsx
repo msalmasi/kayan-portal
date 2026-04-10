@@ -191,11 +191,16 @@ export function PqReviewChecklist({
         sanctions_confirmation: !!raw.sanctions_confirmation,
       },
       section_e: {
-        understands_restricted_security: !!raw.understands_restricted_security,
+        understands_investment_contract: !!raw.understands_investment_contract,
+        understands_transfer_restrictions: !!raw.understands_transfer_restrictions,
         understands_holding_period: !!raw.understands_holding_period,
-        understands_transfer_conditions: !!raw.understands_transfer_conditions,
         understands_no_hedging: !!raw.understands_no_hedging,
+        understands_separation: !!raw.understands_separation,
+        understands_separation_not_guaranteed: !!raw.understands_separation_not_guaranteed,
         accepts_indemnification: !!raw.accepts_indemnification,
+        // Legacy
+        understands_restricted_security: !!raw.understands_restricted_security,
+        understands_transfer_conditions: !!raw.understands_transfer_conditions,
       },
       section_f: {
         has_read_ppm: !!raw.has_read_ppm,
@@ -204,13 +209,22 @@ export function PqReviewChecklist({
         has_investment_experience: !!raw.has_investment_experience,
         no_reliance_on_company: !!raw.no_reliance_on_company,
       },
+      section_g: {
+        understands_not_equity: !!raw.understands_not_equity,
+        understands_commodity_redemption: !!raw.understands_commodity_redemption,
+        understands_protocol_utility: !!raw.understands_protocol_utility,
+        understands_entity_separation: !!raw.understands_entity_separation,
+        understands_commodity_risks: !!raw.understands_commodity_risks,
+      },
       signature_name: raw.signature_name || "",
       signature_date: raw.signature_date || "",
     } as PqFormData;
   })();
-  const allSectionsApproved = Object.keys(PQ_SECTION_LABELS).every(
-    (k) => review[k as keyof PqReviewData] && (review[k as keyof PqReviewData] as PqSectionReview).approved
-  );
+  const allSectionsApproved = Object.keys(PQ_SECTION_LABELS).every((k) => {
+    // Section G is optional — only require approval if data was submitted
+    if (k === "section_g" && !d.section_g) return true;
+    return review[k as keyof PqReviewData] && (review[k as keyof PqReviewData] as PqSectionReview).approved;
+  });
 
   const updateSection = (key: string, val: PqSectionReview) => {
     setReview((r) => ({ ...r, [key]: val }));
@@ -335,11 +349,20 @@ export function PqReviewChecklist({
           onUpdate={(v) => updateSection("section_e", v)}
           disabled={disabled}
         >
-          <BoolVal value={d.section_e.understands_restricted_security} label="Understands restricted security / unregistered status" />
+          <BoolVal value={d.section_e.understands_investment_contract} label="Understands SAFT is investment contract, token is commodity-protocol" />
+          <BoolVal value={d.section_e.understands_transfer_restrictions} label="Understands transfer restrictions during investment contract period" />
           <BoolVal value={d.section_e.understands_holding_period} label="Understands Rule 144 holding period (U.S. resales) vs. Reg S offshore" />
-          <BoolVal value={d.section_e.understands_transfer_conditions} label="Understands transfer conditions (Reg S / Rule 144 / consent)" />
           <BoolVal value={d.section_e.understands_no_hedging} label="Accepts no-hedging during distribution compliance period" />
+          <BoolVal value={d.section_e.understands_separation} label="Understands separation mechanism and post-separation free trading" />
+          <BoolVal value={d.section_e.understands_separation_not_guaranteed} label="Understands separation is milestone-dependent, not guaranteed" />
           <BoolVal value={d.section_e.accepts_indemnification} label="Accepts indemnification" />
+          {/* Legacy fields (pre-restructuring PQ submissions) */}
+          {d.section_e.understands_restricted_security && !d.section_e.understands_investment_contract && (
+            <>
+              <BoolVal value={d.section_e.understands_restricted_security} label="[Legacy] Understands restricted security status" />
+              <BoolVal value={d.section_e.understands_transfer_conditions} label="[Legacy] Understands transfer conditions" />
+            </>
+          )}
         </SectionReviewBlock>
 
         {/* ── Section F ── */}
@@ -349,12 +372,28 @@ export function PqReviewChecklist({
           onUpdate={(v) => updateSection("section_f", v)}
           disabled={disabled}
         >
-          <BoolVal value={d.section_f.has_read_ppm} label="Read PPM" />
-          <BoolVal value={d.section_f.has_read_saft} label="Read SAFT" />
-          <BoolVal value={d.section_f.has_read_cis} label="Read CIS" />
-          <BoolVal value={d.section_f.has_investment_experience} label="Has investment experience" />
+          <BoolVal value={d.section_f.has_read_ppm} label="Read PPM (commodity-protocol framing)" />
+          <BoolVal value={d.section_f.has_read_saft} label="Read SAFT (incl. separation milestones)" />
+          <BoolVal value={d.section_f.has_read_cis} label="Read CIS (Kayan Protocol & Panoptes Exchange)" />
+          <BoolVal value={d.section_f.has_investment_experience} label="Has investment experience (incl. commodity-protocol tokens)" />
           <BoolVal value={d.section_f.no_reliance_on_company} label="No reliance on company" />
         </SectionReviewBlock>
+
+        {/* ── Section G: Commodity-Protocol Acknowledgments ── */}
+        {d.section_g && (
+          <SectionReviewBlock
+            sectionKey="section_g"
+            review={review.section_g || { approved: false, notes: "" }}
+            onUpdate={(v) => updateSection("section_g", v)}
+            disabled={disabled}
+          >
+            <BoolVal value={d.section_g.understands_not_equity} label="Understands $KYN is not equity, no dividends/distributions" />
+            <BoolVal value={d.section_g.understands_commodity_redemption} label="Understands commodity redemption at market rates on Panoptes Exchange" />
+            <BoolVal value={d.section_g.understands_protocol_utility} label="Understands protocol utility (staking, fees, governance)" />
+            <BoolVal value={d.section_g.understands_entity_separation} label="Understands entity roles (Kayan Holdings / DIGITECH / Foundation / Panoptes)" />
+            <BoolVal value={d.section_g.understands_commodity_risks} label="Understands risks (novel RWA separation, commodity classification, decentralization)" />
+          </SectionReviewBlock>
+        )}
 
         {/* ── Signature ── */}
         <div className="bg-gray-50 rounded-lg p-4 text-sm">

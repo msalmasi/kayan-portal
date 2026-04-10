@@ -158,13 +158,18 @@ export interface PqSectionD {
   sanctions_confirmation: boolean;
 }
 
-/** Section E: Transfer restrictions acknowledgment */
+/** Section E: Investment contract & transfer restrictions */
 export interface PqSectionE {
-  understands_restricted_security: boolean;
+  understands_investment_contract: boolean;
+  understands_transfer_restrictions: boolean;
   understands_holding_period: boolean;
-  understands_transfer_conditions: boolean;
   understands_no_hedging: boolean;
+  understands_separation: boolean;
+  understands_separation_not_guaranteed: boolean;
   accepts_indemnification: boolean;
+  // Legacy (pre-restructuring)
+  understands_restricted_security?: boolean;
+  understands_transfer_conditions?: boolean;
 }
 
 /** Section F: General representations */
@@ -176,6 +181,15 @@ export interface PqSectionF {
   no_reliance_on_company: boolean;
 }
 
+/** Section G: Commodity-protocol token acknowledgments */
+export interface PqSectionG {
+  understands_not_equity: boolean;
+  understands_commodity_redemption: boolean;
+  understands_protocol_utility: boolean;
+  understands_entity_separation: boolean;
+  understands_commodity_risks: boolean;
+}
+
 /** Complete PQ form data (what the investor submits) */
 export interface PqFormData {
   section_a: PqSectionA;
@@ -184,6 +198,7 @@ export interface PqFormData {
   section_d: PqSectionD;
   section_e: PqSectionE;
   section_f: PqSectionF;
+  section_g?: PqSectionG;
   signature_name: string;
   signature_date: string;
 }
@@ -204,6 +219,7 @@ export interface PqReviewData {
   section_d: PqSectionReview;
   section_e: PqSectionReview;
   section_f: PqSectionReview;
+  section_g?: PqSectionReview;
   overall_notes: string;
 }
 
@@ -217,6 +233,7 @@ export function emptyPqReview(): PqReviewData {
     section_d: section(),
     section_e: section(),
     section_f: section(),
+    section_g: section(),
     overall_notes: "",
   };
 }
@@ -252,8 +269,9 @@ export const PQ_SECTION_LABELS: Record<string, string> = {
   section_b: "B — Non-U.S. Person Certification",
   section_c: "C — Investor Qualification",
   section_d: "D — Source of Funds & AML",
-  section_e: "E — Transfer Restrictions",
+  section_e: "E — Investment Contract & Transfer Restrictions",
   section_f: "F — General Representations",
+  section_g: "G — Commodity-Protocol Acknowledgments",
 };
 
 export const QUALIFICATION_LABELS: Record<string, string> = {

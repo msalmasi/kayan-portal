@@ -411,17 +411,19 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     ],
   },
 
-  // ── Section E: Transfer Restrictions ──
+  // ── Section E: Investment Contract & Transfer Restrictions ──
   {
     id: "section_e",
-    title: "Section E — Transfer Restrictions",
-    subtitle: "Acknowledgment of restricted security status and resale limitations",
-    description: "I acknowledge and agree to the following transfer restrictions. Note: The Tokens are being offered under Regulation S of the U.S. Securities Act, which permits sales to non-U.S. persons in offshore transactions.",
+    title: "Section E — Investment Contract & Transfer Restrictions",
+    subtitle: "Acknowledgment of SAFT investment contract period and associated restrictions",
+    description: "The $KYN token is a commodity-protocol token sold through an investment contract (SAFT) under Regulation S. Transfer restrictions apply during the investment contract period. I acknowledge and agree to the following:",
     fields: [
-      { id: "understands_restricted_security", type: "checkbox", required: true, label: "I understand the Tokens are \"restricted securities\" as defined under U.S. securities law and have not been registered under the Securities Act" },
-      { id: "understands_holding_period", type: "checkbox", required: true, label: "I understand that under Rule 144, any resale of the Tokens to U.S. persons or into the U.S. market is subject to a minimum one-year holding period from the date of issuance. This restriction does not apply to compliant offshore resales under Regulation S." },
-      { id: "understands_transfer_conditions", type: "checkbox", required: true, label: "I understand any transfer must comply with applicable securities laws (including Regulation S for offshore transactions and Rule 144 for U.S. resales) and may require prior written consent from the Company" },
+      { id: "understands_investment_contract", type: "checkbox", required: true, label: "I understand that I am entering into a Simple Agreement for Future Tokens (SAFT), which is an investment contract and a securities transaction under Regulation S. The $KYN token itself is designed as a commodity-protocol token, not a security." },
+      { id: "understands_transfer_restrictions", type: "checkbox", required: true, label: "I understand that transfer restrictions apply during the investment contract period (from SAFT execution through separation). During this period, any transfer requires prior written consent from the Company and must comply with applicable securities laws, including Regulation S for offshore transactions and Rule 144 for any U.S. resales." },
+      { id: "understands_holding_period", type: "checkbox", required: true, label: "I understand that under Rule 144, any resale to U.S. persons or into the U.S. market is subject to a minimum one-year holding period from the date of token delivery. This restriction does not apply to compliant offshore resales under Regulation S." },
       { id: "understands_no_hedging", type: "checkbox", required: true, label: "I agree not to engage in hedging transactions with respect to the Tokens prior to the end of the applicable Regulation S distribution compliance period" },
+      { id: "understands_separation", type: "checkbox", required: true, label: "I understand that upon fulfillment of the milestones specified in the SAFT (including Panoptes Exchange launch, commodity pool verification, and validator network establishment), the investment contract may separate from the $KYN token. Post-separation, securities law transfer restrictions no longer apply to the token." },
+      { id: "understands_separation_not_guaranteed", type: "checkbox", required: true, label: "I understand that investment contract separation is contingent on the achievement of specified milestones and is not guaranteed. If milestones are not achieved, transfer restrictions may continue to apply." },
       { id: "accepts_indemnification", type: "checkbox", required: true, label: "I agree to indemnify the Company against any losses arising from a breach of these representations" },
     ],
   },
@@ -432,11 +434,26 @@ export const DEFAULT_PQ_SECTIONS: PqTemplateSection[] = [
     title: "Section F — General Representations",
     subtitle: "Acknowledgment of offering documents and investment experience",
     fields: [
-      { id: "has_read_ppm", type: "checkbox", required: true, label: "I have received and read the Private Placement Memorandum (PPM)" },
-      { id: "has_read_saft", type: "checkbox", required: true, label: "I have received and read the Simple Agreement for Future Tokens (SAFT)" },
-      { id: "has_read_cis", type: "checkbox", required: true, label: "I have received and read the Confidential Information Statement (CIS)" },
-      { id: "has_investment_experience", type: "checkbox", required: true, label: "I have sufficient knowledge and experience in financial and business matters to evaluate the merits and risks of this investment" },
+      { id: "has_read_ppm", type: "checkbox", required: true, label: "I have received and read the Private Placement Memorandum (PPM), which describes the $KYN token as a commodity-protocol token offered through a SAFT investment contract" },
+      { id: "has_read_saft", type: "checkbox", required: true, label: "I have received and read the Simple Agreement for Future Tokens (SAFT), including the separation milestones and token delivery terms" },
+      { id: "has_read_cis", type: "checkbox", required: true, label: "I have received and read the Confidential Information Statement (CIS), including the description of the Kayan Natural Capital Protocol and Panoptes Exchange" },
+      { id: "has_investment_experience", type: "checkbox", required: true, label: "I have sufficient knowledge and experience in financial and business matters to evaluate the merits and risks of this investment, including the risks specific to commodity-protocol tokens and investment contract separation" },
       { id: "no_reliance_on_company", type: "checkbox", required: true, label: "I have not relied on any representation or warranty by the Company or its agents other than those contained in the offering documents" },
+    ],
+  },
+
+  // ── Section G: Commodity-Protocol Token Acknowledgments ──
+  {
+    id: "section_g",
+    title: "Section G — Commodity-Protocol Token Acknowledgments",
+    subtitle: "Understanding of the $KYN token structure and the Kayan Natural Capital Protocol",
+    description: "$KYN is the native token of the Kayan Natural Capital Protocol. It provides commodity redemption, protocol access, and governance functions. This section confirms your understanding of the token's design.",
+    fields: [
+      { id: "understands_not_equity", type: "checkbox", required: true, label: "I understand that $KYN does not represent equity, ownership, or any contractual interest in Kayan Holdings Ltd., KAYAN DIGITECH, or any affiliated entity. $KYN does not entitle holders to dividends, profit-sharing, or cash flow distributions." },
+      { id: "understands_commodity_redemption", type: "checkbox", required: true, label: "I understand that $KYN can be redeemed for independently verified commodity tokens (e.g., carbon credits, biodiversity credits) on the Panoptes Exchange at market-determined rates, and that redemption rates are set by exchange supply and demand, not by the issuer." },
+      { id: "understands_protocol_utility", type: "checkbox", required: true, label: "I understand that $KYN has protocol utility functions including validator staking, transaction fee payment, data access, and governance participation within the Kayan Natural Capital Protocol." },
+      { id: "understands_entity_separation", type: "checkbox", required: true, label: "I understand that Kayan Holdings Ltd. (concession operator), KAYAN DIGITECH (technology provider), the Kayan Foundation (protocol governance), and the Panoptes Exchange (trading venue) are separate entities with distinct roles. Post-separation, Kayan Holdings is a commodity supplier, not the issuer of $KYN." },
+      { id: "understands_commodity_risks", type: "checkbox", required: true, label: "I understand the risks specific to this token structure, including: (a) the commodity-protocol separation framework under SEC Release 2026-30 is novel for RWA tokens and has not been tested in enforcement actions; (b) commodity classification of carbon credits is expected but not definitively established; (c) genuine protocol decentralization requires real infrastructure and participants." },
     ],
   },
 ];
