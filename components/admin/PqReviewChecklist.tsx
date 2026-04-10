@@ -359,8 +359,8 @@ export function PqReviewChecklist({
           {/* Legacy fields (pre-restructuring PQ submissions) */}
           {d.section_e.understands_restricted_security && !d.section_e.understands_investment_contract && (
             <>
-              <BoolVal value={d.section_e.understands_restricted_security} label="[Legacy] Understands restricted security status" />
-              <BoolVal value={d.section_e.understands_transfer_conditions} label="[Legacy] Understands transfer conditions" />
+              <BoolVal value={!!d.section_e.understands_restricted_security} label="[Legacy] Understands restricted security status" />
+              <BoolVal value={!!d.section_e.understands_transfer_conditions} label="[Legacy] Understands transfer conditions" />
             </>
           )}
         </SectionReviewBlock>
